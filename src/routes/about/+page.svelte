@@ -6,7 +6,7 @@
 	let mathContainer: HTMLDivElement | undefined = $state();
 
 	const klFormula = `$$D_{\\mathrm{KL}}(P \\,\\|\\, Q) = \\sum_{i=1}^{k} P(x_i) \\, \\ln \\frac{P(x_i)}{Q(x_i)}$$`;
-	const scoreFormula = `$$\\text{Score} = \\underbrace{\\left\\lfloor \\frac{9000}{1 + 10 \\cdot D_{\\mathrm{KL}}} \\right\\rfloor}_{\\text{accuracy}} \\;+\\; \\underbrace{\\left\\lfloor \\frac{1000}{\\sqrt{N_{\\text{clicks}}}} \\right\\rfloor}_{\\text{efficiency bonus}}$$`;
+	const scoreFormula = `$$\\text{Score} = \\left\\lfloor \\frac{10000}{\\underbrace{(1 + 10 \\cdot D_{\\mathrm{KL}})}_{\\text{accuracy}} \\;\\cdot\\; \\underbrace{\\left(1 + \\dfrac{N}{100}\\right)}_{\\text{clicks}}} \\right\\rfloor$$`;
 
 	onMount(() => {
 		if (canvas) drawVisual();
@@ -183,7 +183,7 @@
 		</div>
 
 		<p>
-			The accuracy component (up to 9,000) decays smoothly as KL increases — no cliff, no level-specific tuning. The efficiency bonus (up to ~1,000) rewards placing fewer clicks with diminishing returns via {@html '\\(1/\\sqrt{n}\\)'}. KL divergence drives ~90% of your score; click count is a tiebreaker, not a punishment.
+			Both penalties are multiplicative — bad accuracy can't be rescued by few clicks, and many clicks can't rescue a poor match. KL divergence dominates: a 10x improvement in KL matters far more than halving your clicks. The click penalty is mild ({@html '\\(N/100\\)'}) so that strategy, not speed, determines the score.
 		</p>
 
 		<h2 class="pt-2 text-sm font-semibold text-white/55">Why it matters</h2>

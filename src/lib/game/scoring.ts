@@ -5,17 +5,12 @@ export interface ScoreResult {
 	kl: number;
 	clicks: number;
 	score: number;
-	accuracyScore: number;
-	efficiencyBonus: number;
+	accuracyPct: number;
 	histogramData: { binCenter: number; empirical: number; theoretical: number }[];
 }
 
 const KL_BINS = 20;
 const KL_EPSILON = 0.1;
-
-const ACCURACY_MAX = 9000;
-const ACCURACY_SENSITIVITY = 10;
-const EFFICIENCY_MAX = 1000;
 
 /**
  * Compute KL divergence KL(P_true || Q_empirical) using binned distributions.
@@ -72,36 +67,27 @@ export function computeKL(
 }
 
 /**
- * Score = floor(9000 / (1 + 10 * KL) + 1000 / sqrt(clicks))
+ * Score = floor(10000 / ((1 + 10*KL) * (1 + clicks/100)))
  *
- * Accuracy (up to 9000): smooth rational decay — no cliff, no level-specific tuning
- * Efficiency bonus (up to ~1000): diminishing returns on fewer clicks
+ * Multiplicative: bad accuracy can't be rescued by few clicks.
+ * KL dominates. Clicks add a mild penalty with diminishing returns.
+ * No level-specific parameters.
  */
 export function computeScore(kl: number, clicks: number): number {
-	const accuracy = ACCURACY_MAX / (1 + ACCURACY_SENSITIVITY * kl);
-	const efficiency = EFFICIENCY_MAX / Math.sqrt(clicks);
-	return Math.floor(accuracy + efficiency);
+	return Math.floor(10000 / ((1 + 10 * kl) * (1 + clicks / 100)));
 }
 
 export function getFullScore(samples: number[], level: Level): ScoreResult {
 	if (samples.length === 0) {
-		return {
-			kl: Infinity,
-			clicks: 0,
-			score: 0,
-			accuracyScore: 0,
-			efficiencyBonus: 0,
-			histogramData: []
-		};
+		return { kl: Infinity, clicks: 0, score: 0, accuracyPct: 0, histogramData: [] };
 	}
 
 	const { kl, histogramData } = computeKL(samples, level);
 	const clicks = samples.length;
-	const accuracyScore = Math.floor(ACCURACY_MAX / (1 + ACCURACY_SENSITIVITY * kl));
-	const efficiencyBonus = Math.floor(EFFICIENCY_MAX / Math.sqrt(clicks));
 	const score = computeScore(kl, clicks);
+	const accuracyPct = Math.round((1 / (1 + 10 * kl)) * 100);
 
-	return { kl, clicks, score, accuracyScore, efficiencyBonus, histogramData };
+	return { kl, clicks, score, accuracyPct, histogramData };
 }
 
 export function getDifficultyColor(difficulty: Level['difficulty']): string {

@@ -68,11 +68,7 @@
 		</div>
 		<div>
 			<div class="text-[9px] tracking-widest text-white/25 uppercase">Accuracy</div>
-			<div class="font-mono text-sm tabular-nums text-cyan-400">{scoreResult.accuracyScore.toLocaleString()}</div>
-		</div>
-		<div>
-			<div class="text-[9px] tracking-widest text-white/25 uppercase">Efficiency</div>
-			<div class="font-mono text-sm tabular-nums text-green-400">+{scoreResult.efficiencyBonus}</div>
+			<div class="font-mono text-sm tabular-nums text-cyan-400">{scoreResult.accuracyPct}%</div>
 		</div>
 		<div>
 			<div class="text-[9px] tracking-widest text-white/25 uppercase">Clicks</div>

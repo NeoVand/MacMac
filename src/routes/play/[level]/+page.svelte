@@ -15,7 +15,7 @@
 
 	let samples: number[] = $state([]);
 	let scoreResult: ScoreResult = $state({
-		kl: Infinity, clicks: 0, score: 0, accuracyScore: 0, efficiencyBonus: 0, histogramData: []
+		kl: Infinity, clicks: 0, score: 0, accuracyPct: 0, histogramData: []
 	});
 
 	let isSubmitting = $state(false);
@@ -26,7 +26,7 @@
 	$effect(() => {
 		void levelId;
 		samples = [];
-		scoreResult = { kl: Infinity, clicks: 0, score: 0, accuracyScore: 0, efficiencyBonus: 0, histogramData: [] };
+		scoreResult = { kl: Infinity, clicks: 0, score: 0, accuracyPct: 0, histogramData: [] };
 		showSubmitDialog = false;
 		submitMessage = '';
 		const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('macmac_player_name') : null;
@@ -44,12 +44,12 @@
 		samples = samples.slice(0, -1);
 		scoreResult = samples.length > 0
 			? getFullScore(samples, level)
-			: { kl: Infinity, clicks: 0, score: 0, accuracyScore: 0, efficiencyBonus: 0, histogramData: [] };
+			: { kl: Infinity, clicks: 0, score: 0, accuracyPct: 0, histogramData: [] };
 	}
 
 	function resetSamples() {
 		samples = [];
-		scoreResult = { kl: Infinity, clicks: 0, score: 0, accuracyScore: 0, efficiencyBonus: 0, histogramData: [] };
+		scoreResult = { kl: Infinity, clicks: 0, score: 0, accuracyPct: 0, histogramData: [] };
 		submitMessage = '';
 	}
 
@@ -238,38 +238,37 @@
 
 	<!-- Submit Dialog -->
 	{#if showSubmitDialog}
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
-			class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md"
+			class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
 			role="dialog"
 			aria-modal="true"
+			onclick={(e) => { if (e.target === e.currentTarget) showSubmitDialog = false; }}
+			onkeydown={(e) => e.key === 'Escape' && (showSubmitDialog = false)}
 		>
-			<!-- svelte-ignore a11y_no_static_element_interactions -->
-			<div
-				class="mx-4 w-full max-w-xs rounded-2xl bg-[#14142a]/95 p-6 shadow-2xl backdrop-blur-xl"
-				onkeydown={(e) => e.key === 'Escape' && (showSubmitDialog = false)}
-			>
-				<h3 class="mb-1 text-lg font-bold text-white">Submit Score</h3>
-				<p class="mb-4 text-xs text-white/30">
-					{scoreResult.score.toLocaleString()} pts · {scoreResult.clicks} clicks
+			<div class="mx-4 w-full max-w-xs rounded-2xl border border-white/[0.06] bg-game-bg p-6 shadow-2xl">
+				<h3 class="mb-1 text-base font-bold text-white" style="font-family: 'Space Grotesk', sans-serif;">Submit Score</h3>
+				<p class="mb-5 text-xs text-white/25">
+					{scoreResult.score.toLocaleString()} pts · {scoreResult.clicks} clicks · {scoreResult.accuracyPct}% accuracy
 				</p>
 				<input
 					type="text"
 					bind:value={playerName}
 					maxlength="24"
 					placeholder="Your name"
-					class="mb-4 w-full rounded-xl bg-white/5 px-4 py-3 text-sm text-white placeholder-white/20 outline-none ring-1 ring-white/10 transition focus:ring-game-cyan/40"
+					class="mb-5 w-full rounded-lg border border-white/[0.06] bg-white/[0.03] px-4 py-2.5 text-sm text-white placeholder-white/20 outline-none transition focus:border-game-cyan/30"
 				/>
 				<div class="flex gap-2">
 					<button
 						onclick={() => (showSubmitDialog = false)}
-						class="flex-1 rounded-xl bg-white/5 py-2.5 text-sm font-medium text-white/40 transition hover:bg-white/10"
+						class="flex-1 rounded-lg border border-white/[0.06] bg-white/[0.02] py-2.5 text-sm font-medium text-white/35 transition hover:border-white/10 hover:text-white/55"
 					>
 						Cancel
 					</button>
 					<button
 						onclick={submitScore}
 						disabled={!playerName.trim() || isSubmitting}
-						class="flex-1 rounded-xl bg-game-cyan py-2.5 text-sm font-bold text-game-bg transition hover:brightness-110 disabled:opacity-30"
+						class="flex-1 rounded-lg border border-game-cyan/30 bg-game-cyan/10 py-2.5 text-sm font-semibold text-game-cyan transition hover:border-game-cyan/50 hover:bg-game-cyan/15 disabled:opacity-25"
 					>
 						{isSubmitting ? 'Saving…' : 'Submit'}
 					</button>
