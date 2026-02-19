@@ -151,8 +151,24 @@
 		</div>
 	</div>
 
+	<!-- How it works — between buttons and levels -->
+	<div class="mt-12 flex w-full max-w-md justify-center gap-10 px-4 sm:mt-16">
+		<div class="text-center">
+			<div class="mb-1 text-lg font-bold text-white/10">1</div>
+			<div class="text-[11px] font-medium text-white/40">See the curve</div>
+		</div>
+		<div class="text-center">
+			<div class="mb-1 text-lg font-bold text-white/10">2</div>
+			<div class="text-[11px] font-medium text-white/40">Click to sample</div>
+		</div>
+		<div class="text-center">
+			<div class="mb-1 text-lg font-bold text-white/10">3</div>
+			<div class="text-[11px] font-medium text-white/40">Beat the board</div>
+		</div>
+	</div>
+
 	<!-- Levels with mini curve previews -->
-	<div class="mt-20 w-full max-w-3xl px-4 sm:mt-28">
+	<div class="mt-10 w-full max-w-3xl px-4 sm:mt-14">
 		<h2 class="mb-5 text-xs font-medium tracking-[0.2em] text-white/20 uppercase">Levels</h2>
 		<div class="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
 			{#each levels as level}
@@ -187,21 +203,5 @@
 		</div>
 	</div>
 
-	<!-- How to play -->
-	<div class="mt-16 mb-20 w-full max-w-lg px-4">
-		<div class="grid grid-cols-3 gap-6 text-center">
-			<div>
-				<div class="mb-1 text-2xl font-bold text-white/10">1</div>
-				<div class="text-xs font-medium text-white/45">See the curve</div>
-			</div>
-			<div>
-				<div class="mb-1 text-2xl font-bold text-white/10">2</div>
-				<div class="text-xs font-medium text-white/45">Click to sample</div>
-			</div>
-			<div>
-				<div class="mb-1 text-2xl font-bold text-white/10">3</div>
-				<div class="text-xs font-medium text-white/45">Beat the board</div>
-			</div>
-		</div>
-	</div>
+	<div class="mb-16"></div>
 </div>
