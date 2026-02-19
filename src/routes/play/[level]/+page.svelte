@@ -185,10 +185,10 @@
 				>−</button>
 				<button
 					onclick={() => gameCanvas?.resetZoom()}
-					class="flex h-7 w-7 items-center justify-center rounded-md bg-white/[0.04] text-[9px] text-white/30 transition hover:bg-white/[0.08] hover:text-white/60"
+					class="flex h-7 w-7 items-center justify-center rounded-md bg-white/[0.04] text-white/30 transition hover:bg-white/[0.08] hover:text-white/60"
 					aria-label="Reset view"
 				>
-					<svg viewBox="0 0 16 16" fill="currentColor" class="h-3 w-3"><path fill-rule="evenodd" d="M3.5 2A1.5 1.5 0 002 3.5v9A1.5 1.5 0 003.5 14h9a1.5 1.5 0 001.5-1.5v-9A1.5 1.5 0 0012.5 2h-9zm3.25 4a.75.75 0 00-.75.75v2.5a.75.75 0 001.5 0v-2.5A.75.75 0 006.75 6zm3.25.75a.75.75 0 00-1.5 0v2.5a.75.75 0 001.5 0v-2.5z" clip-rule="evenodd" /></svg>
+					<svg viewBox="0 0 20 20" fill="currentColor" class="h-3.5 w-3.5"><path fill-rule="evenodd" d="M4.755 10.059a7.5 7.5 0 0112.548-3.364l1.903 1.903h-3.183a.75.75 0 100 1.5h4.992a.75.75 0 00.75-.75V4.356a.75.75 0 00-1.5 0v3.18l-1.9-1.9A9 9 0 003.306 9.67a.75.75 0 101.45.388zm10.49-.117a7.5 7.5 0 01-12.548 3.364l-1.903-1.903h3.183a.75.75 0 100-1.5H0a.75.75 0 00-.75.75v4.992a.75.75 0 001.5 0v-3.18l1.9 1.9a9 9 0 0014.166-5.034.75.75 0 10-1.45-.389z" clip-rule="evenodd" /></svg>
 				</button>
 			</div>
 		</div>
