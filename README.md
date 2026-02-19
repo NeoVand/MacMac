@@ -1,42 +1,81 @@
-# sv
+# macmac
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+A game that builds intuition for [Markov Chain Monte Carlo](https://en.wikipedia.org/wiki/Markov_chain_Monte_Carlo) — one of the most important ideas in computational statistics and machine learning.
 
-## Creating a project
+![macmac](static/og-image.png)
 
-If you're seeing this, you've probably already done this step. Congrats!
+## How it works
 
-```sh
-# create a new project
-npx sv create my-app
+See a target probability density. Click to place samples. A kernel density estimate builds in real time to show how well your samples match the target shape.
+
+Your score balances two objectives:
+
+- **Accuracy** — measured by [KL divergence](https://en.wikipedia.org/wiki/Kullback%E2%80%93Leibler_divergence) between the true distribution and your empirical one
+- **Efficiency** — fewer clicks means a higher score
+
+The best players find the sweet spot: enough samples to capture the distribution's shape, placed strategically where the density matters most — without wasting clicks.
+
+## Levels
+
+8 levels from easy to expert:
+
+| # | Name | Difficulty | Description |
+|---|------|-----------|-------------|
+| 1 | The Bell Curve | Easy | Standard normal — a gentle start |
+| 2 | Flat Land | Easy | Uniform distribution |
+| 3 | The Slide | Easy | Exponential decay |
+| 4 | Lean Right | Medium | Skewed (chi-squared) |
+| 5 | Twin Peaks | Medium | Bimodal mixture |
+| 6 | The Comb | Hard | Trimodal mixture |
+| 7 | The Skyscraper | Hard | Needle spike + broad background |
+| 8 | The Gauntlet | Expert | Spikes + uniform plateau + broad modes |
+
+## Tech stack
+
+- [SvelteKit 5](https://svelte.dev/) + TypeScript
+- [Tailwind CSS v4](https://tailwindcss.com/)
+- [Drizzle ORM](https://orm.drizzle.team/) + [Turso](https://turso.tech/) (libSQL)
+- [KaTeX](https://katex.org/) for math rendering
+- Canvas API for game visualization
+- Deployed on [Vercel](https://vercel.com/)
+
+## Local development
+
+```bash
+git clone https://github.com/NeoVand/MacMac.git
+cd MacMac
+npm install
 ```
 
-To recreate this project with the same configuration:
+Copy `.env.example` to `.env` and fill in your values:
 
-```sh
-# recreate this project
-npx sv create --template minimal --types ts --add prettier eslint tailwindcss="plugins:typography" sveltekit-adapter="adapter:vercel" drizzle="database:sqlite+sqlite:libsql" better-auth="demo:password,github" mcp="ide:cursor+setup:remote" --install npm .
+```bash
+cp .env.example .env
 ```
 
-## Developing
+For local development with a file-based SQLite database, set:
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+```
+DATABASE_URL=file:local.db
+```
 
-```sh
+Push the database schema and start the dev server:
+
+```bash
+npx drizzle-kit push
 npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
 ```
 
-## Building
+## Deployment
 
-To create a production version of your app:
+The app is configured for Vercel with a Turso database:
 
-```sh
-npm run build
-```
+1. Create a free [Turso](https://turso.tech/) database
+2. Push to GitHub
+3. Import the repo in [Vercel](https://vercel.com/)
+4. Set environment variables: `DATABASE_URL`, `DATABASE_AUTH_TOKEN`, `ORIGIN`, `BETTER_AUTH_SECRET`
+5. Deploy
 
-You can preview the production build with `npm run preview`.
+## Created by
 
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+[Neo Mohsenvand](https://github.com/NeoVand)
