@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import type { Level } from '$lib/game/levels';
 	import { linspace } from '$lib/game/math';
 	import { computeKDE } from '$lib/game/kde';
@@ -28,6 +29,12 @@
 	let mouseX = $state(-1);
 	let mouseY = $state(-1);
 
+	// Animated KDE values — interpolated smoothly each frame
+	let displayKde: number[] = [];
+	let targetKde: number[] = [];
+	let animHandle = 0;
+
+	const LERP_SPEED = 0.12;
 	const PAD = { top: 30, right: 30, bottom: 44, left: 30 };
 
 	const pw = $derived(width - PAD.left - PAD.right);
@@ -51,6 +58,8 @@
 	$effect(() => {
 		level;
 		resetView();
+		displayKde = [];
+		targetKde = [];
 	});
 
 	$effect(() => {
@@ -66,19 +75,95 @@
 		return () => ro.disconnect();
 	});
 
+	// Recompute target KDE whenever samples change
 	$effect(() => {
-		if (!canvas) return;
-		void width;
-		void height;
 		void samples;
 		void viewXMin;
 		void viewXMax;
-		void mouseX;
-		draw();
+		updateTargetKde();
 	});
 
-	function draw() {
+	function updateTargetKde() {
+		if (pw <= 0) return;
+		const nPts = 400;
+		const xs = linspace(viewXMin, viewXMax, nPts);
+
+		if (samples.length === 0) {
+			targetKde = new Array(nPts).fill(0);
+		} else {
+			const pdfVals = xs.map((x) => level.pdf(x));
+			const pdfMax = Math.max(...pdfVals);
+			const rawKDE = computeKDE(samples, xs);
+			const kdeMax = Math.max(...rawKDE);
+			const scale = kdeMax > 0 ? pdfMax / kdeMax : 1;
+			targetKde = rawKDE.map((v) => v * scale);
+		}
+
+		// Initialize display if needed
+		if (displayKde.length !== targetKde.length) {
+			displayKde = new Array(targetKde.length).fill(0);
+		}
+	}
+
+	// Continuous animation loop
+	onMount(() => {
+		let running = true;
+
+		function frame() {
+			if (!running) return;
+
+			// Lerp display toward target
+			let needsUpdate = false;
+			for (let i = 0; i < displayKde.length; i++) {
+				const diff = targetKde[i] - displayKde[i];
+				if (Math.abs(diff) > 0.0001) {
+					displayKde[i] += diff * LERP_SPEED;
+					needsUpdate = true;
+				} else {
+					displayKde[i] = targetKde[i];
+				}
+			}
+
+			draw(needsUpdate);
+			animHandle = requestAnimationFrame(frame);
+		}
+
+		frame();
+
+		return () => {
+			running = false;
+			cancelAnimationFrame(animHandle);
+		};
+	});
+
+	// Track last drawn state to avoid redundant redraws
+	let lastDrawnWidth = 0;
+	let lastDrawnHeight = 0;
+	let lastDrawnMouseX = -1;
+	let lastDrawnViewMin = 0;
+	let lastDrawnViewMax = 0;
+	let lastDrawnSamplesLen = 0;
+
+	function draw(kdeAnimating: boolean) {
 		if (!canvas || pw <= 0 || ph <= 0) return;
+
+		const stateChanged =
+			width !== lastDrawnWidth ||
+			height !== lastDrawnHeight ||
+			mouseX !== lastDrawnMouseX ||
+			viewXMin !== lastDrawnViewMin ||
+			viewXMax !== lastDrawnViewMax ||
+			samples.length !== lastDrawnSamplesLen;
+
+		if (!kdeAnimating && !stateChanged) return;
+
+		lastDrawnWidth = width;
+		lastDrawnHeight = height;
+		lastDrawnMouseX = mouseX;
+		lastDrawnViewMin = viewXMin;
+		lastDrawnViewMax = viewXMax;
+		lastDrawnSamplesLen = samples.length;
+
 		const ctx = canvas.getContext('2d');
 		if (!ctx) return;
 
@@ -88,14 +173,12 @@
 		ctx.scale(dpr, dpr);
 		ctx.clearRect(0, 0, width, height);
 
-		// Background
 		const bg = ctx.createRadialGradient(width / 2, height * 0.35, 0, width / 2, height * 0.35, width * 0.8);
 		bg.addColorStop(0, '#111130');
 		bg.addColorStop(1, '#08081a');
 		ctx.fillStyle = bg;
 		ctx.fillRect(0, 0, width, height);
 
-		// PDF
 		const nPts = 400;
 		const xs = linspace(viewXMin, viewXMax, nPts);
 		const pdfVals = xs.map((x) => level.pdf(x));
@@ -107,16 +190,14 @@
 
 		drawGrid(ctx, yMax, baseY);
 
-		// KDE overlay — scaled so its peak matches the PDF peak
-		if (samples.length >= 1) {
-			drawKDE(ctx, xs, pdfMax, yMax, baseY);
+		if (displayKde.length === nPts) {
+			drawKDE(ctx, xs, yMax, baseY);
 		}
 
 		drawPDF(ctx, xs, pdfVals, yMax, baseY);
 		drawSamples(ctx, baseY);
 		drawAxisLabels(ctx, baseY);
 
-		// Only draw crosshair near the bottom half / axis area
 		const axisZoneTop = baseY - ph * 0.4;
 		if (mouseX >= PAD.left && mouseX <= PAD.left + pw && mouseY >= axisZoneTop && mouseY <= height) {
 			drawCrosshair(ctx, yMax, baseY);
@@ -145,14 +226,7 @@
 		ctx.stroke();
 	}
 
-	function drawPDF(
-		ctx: CanvasRenderingContext2D,
-		xs: number[],
-		vals: number[],
-		yMax: number,
-		baseY: number
-	) {
-		// Glow
+	function drawPDF(ctx: CanvasRenderingContext2D, xs: number[], vals: number[], yMax: number, baseY: number) {
 		ctx.beginPath();
 		ctx.strokeStyle = 'rgba(0, 200, 255, 0.12)';
 		ctx.lineWidth = 10;
@@ -163,7 +237,6 @@
 		}
 		ctx.stroke();
 
-		// Main curve
 		ctx.beginPath();
 		ctx.strokeStyle = '#00ccff';
 		ctx.lineWidth = 2.5;
@@ -174,7 +247,6 @@
 		}
 		ctx.stroke();
 
-		// Fill under
 		ctx.lineTo(toSX(xs[xs.length - 1]), baseY);
 		ctx.lineTo(toSX(xs[0]), baseY);
 		ctx.closePath();
@@ -185,25 +257,11 @@
 		ctx.fill();
 	}
 
-	function drawKDE(
-		ctx: CanvasRenderingContext2D,
-		xs: number[],
-		pdfMax: number,
-		yMax: number,
-		baseY: number
-	) {
-		const rawKDE = computeKDE(samples, xs);
-		const kdeMax = Math.max(...rawKDE);
-
-		// Scale KDE so its peak matches the PDF peak — pure shape comparison
-		const scale = kdeMax > 0 ? pdfMax / kdeMax : 1;
-		const kdeVals = rawKDE.map((v) => v * scale);
-
-		// Fill
+	function drawKDE(ctx: CanvasRenderingContext2D, xs: number[], yMax: number, baseY: number) {
 		ctx.beginPath();
 		for (let i = 0; i < xs.length; i++) {
 			const sx = toSX(xs[i]);
-			const sy = toSY(kdeVals[i], yMax);
+			const sy = toSY(displayKde[i], yMax);
 			i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
 		}
 		ctx.lineTo(toSX(xs[xs.length - 1]), baseY);
@@ -215,13 +273,12 @@
 		ctx.fillStyle = g;
 		ctx.fill();
 
-		// Curve
 		ctx.beginPath();
 		ctx.strokeStyle = 'rgba(255, 150, 50, 0.75)';
 		ctx.lineWidth = 2;
 		for (let i = 0; i < xs.length; i++) {
 			const sx = toSX(xs[i]);
-			const sy = toSY(kdeVals[i], yMax);
+			const sy = toSY(displayKde[i], yMax);
 			i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
 		}
 		ctx.stroke();
@@ -232,13 +289,11 @@
 			const sx = toSX(s);
 			if (sx < PAD.left || sx > PAD.left + pw) continue;
 
-			// Outer glow
 			ctx.fillStyle = 'rgba(255, 150, 50, 0.1)';
 			ctx.beginPath();
 			ctx.arc(sx, baseY, 10, 0, Math.PI * 2);
 			ctx.fill();
 
-			// Dot — centered on the axis line, semi-transparent for overlap visibility
 			ctx.fillStyle = 'rgba(255, 153, 51, 0.65)';
 			ctx.beginPath();
 			ctx.arc(sx, baseY, 5, 0, Math.PI * 2);
@@ -263,7 +318,6 @@
 	function drawCrosshair(ctx: CanvasRenderingContext2D, yMax: number, baseY: number) {
 		const dataX = toDX(mouseX);
 
-		// Subtle vertical line from axis down only
 		ctx.strokeStyle = 'rgba(255,255,255,0.08)';
 		ctx.lineWidth = 1;
 		ctx.setLineDash([2, 4]);
@@ -273,7 +327,6 @@
 		ctx.stroke();
 		ctx.setLineDash([]);
 
-		// Click target dot on axis
 		ctx.fillStyle = 'rgba(255,255,255,0.7)';
 		ctx.beginPath();
 		ctx.arc(mouseX, baseY, 5, 0, Math.PI * 2);
@@ -283,7 +336,6 @@
 		ctx.arc(mouseX, baseY, 10, 0, Math.PI * 2);
 		ctx.fill();
 
-		// Small label
 		ctx.fillStyle = 'rgba(255,255,255,0.35)';
 		ctx.font = '9px ui-monospace, monospace';
 		ctx.textAlign = 'center';

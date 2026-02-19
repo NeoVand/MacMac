@@ -1,11 +1,8 @@
 /**
  * Kernel Density Estimation with Gaussian kernel.
- * Bandwidth uses Silverman's rule of thumb.
+ * Bandwidth uses Silverman's rule, with narrow defaults for small n.
  */
-export function computeKDE(
-	samples: number[],
-	evalPoints: number[]
-): number[] {
+export function computeKDE(samples: number[], evalPoints: number[]): number[] {
 	const n = samples.length;
 	if (n === 0) return evalPoints.map(() => 0);
 
@@ -25,7 +22,8 @@ export function computeKDE(
 
 function silvermanBandwidth(samples: number[]): number {
 	const n = samples.length;
-	if (n < 2) return 1;
+	if (n === 1) return 0.2;
+	if (n <= 3) return 0.25;
 
 	const mean = samples.reduce((a, b) => a + b, 0) / n;
 	const variance = samples.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1);
@@ -37,6 +35,5 @@ function silvermanBandwidth(samples: number[]): number {
 	const iqr = q3 - q1;
 
 	const spread = Math.min(std, iqr / 1.34);
-	// Silverman's rule: h = 0.9 * spread * n^(-1/5)
-	return Math.max(0.05, 0.9 * (spread || std || 1) * Math.pow(n, -0.2));
+	return Math.max(0.05, 0.9 * (spread || std || 0.3) * Math.pow(n, -0.2));
 }
