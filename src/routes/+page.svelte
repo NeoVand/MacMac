@@ -143,21 +143,21 @@
 		<div class="relative z-10 flex gap-2.5">
 			<a
 				href="/play/1"
-				class="flex h-10 items-center gap-2 rounded-lg border border-game-cyan/30 bg-game-cyan/10 px-5 text-[13px] font-semibold text-game-cyan transition hover:border-game-cyan/50 hover:bg-game-cyan/15"
+				class="flex h-10 items-center gap-2 rounded-lg border border-game-cyan/30 bg-game-cyan/10 px-5 text-[13px] font-semibold text-game-cyan backdrop-blur-md transition hover:border-game-cyan/50 hover:bg-game-cyan/15"
 			>
 				<svg viewBox="0 0 20 20" fill="currentColor" class="h-3.5 w-3.5"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg>
 				Play
 			</a>
 			<a
 				href="/leaderboard"
-				class="flex h-10 items-center gap-2 rounded-lg border border-yellow-500/20 bg-yellow-500/[0.06] px-5 text-[13px] font-medium text-yellow-400/70 transition hover:border-yellow-500/30 hover:bg-yellow-500/10 hover:text-yellow-400/90"
+				class="flex h-10 items-center gap-2 rounded-lg border border-yellow-500/20 bg-yellow-500/[0.06] px-5 text-[13px] font-medium text-yellow-400/70 backdrop-blur-md transition hover:border-yellow-500/30 hover:bg-yellow-500/10 hover:text-yellow-400/90"
 			>
 				<svg viewBox="0 0 24 24" fill="currentColor" class="h-3.5 w-3.5 text-yellow-500/70"><path d="M2 4l3 12h14l3-12-5 4-5-6-5 6-5-4zm3 14h14v2H5v-2z" /></svg>
 				Leaderboard
 			</a>
 			<a
 				href="/about"
-				class="flex h-10 items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-5 text-[13px] font-medium text-white/50 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white/70"
+				class="flex h-10 items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-5 text-[13px] font-medium text-white/50 backdrop-blur-md transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white/70"
 			>
 				<svg viewBox="0 0 20 20" fill="currentColor" class="h-3.5 w-3.5"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd" /></svg>
 				About
