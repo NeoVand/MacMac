@@ -124,7 +124,7 @@
 	<meta name="description" content="Match probability distributions with the fewest clicks. A game about sampling, intuition, and efficiency." />
 	<meta property="og:title" content="macmac — The Sampling Game" />
 	<meta property="og:description" content="Match probability distributions with the fewest clicks. A game about MCMC intuition." />
-	<meta property="og:url" content="https://mac-mac.vercel.app" />
+	<meta property="og:url" content="https://macmac-gilt.vercel.app" />
 </svelte:head>
 
 <div class="flex min-h-dvh flex-col items-center">
