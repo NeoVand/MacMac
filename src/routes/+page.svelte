@@ -56,38 +56,53 @@
 		const toX = (x: number) => padX + ((x - xMin) / (xMax - xMin)) * pw;
 		const toY = (y: number) => padTop + ph - (y / yMax) * ph;
 
-		const pathPts: [number, number][] = pts.map((x, i) => [toX(x), toY(vals[i])]);
-
-		ctx.beginPath();
-		ctx.moveTo(pathPts[0][0], pathPts[0][1]);
-		for (let i = 1; i < pathPts.length; i++) ctx.lineTo(pathPts[i][0], pathPts[i][1]);
-		ctx.lineTo(toX(xMax), toY(0));
-		ctx.lineTo(toX(xMin), toY(0));
-		ctx.closePath();
-		const fillGrad = ctx.createLinearGradient(0, padTop, 0, padTop + ph);
-		fillGrad.addColorStop(0, 'rgba(0, 200, 255, 0.12)');
-		fillGrad.addColorStop(0.5, 'rgba(120, 60, 230, 0.06)');
-		fillGrad.addColorStop(1, 'rgba(0, 200, 255, 0.0)');
-		ctx.fillStyle = fillGrad;
-		ctx.fill();
-
-		ctx.beginPath();
-		ctx.moveTo(pathPts[0][0], pathPts[0][1]);
-		for (let i = 1; i < pathPts.length; i++) ctx.lineTo(pathPts[i][0], pathPts[i][1]);
-		ctx.strokeStyle = 'rgba(0, 200, 255, 0.08)';
-		ctx.lineWidth = 12;
-		ctx.stroke();
-
-		ctx.beginPath();
-		ctx.moveTo(pathPts[0][0], pathPts[0][1]);
-		for (let i = 1; i < pathPts.length; i++) ctx.lineTo(pathPts[i][0], pathPts[i][1]);
+		// Draw a family of curves — scaled copies of the same shape
+		const scales = [0.55, 0.7, 0.85, 1.0];
 		const strokeGrad = ctx.createLinearGradient(toX(xMin), 0, toX(xMax), 0);
 		strokeGrad.addColorStop(0, '#00ccff');
 		strokeGrad.addColorStop(0.5, '#a855f7');
 		strokeGrad.addColorStop(1, '#00ccff');
-		ctx.strokeStyle = strokeGrad;
-		ctx.lineWidth = 2.5;
-		ctx.stroke();
+
+		for (let si = 0; si < scales.length; si++) {
+			const s = scales[si];
+			const alpha = si === scales.length - 1 ? 1.0 : 0.12 + si * 0.08;
+			const lineW = si === scales.length - 1 ? 2.5 : 1;
+			const scaledPts: [number, number][] = pts.map((x, i) => [toX(x), toY(vals[i] * s)]);
+
+			// Fill only for the main (largest) curve
+			if (si === scales.length - 1) {
+				ctx.beginPath();
+				ctx.moveTo(scaledPts[0][0], scaledPts[0][1]);
+				for (let i = 1; i < scaledPts.length; i++) ctx.lineTo(scaledPts[i][0], scaledPts[i][1]);
+				ctx.lineTo(toX(xMax), toY(0));
+				ctx.lineTo(toX(xMin), toY(0));
+				ctx.closePath();
+				const fillGrad = ctx.createLinearGradient(0, padTop, 0, padTop + ph);
+				fillGrad.addColorStop(0, 'rgba(0, 200, 255, 0.1)');
+				fillGrad.addColorStop(0.5, 'rgba(120, 60, 230, 0.05)');
+				fillGrad.addColorStop(1, 'rgba(0, 200, 255, 0.0)');
+				ctx.fillStyle = fillGrad;
+				ctx.fill();
+
+				// Glow for main curve
+				ctx.beginPath();
+				ctx.moveTo(scaledPts[0][0], scaledPts[0][1]);
+				for (let i = 1; i < scaledPts.length; i++) ctx.lineTo(scaledPts[i][0], scaledPts[i][1]);
+				ctx.strokeStyle = 'rgba(0, 200, 255, 0.07)';
+				ctx.lineWidth = 12;
+				ctx.stroke();
+			}
+
+			// Stroke
+			ctx.beginPath();
+			ctx.moveTo(scaledPts[0][0], scaledPts[0][1]);
+			for (let i = 1; i < scaledPts.length; i++) ctx.lineTo(scaledPts[i][0], scaledPts[i][1]);
+			ctx.globalAlpha = alpha;
+			ctx.strokeStyle = strokeGrad;
+			ctx.lineWidth = lineW;
+			ctx.stroke();
+			ctx.globalAlpha = 1;
+		}
 	}
 
 	function levelSvgPath(level: typeof levels[0], w: number, h: number): string {
@@ -135,9 +150,9 @@
 			</a>
 			<a
 				href="/leaderboard"
-				class="flex h-10 items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-5 text-[13px] font-medium text-white/50 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white/70"
+				class="flex h-10 items-center gap-2 rounded-lg border border-yellow-500/20 bg-yellow-500/[0.06] px-5 text-[13px] font-medium text-yellow-400/70 transition hover:border-yellow-500/30 hover:bg-yellow-500/10 hover:text-yellow-400/90"
 			>
-				<svg viewBox="0 0 24 24" fill="currentColor" class="h-3.5 w-3.5"><path d="M2 4l3 12h14l3-12-5 4-5-6-5 6-5-4zm3 14h14v2H5v-2z" /></svg>
+				<svg viewBox="0 0 24 24" fill="currentColor" class="h-3.5 w-3.5 text-yellow-500/70"><path d="M2 4l3 12h14l3-12-5 4-5-6-5 6-5-4zm3 14h14v2H5v-2z" /></svg>
 				Leaderboard
 			</a>
 			<a

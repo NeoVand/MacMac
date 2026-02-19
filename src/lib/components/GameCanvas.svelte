@@ -232,18 +232,16 @@
 			const sx = toSX(s);
 			if (sx < PAD.left || sx > PAD.left + pw) continue;
 
-			// Tick
-			ctx.strokeStyle = 'rgba(255, 150, 50, 0.35)';
-			ctx.lineWidth = 1;
+			// Outer glow
+			ctx.fillStyle = 'rgba(255, 150, 50, 0.1)';
 			ctx.beginPath();
-			ctx.moveTo(sx, baseY - 3);
-			ctx.lineTo(sx, baseY + 8);
-			ctx.stroke();
+			ctx.arc(sx, baseY, 10, 0, Math.PI * 2);
+			ctx.fill();
 
-			// Dot
-			ctx.fillStyle = '#ff9933';
+			// Dot — centered on the axis line, semi-transparent for overlap visibility
+			ctx.fillStyle = 'rgba(255, 153, 51, 0.65)';
 			ctx.beginPath();
-			ctx.arc(sx, baseY + 3, 3.5, 0, Math.PI * 2);
+			ctx.arc(sx, baseY, 5, 0, Math.PI * 2);
 			ctx.fill();
 		}
 	}
