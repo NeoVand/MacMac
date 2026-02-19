@@ -91,12 +91,7 @@
 		if (samples.length === 0) {
 			targetKde = new Array(nPts).fill(0);
 		} else {
-			const pdfVals = xs.map((x) => level.pdf(x));
-			const pdfMax = Math.max(...pdfVals);
-			const rawKDE = computeKDE(samples, xs);
-			const kdeMax = Math.max(...rawKDE);
-			const scale = kdeMax > 0 ? pdfMax / kdeMax : 1;
-			targetKde = rawKDE.map((v) => v * scale);
+			targetKde = computeKDE(samples, xs);
 		}
 
 		// Initialize display if needed
@@ -240,10 +235,13 @@
 	}
 
 	function drawKDE(ctx: CanvasRenderingContext2D, xs: number[], yMax: number, baseY: number) {
+		// Clamp to yMax so KDE that exceeds PDF doesn't fly off screen
+		const clamped = displayKde.map((v) => Math.min(v, yMax * 0.99));
+
 		ctx.beginPath();
 		for (let i = 0; i < xs.length; i++) {
 			const sx = toSX(xs[i]);
-			const sy = toSY(displayKde[i], yMax);
+			const sy = toSY(clamped[i], yMax);
 			i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
 		}
 		ctx.lineTo(toSX(xs[xs.length - 1]), baseY);
@@ -260,7 +258,7 @@
 		ctx.lineWidth = 2;
 		for (let i = 0; i < xs.length; i++) {
 			const sx = toSX(xs[i]);
-			const sy = toSY(displayKde[i], yMax);
+			const sy = toSY(clamped[i], yMax);
 			i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
 		}
 		ctx.stroke();
