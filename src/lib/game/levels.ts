@@ -96,16 +96,14 @@ export const levels: Level[] = [
 	},
 	{
 		id: 7,
-		name: 'Choppy Waters',
-		subtitle: 'Five peaks, no mercy',
+		name: 'The Skyscraper',
+		subtitle: 'One giant among dwarfs',
 		difficulty: 'hard',
 		pdf: (x) =>
 			mixturePdf(x, [
-				{ weight: 0.15, pdf: (v) => gaussian(v, -4, 0.4) },
-				{ weight: 0.25, pdf: (v) => gaussian(v, -1.5, 0.5) },
-				{ weight: 0.2, pdf: (v) => gaussian(v, 0.5, 0.3) },
-				{ weight: 0.25, pdf: (v) => gaussian(v, 2.5, 0.45) },
-				{ weight: 0.15, pdf: (v) => gaussian(v, 5, 0.35) }
+				{ weight: 0.6, pdf: (v) => gaussian(v, 0, 0.2) },
+				{ weight: 0.25, pdf: (v) => gaussian(v, -2, 1.5) },
+				{ weight: 0.15, pdf: (v) => gaussian(v, 3, 1.0) }
 			]),
 		xRange: [-6, 7],
 		klWeight: 3,
@@ -120,15 +118,13 @@ export const levels: Level[] = [
 		difficulty: 'expert',
 		pdf: (x) =>
 			mixturePdf(x, [
-				{ weight: 0.1, pdf: (v) => gaussian(v, -5, 0.3) },
-				{ weight: 0.15, pdf: (v) => gaussian(v, -3, 0.7) },
-				{ weight: 0.05, pdf: (v) => gaussian(v, -1, 0.2) },
-				{ weight: 0.25, pdf: (v) => gaussian(v, 0.5, 0.9) },
-				{ weight: 0.1, pdf: (v) => gaussian(v, 2, 0.25) },
-				{ weight: 0.2, pdf: (v) => gaussian(v, 3.5, 0.5) },
-				{ weight: 0.15, pdf: (v) => gaussian(v, 6, 0.4) }
+				{ weight: 0.08, pdf: (v) => gaussian(v, -6, 0.25) },
+				{ weight: 0.22, pdf: (v) => gaussian(v, -3, 1.2) },
+				{ weight: 0.35, pdf: (v) => gaussian(v, 0, 0.15) },
+				{ weight: 0.15, pdf: (v) => uniform(v, 2, 5) },
+				{ weight: 0.2, pdf: (v) => gaussian(v, 7, 0.6) }
 			]),
-		xRange: [-7, 8],
+		xRange: [-8, 9],
 		klWeight: 2.5,
 
 		par: 65,
