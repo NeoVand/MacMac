@@ -57,7 +57,7 @@
 		const toY = (y: number) => padTop + ph - (y / yMax) * ph;
 
 		// Draw a family of curves — scaled copies of the same shape
-		const scales = [0.55, 0.7, 0.85, 1.0];
+		const scales = [0.15, 0.22, 0.29, 0.36, 0.43, 0.50, 0.57, 0.64, 0.72, 0.80, 0.90, 1.0];
 		const strokeGrad = ctx.createLinearGradient(toX(xMin), 0, toX(xMax), 0);
 		strokeGrad.addColorStop(0, '#00ccff');
 		strokeGrad.addColorStop(0.5, '#a855f7');
@@ -65,8 +65,8 @@
 
 		for (let si = 0; si < scales.length; si++) {
 			const s = scales[si];
-			const alpha = si === scales.length - 1 ? 1.0 : 0.25 + si * 0.15;
-			const lineW = si === scales.length - 1 ? 2.5 : 1.2;
+			const alpha = si === scales.length - 1 ? 1.0 : 0.12 + (si / (scales.length - 1)) * 0.5;
+			const lineW = si === scales.length - 1 ? 2.5 : 0.8 + (si / (scales.length - 1)) * 0.6;
 			const scaledPts: [number, number][] = pts.map((x, i) => [toX(x), toY(vals[i] * s)]);
 
 			// Fill only for the main (largest) curve
