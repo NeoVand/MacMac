@@ -38,11 +38,9 @@
 		const pw = w - padX * 2;
 		const ph = h - padTop - padBot;
 
-		// 3 asymmetric moving modes
 		const m1 = -2.2 + Math.sin(t * 0.4) * 0.6;
 		const m2 = 0.3 + Math.sin(t * 0.7 + 1.5) * 0.4;
 		const m3 = 2.5 + Math.cos(t * 0.3 + 3) * 0.5;
-
 		const s1 = 0.55 + Math.sin(t * 0.5) * 0.1;
 		const s2 = 0.8 + Math.cos(t * 0.6) * 0.15;
 		const s3 = 0.45 + Math.sin(t * 0.8 + 2) * 0.08;
@@ -58,33 +56,28 @@
 		const toX = (x: number) => padX + ((x - xMin) / (xMax - xMin)) * pw;
 		const toY = (y: number) => padTop + ph - (y / yMax) * ph;
 
-		// Build path
 		const pathPts: [number, number][] = pts.map((x, i) => [toX(x), toY(vals[i])]);
 
-		// Gradient fill under curve
 		ctx.beginPath();
 		ctx.moveTo(pathPts[0][0], pathPts[0][1]);
 		for (let i = 1; i < pathPts.length; i++) ctx.lineTo(pathPts[i][0], pathPts[i][1]);
 		ctx.lineTo(toX(xMax), toY(0));
 		ctx.lineTo(toX(xMin), toY(0));
 		ctx.closePath();
-
 		const fillGrad = ctx.createLinearGradient(0, padTop, 0, padTop + ph);
-		fillGrad.addColorStop(0, 'rgba(0, 200, 255, 0.15)');
-		fillGrad.addColorStop(0.5, 'rgba(120, 60, 230, 0.08)');
+		fillGrad.addColorStop(0, 'rgba(0, 200, 255, 0.12)');
+		fillGrad.addColorStop(0.5, 'rgba(120, 60, 230, 0.06)');
 		fillGrad.addColorStop(1, 'rgba(0, 200, 255, 0.0)');
 		ctx.fillStyle = fillGrad;
 		ctx.fill();
 
-		// Glow
 		ctx.beginPath();
 		ctx.moveTo(pathPts[0][0], pathPts[0][1]);
 		for (let i = 1; i < pathPts.length; i++) ctx.lineTo(pathPts[i][0], pathPts[i][1]);
-		ctx.strokeStyle = 'rgba(0, 200, 255, 0.1)';
+		ctx.strokeStyle = 'rgba(0, 200, 255, 0.08)';
 		ctx.lineWidth = 12;
 		ctx.stroke();
 
-		// Gradient stroke using two overlapping strokes
 		ctx.beginPath();
 		ctx.moveTo(pathPts[0][0], pathPts[0][1]);
 		for (let i = 1; i < pathPts.length; i++) ctx.lineTo(pathPts[i][0], pathPts[i][1]);
@@ -97,7 +90,6 @@
 		ctx.stroke();
 	}
 
-	// Pre-compute mini SVG paths for each level
 	function levelSvgPath(level: typeof levels[0], w: number, h: number): string {
 		const pad = 4;
 		const xs = linspace(level.xRange[0], level.xRange[1], 60);
@@ -119,89 +111,87 @@
 
 <div class="flex min-h-dvh flex-col items-center">
 	<!-- Hero -->
-	<div class="relative flex w-full max-w-2xl flex-col items-center px-4 pt-16 sm:pt-24">
+	<div class="relative flex w-full max-w-2xl flex-col items-center px-4 pt-14 sm:pt-20">
 		<canvas
 			bind:this={heroCanvas}
 			class="absolute inset-0 h-full w-full opacity-50"
 			style="pointer-events: none;"
 		></canvas>
 
-		<h1 class="relative z-10 mb-3 text-center text-6xl font-extrabold tracking-tighter text-white sm:text-8xl">
-			Mac<span class="bg-gradient-to-r from-game-cyan to-purple-400 bg-clip-text text-transparent">Mac</span>
+		<h1 class="relative z-10 mb-2 text-center" style="font-family: 'Space Grotesk', sans-serif;">
+			<span class="text-6xl tracking-tight text-white/90 sm:text-8xl">mac</span><span class="bg-gradient-to-r from-game-cyan to-purple-400 bg-clip-text text-6xl tracking-tight text-transparent sm:text-8xl">mac</span>
 		</h1>
-		<p class="relative z-10 mb-8 max-w-xs text-center text-sm leading-relaxed text-white/35 sm:text-base">
+		<p class="relative z-10 mb-7 max-w-xs text-center text-[13px] leading-relaxed text-white/30 sm:text-sm">
 			See a curve. Click to sample. Match the shape with the fewest clicks.
 		</p>
 
-		<div class="relative z-10 flex gap-3">
+		<div class="relative z-10 flex gap-2.5">
 			<a
 				href="/play/1"
-				class="flex h-12 items-center gap-2 rounded-xl bg-gradient-to-r from-game-cyan to-cyan-400 px-7 text-sm font-bold text-game-bg shadow-lg shadow-game-cyan/20 transition hover:scale-105 hover:shadow-game-cyan/30 active:scale-95"
+				class="flex h-10 items-center gap-2 rounded-lg border border-game-cyan/30 bg-game-cyan/10 px-5 text-[13px] font-semibold text-game-cyan transition hover:border-game-cyan/50 hover:bg-game-cyan/15"
 			>
-				<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg>
+				<svg viewBox="0 0 20 20" fill="currentColor" class="h-3.5 w-3.5"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg>
 				Play
 			</a>
 			<a
 				href="/leaderboard"
-				class="flex h-12 items-center gap-2 rounded-xl bg-white/[0.06] px-6 text-sm font-medium text-white/60 transition hover:bg-white/10 hover:text-white/80"
+				class="flex h-10 items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-5 text-[13px] font-medium text-white/50 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white/70"
 			>
-				<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M10 1a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0110 1zM5.05 3.05a.75.75 0 011.06 0l1.062 1.06A.75.75 0 116.11 5.173L5.05 4.11a.75.75 0 010-1.06zm9.9 0a.75.75 0 010 1.06l-1.06 1.062a.75.75 0 01-1.062-1.061l1.061-1.06a.75.75 0 011.06 0zM10 7a3 3 0 100 6 3 3 0 000-6zm-6.25 3a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5H3a.75.75 0 01.75.75zm14 0a.75.75 0 01-.75.75h-1.5a.75.75 0 010-1.5H17a.75.75 0 01.75.75zm-11.89 5.828a.75.75 0 011.06-1.06l1.061 1.06a.75.75 0 01-1.06 1.061l-1.06-1.06zm8.768-1.06a.75.75 0 011.06 0l1.061 1.06a.75.75 0 11-1.06 1.061l-1.06-1.06a.75.75 0 010-1.06zM10 16a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0110 16z" clip-rule="evenodd" /></svg>
+				<svg viewBox="0 0 20 20" fill="currentColor" class="h-3.5 w-3.5"><path d="M15.98 1.804a1 1 0 00-1.96 0l-.24 1.192a1 1 0 01-.784.785l-1.192.238a1 1 0 000 1.962l1.192.238a1 1 0 01.785.785l.238 1.192a1 1 0 001.962 0l.238-1.192a1 1 0 01.785-.785l1.192-.238a1 1 0 000-1.962l-1.192-.238a1 1 0 01-.785-.785l-.238-1.192zM6.949 5.684a1 1 0 00-1.898 0l-.683 2.051a1 1 0 01-.633.633l-2.051.683a1 1 0 000 1.898l2.051.684a1 1 0 01.633.632l.683 2.051a1 1 0 001.898 0l.683-2.051a1 1 0 01.633-.633l2.051-.683a1 1 0 000-1.898l-2.051-.683a1 1 0 01-.633-.633L6.95 5.684zM13.949 13.684a1 1 0 00-1.898 0l-.184.551a1 1 0 01-.632.633l-.551.183a1 1 0 000 1.898l.551.183a1 1 0 01.633.633l.183.551a1 1 0 001.898 0l.184-.551a1 1 0 01.632-.633l.551-.183a1 1 0 000-1.898l-.551-.184a1 1 0 01-.633-.632l-.183-.551z" /></svg>
 				Leaderboard
+			</a>
+			<a
+				href="/about"
+				class="flex h-10 items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-5 text-[13px] font-medium text-white/50 transition hover:border-white/20 hover:bg-white/[0.06] hover:text-white/70"
+			>
+				<svg viewBox="0 0 20 20" fill="currentColor" class="h-3.5 w-3.5"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd" /></svg>
+				About
 			</a>
 		</div>
 	</div>
 
-	<!-- How it works — between buttons and levels -->
-	<div class="mt-12 flex w-full max-w-md justify-center gap-10 px-4 sm:mt-16">
+	<!-- Steps -->
+	<div class="mt-10 flex w-full max-w-sm justify-center gap-8 px-4 sm:mt-12">
 		<div class="text-center">
-			<div class="mb-1 text-lg font-bold text-white/10">1</div>
-			<div class="text-[11px] font-medium text-white/40">See the curve</div>
+			<div class="mb-0.5 font-mono text-sm text-white/10">01</div>
+			<div class="text-[11px] text-white/30">See the curve</div>
 		</div>
 		<div class="text-center">
-			<div class="mb-1 text-lg font-bold text-white/10">2</div>
-			<div class="text-[11px] font-medium text-white/40">Click to sample</div>
+			<div class="mb-0.5 font-mono text-sm text-white/10">02</div>
+			<div class="text-[11px] text-white/30">Click to sample</div>
 		</div>
 		<div class="text-center">
-			<div class="mb-1 text-lg font-bold text-white/10">3</div>
-			<div class="text-[11px] font-medium text-white/40">Beat the board</div>
+			<div class="mb-0.5 font-mono text-sm text-white/10">03</div>
+			<div class="text-[11px] text-white/30">Beat the board</div>
 		</div>
 	</div>
 
-	<!-- Levels with mini curve previews -->
-	<div class="mt-10 w-full max-w-3xl px-4 sm:mt-14">
-		<h2 class="mb-5 text-xs font-medium tracking-[0.2em] text-white/20 uppercase">Levels</h2>
-		<div class="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+	<!-- Levels -->
+	<div class="mt-10 w-full max-w-3xl px-4 pb-16 sm:mt-12">
+		<h2 class="mb-4 text-[10px] font-medium tracking-[0.2em] text-white/15 uppercase">Levels</h2>
+		<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
 			{#each levels as level}
 				{@const path = levelSvgPath(level, 160, 48)}
 				<a
 					href="/play/{level.id}"
-					class="group relative overflow-hidden rounded-xl bg-white/[0.025] p-3 transition hover:bg-white/[0.055]"
+					class="group overflow-hidden rounded-xl bg-white/[0.02] p-3 transition hover:bg-white/[0.05]"
 				>
-					<!-- Mini curve SVG -->
-					<svg viewBox="0 0 160 48" class="mb-2 w-full opacity-40 transition group-hover:opacity-70">
+					<svg viewBox="0 0 160 48" class="mb-1.5 w-full opacity-30 transition group-hover:opacity-60">
 						<defs>
 							<linearGradient id="lc{level.id}" x1="0" y1="0" x2="160" y2="0" gradientUnits="userSpaceOnUse">
 								<stop offset="0%" stop-color="#00ccff" />
 								<stop offset="100%" stop-color="#a855f7" />
 							</linearGradient>
 						</defs>
-						<path d="{path}L160,48L0,48Z" fill="url(#lc{level.id})" opacity="0.1" />
+						<path d="{path}L160,48L0,48Z" fill="url(#lc{level.id})" opacity="0.08" />
 						<path d={path} fill="none" stroke="url(#lc{level.id})" stroke-width="1.5" />
 					</svg>
-
 					<div class="flex items-center gap-1.5">
-						<span
-							class="inline-block h-1.5 w-1.5 rounded-full"
-							style="background-color: {getDifficultyColor(level.difficulty)}"
-						></span>
-						<span class="text-sm font-semibold text-white/60 group-hover:text-white/90">
-							{level.name}
-						</span>
+						<span class="inline-block h-1.5 w-1.5 rounded-full" style="background-color: {getDifficultyColor(level.difficulty)}"></span>
+						<span class="text-[13px] font-medium text-white/45 group-hover:text-white/80">{level.name}</span>
 					</div>
 				</a>
 			{/each}
 		</div>
 	</div>
-
-	<div class="mb-16"></div>
 </div>
