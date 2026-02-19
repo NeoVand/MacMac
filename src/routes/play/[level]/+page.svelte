@@ -199,7 +199,7 @@
 					<button
 						onclick={openSubmit}
 						disabled={samples.length < 3}
-						class="flex h-11 items-center gap-2 rounded-xl bg-game-cyan px-6 text-sm font-bold text-game-bg transition hover:brightness-110 active:scale-95 disabled:opacity-20"
+						class="flex h-11 items-center gap-2 rounded-xl bg-gradient-to-r from-game-cyan to-cyan-400 px-6 text-sm font-bold text-game-bg shadow-lg shadow-game-cyan/20 transition hover:scale-105 hover:shadow-game-cyan/30 active:scale-95 disabled:opacity-20 disabled:shadow-none disabled:hover:scale-100"
 					>
 						<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M10 17a.75.75 0 01-.75-.75V5.612L5.29 9.77a.75.75 0 01-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z" clip-rule="evenodd" /></svg>
 						Submit
