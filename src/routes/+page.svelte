@@ -125,22 +125,23 @@
 </svelte:head>
 
 <div class="flex min-h-dvh flex-col items-center">
-	<!-- Hero -->
-	<div class="relative flex w-full max-w-2xl flex-col items-center px-4 pt-10 sm:pt-14">
+	<!-- Hero + Steps area with canvas behind both -->
+	<div class="relative w-full">
 		<canvas
 			bind:this={heroCanvas}
 			class="absolute inset-0 h-full w-full opacity-50"
 			style="pointer-events: none;"
 		></canvas>
 
-		<h1 class="relative z-10 mb-2 text-center" style="font-family: 'Space Grotesk', sans-serif;">
-			<span class="text-6xl tracking-tight text-white/90 sm:text-8xl">mac</span><span class="bg-gradient-to-r from-game-cyan to-purple-400 bg-clip-text text-6xl tracking-tight text-transparent sm:text-8xl">mac</span>
-		</h1>
-		<p class="relative z-10 mb-5 max-w-xs text-center text-[13px] leading-relaxed text-white/30 sm:text-sm">
-			See a curve. Click to sample. Match the shape with the fewest clicks.
-		</p>
+		<div class="relative z-10 flex flex-col items-center px-4 pt-10 sm:pt-14">
+			<h1 class="mb-2 text-center" style="font-family: 'Space Grotesk', sans-serif;">
+				<span class="text-6xl tracking-tight text-white/90 sm:text-8xl">mac</span><span class="bg-gradient-to-r from-game-cyan to-purple-400 bg-clip-text text-6xl tracking-tight text-transparent sm:text-8xl">mac</span>
+			</h1>
+			<p class="mb-5 max-w-xs text-center text-[13px] leading-relaxed text-white/30 sm:text-sm">
+				See a curve. Click to sample. Match the shape with the fewest clicks.
+			</p>
 
-		<div class="relative z-10 flex gap-2.5">
+			<div class="flex gap-2.5">
 			<a
 				href="/play/1"
 				class="flex h-10 items-center gap-2 rounded-lg border border-game-cyan/30 bg-game-cyan/10 px-5 text-[13px] font-semibold text-game-cyan backdrop-blur-md transition hover:border-game-cyan/50 hover:bg-game-cyan/15"
@@ -162,22 +163,23 @@
 				<svg viewBox="0 0 20 20" fill="currentColor" class="h-3.5 w-3.5"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd" /></svg>
 				About
 			</a>
-		</div>
-	</div>
+			</div>
 
-	<!-- Steps -->
-	<div class="mt-6 flex w-full max-w-sm justify-center gap-8 px-4 sm:mt-8">
-		<div class="text-center">
-			<div class="mb-0.5 font-mono text-sm text-white/10">01</div>
-			<div class="text-[11px] text-white/30">See the curve</div>
-		</div>
-		<div class="text-center">
-			<div class="mb-0.5 font-mono text-sm text-white/10">02</div>
-			<div class="text-[11px] text-white/30">Click to sample</div>
-		</div>
-		<div class="text-center">
-			<div class="mb-0.5 font-mono text-sm text-white/10">03</div>
-			<div class="text-[11px] text-white/30">Beat the board</div>
+			<!-- Steps -->
+			<div class="mt-6 flex w-full max-w-sm justify-center gap-8 pb-6 sm:mt-8">
+				<div class="text-center">
+					<div class="mb-0.5 font-mono text-sm text-white/10">01</div>
+					<div class="text-[11px] text-white/30">See the curve</div>
+				</div>
+				<div class="text-center">
+					<div class="mb-0.5 font-mono text-sm text-white/10">02</div>
+					<div class="text-[11px] text-white/30">Click to sample</div>
+				</div>
+				<div class="text-center">
+					<div class="mb-0.5 font-mono text-sm text-white/10">03</div>
+					<div class="text-[11px] text-white/30">Beat the board</div>
+				</div>
+			</div>
 		</div>
 	</div>
 
