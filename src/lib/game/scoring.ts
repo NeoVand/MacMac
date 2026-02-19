@@ -1,5 +1,6 @@
 import type { Level } from './levels';
 import { linspace } from './math';
+import { computeKDE } from './kde';
 
 export interface ScoreResult {
 	kl: number;
@@ -9,69 +10,59 @@ export interface ScoreResult {
 	histogramData: { binCenter: number; empirical: number; theoretical: number }[];
 }
 
-const KL_BINS = 20;
-const KL_EPSILON = 0.1;
+const KL_BINS = 40;
+const KL_EPSILON = 1e-10;
 
 /**
- * Compute KL divergence KL(P_true || Q_empirical) using binned distributions.
+ * Compute KL divergence KL(P_true || Q_kde) using the KDE as the empirical distribution.
+ * This ensures the score matches the visual — if the KDE curve looks close
+ * to the PDF, the KL will be low.
  */
 export function computeKL(
 	samples: number[],
 	level: Level
 ): { kl: number; histogramData: ScoreResult['histogramData'] } {
 	const [xMin, xMax] = level.xRange;
-	const n = samples.length;
 
-	const klBinWidth = (xMax - xMin) / KL_BINS;
-	const klBinCounts = new Array(KL_BINS).fill(0);
-	for (const s of samples) {
-		const idx = Math.floor((s - xMin) / klBinWidth);
-		if (idx >= 0 && idx < KL_BINS) klBinCounts[idx]++;
-	}
+	const binCenters = linspace(xMin, xMax, KL_BINS + 1)
+		.slice(0, KL_BINS)
+		.map((x, i) => x + (xMax - xMin) / (2 * KL_BINS));
 
-	const totalSmoothed = n + KL_BINS * KL_EPSILON;
-	const klTruePdf = linspace(xMin + klBinWidth / 2, xMax - klBinWidth / 2, KL_BINS).map((x) =>
-		level.pdf(x)
-	);
-	const klTrueSum = klTruePdf.reduce((a, b) => a + b, 0);
+	// Evaluate true PDF and KDE at bin centers
+	const pVals = binCenters.map((x) => level.pdf(x));
+	const qVals = computeKDE(samples, binCenters);
+
+	// Normalize both to sum to 1 (discrete probability distributions)
+	const pSum = pVals.reduce((a, b) => a + b, 0);
+	const qSum = qVals.reduce((a, b) => a + b, 0);
 
 	let kl = 0;
 	for (let i = 0; i < KL_BINS; i++) {
-		const p = klTruePdf[i] / klTrueSum;
-		const q = (klBinCounts[i] + KL_EPSILON) / totalSmoothed;
-		if (p > 1e-10) {
+		const p = pSum > 0 ? pVals[i] / pSum : 0;
+		const q = qSum > 0 ? qVals[i] / qSum : 1 / KL_BINS;
+		if (p > KL_EPSILON && q > KL_EPSILON) {
 			kl += p * Math.log(p / q);
 		}
 	}
 	kl = Math.max(0, kl);
 
+	// Histogram data for display
 	const displayBins = level.numBins;
-	const displayBinWidth = (xMax - xMin) / displayBins;
-	const displayCounts = new Array(displayBins).fill(0);
-	for (const s of samples) {
-		const idx = Math.floor((s - xMin) / displayBinWidth);
-		if (idx >= 0 && idx < displayBins) displayCounts[idx]++;
-	}
+	const displayCenters = linspace(xMin, xMax, displayBins + 1)
+		.slice(0, displayBins)
+		.map((x) => x + (xMax - xMin) / (2 * displayBins));
 
-	const histogramData: ScoreResult['histogramData'] = [];
-	for (let i = 0; i < displayBins; i++) {
-		const binCenter = xMin + (i + 0.5) * displayBinWidth;
-		histogramData.push({
-			binCenter,
-			empirical: displayCounts[i] / (n * displayBinWidth || 1),
-			theoretical: level.pdf(binCenter)
-		});
-	}
+	const histogramData: ScoreResult['histogramData'] = displayCenters.map((x) => ({
+		binCenter: x,
+		empirical: 0,
+		theoretical: level.pdf(x)
+	}));
 
 	return { kl, histogramData };
 }
 
 /**
  * Score = floor(10000 / ((1 + 10*KL) * (1 + clicks/100)))
- *
- * Multiplicative: bad accuracy can't be rescued by few clicks.
- * KL dominates. Clicks add a mild penalty with diminishing returns.
- * No level-specific parameters.
  */
 export function computeScore(kl: number, clicks: number): number {
 	return Math.floor(10000 / ((1 + 10 * kl) * (1 + clicks / 100)));
