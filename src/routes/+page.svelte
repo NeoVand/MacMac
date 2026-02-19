@@ -65,8 +65,8 @@
 
 		for (let si = 0; si < scales.length; si++) {
 			const s = scales[si];
-			const alpha = si === scales.length - 1 ? 1.0 : 0.12 + si * 0.08;
-			const lineW = si === scales.length - 1 ? 2.5 : 1;
+			const alpha = si === scales.length - 1 ? 1.0 : 0.25 + si * 0.15;
+			const lineW = si === scales.length - 1 ? 2.5 : 1.2;
 			const scaledPts: [number, number][] = pts.map((x, i) => [toX(x), toY(vals[i] * s)]);
 
 			// Fill only for the main (largest) curve
