@@ -1,0 +1,26 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/typography';
+
+@theme {
+	--color-game-bg: #0a0a1a;
+	--color-game-surface: #12122a;
+	--color-game-cyan: #00d4ff;
+	--color-game-orange: #ff6b35;
+	--color-game-purple: #7c3aed;
+}
+
+html {
+	background-color: #0a0a1a;
+	color-scheme: dark;
+}
+
+body {
+	font-family:
+		'Inter',
+		ui-sans-serif,
+		system-ui,
+		-apple-system,
+		sans-serif;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
