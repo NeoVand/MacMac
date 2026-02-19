@@ -1,12 +1,13 @@
 /**
  * Kernel Density Estimation with Gaussian kernel.
- * Bandwidth uses Silverman's rule, with narrow defaults for small n.
+ * Bandwidth uses Scott's rule with a smoothly decaying minimum floor
+ * to prevent wild jumps between consecutive sample additions.
  */
 export function computeKDE(samples: number[], evalPoints: number[]): number[] {
 	const n = samples.length;
 	if (n === 0) return evalPoints.map(() => 0);
 
-	const bandwidth = silvermanBandwidth(samples);
+	const bandwidth = stableBandwidth(samples);
 	const invH = 1 / bandwidth;
 	const coeff = invH / (n * Math.sqrt(2 * Math.PI));
 
@@ -20,20 +21,23 @@ export function computeKDE(samples: number[], evalPoints: number[]): number[] {
 	});
 }
 
-function silvermanBandwidth(samples: number[]): number {
+function stableBandwidth(samples: number[]): number {
 	const n = samples.length;
-	if (n === 1) return 0.2;
-	if (n <= 3) return 0.25;
 
+	// Compute data spread even for small n
 	const mean = samples.reduce((a, b) => a + b, 0) / n;
-	const variance = samples.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1);
+	const variance = n > 1
+		? samples.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1)
+		: 0;
 	const std = Math.sqrt(variance);
 
-	const sorted = [...samples].sort((a, b) => a - b);
-	const q1 = sorted[Math.floor(n * 0.25)];
-	const q3 = sorted[Math.floor(n * 0.75)];
-	const iqr = q3 - q1;
+	// Scott's rule: h = 1.06 * std * n^(-1/5)
+	// More stable than Silverman's for small n (no IQR which is noisy)
+	const scottH = std > 0 ? 1.06 * std * Math.pow(n, -0.2) : 0;
 
-	const spread = Math.min(std, iqr / 1.34);
-	return Math.max(0.05, 0.9 * (spread || std || 0.3) * Math.pow(n, -0.2));
+	// Smooth floor that starts wide and narrows as n grows
+	// At n=1: floor=0.4, n=5: floor=0.25, n=15: floor=0.15, n=50: floor=0.1
+	const floor = 0.4 / Math.pow(n, 0.3);
+
+	return Math.max(floor, scottH);
 }
