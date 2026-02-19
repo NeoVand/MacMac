@@ -113,11 +113,8 @@
 		<!-- Top bar -->
 		<div class="flex shrink-0 items-center justify-between px-4 py-2 sm:px-6">
 			<div class="flex items-center gap-2.5">
-				<a
-					href="/"
-					class="text-xs font-semibold text-white/40 transition hover:text-white/70"
-				>
-					MacMac
+				<a href="/" class="inline-block transition hover:opacity-80" style="font-family: 'Space Grotesk', sans-serif;">
+					<span class="text-xs text-white/50">mac</span><span class="text-xs text-game-cyan/50">mac</span>
 				</a>
 				<span class="text-white/10">/</span>
 				<div class="flex items-center gap-1.5">
