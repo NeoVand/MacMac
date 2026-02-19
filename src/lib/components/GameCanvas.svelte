@@ -108,7 +108,7 @@
 		drawGrid(ctx, yMax, baseY);
 
 		// KDE overlay — scaled so its peak matches the PDF peak
-		if (samples.length >= 2) {
+		if (samples.length >= 1) {
 			drawKDE(ctx, xs, pdfMax, yMax, baseY);
 		}
 
