@@ -31,7 +31,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		// Recompute score server-side to prevent cheating
 		const { kl } = computeKL(samples as number[], level);
-		const score = computeScore(kl, samples.length, level);
+		const score = computeScore(kl, samples.length);
 
 		// Check for existing best score
 		const existing = await db

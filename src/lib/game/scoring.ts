@@ -5,17 +5,20 @@ export interface ScoreResult {
 	kl: number;
 	clicks: number;
 	score: number;
-	accuracyRating: number;
+	accuracyScore: number;
+	efficiencyBonus: number;
 	histogramData: { binCenter: number; empirical: number; theoretical: number }[];
 }
 
 const KL_BINS = 20;
 const KL_EPSILON = 0.1;
 
+const ACCURACY_MAX = 9000;
+const ACCURACY_SENSITIVITY = 10;
+const EFFICIENCY_MAX = 1000;
+
 /**
  * Compute KL divergence KL(P_true || Q_empirical) using binned distributions.
- * Uses a fixed moderate bin count for stable estimates across sample sizes,
- * and Laplace smoothing to handle empty bins.
  */
 export function computeKL(
 	samples: number[],
@@ -24,7 +27,6 @@ export function computeKL(
 	const [xMin, xMax] = level.xRange;
 	const n = samples.length;
 
-	// KL computation with fixed bin count for stability
 	const klBinWidth = (xMax - xMin) / KL_BINS;
 	const klBinCounts = new Array(KL_BINS).fill(0);
 	for (const s of samples) {
@@ -48,7 +50,6 @@ export function computeKL(
 	}
 	kl = Math.max(0, kl);
 
-	// Display histogram with finer bins
 	const displayBins = level.numBins;
 	const displayBinWidth = (xMax - xMin) / displayBins;
 	const displayCounts = new Array(displayBins).fill(0);
@@ -70,10 +71,16 @@ export function computeKL(
 	return { kl, histogramData };
 }
 
-export function computeScore(kl: number, clicks: number, level: Level): number {
-	const accuracy = Math.exp(-level.klWeight * kl);
-	const efficiency = level.par / (level.par + clicks);
-	return Math.round(10000 * accuracy * efficiency);
+/**
+ * Score = floor(9000 / (1 + 10 * KL) + 1000 / sqrt(clicks))
+ *
+ * Accuracy (up to 9000): smooth rational decay — no cliff, no level-specific tuning
+ * Efficiency bonus (up to ~1000): diminishing returns on fewer clicks
+ */
+export function computeScore(kl: number, clicks: number): number {
+	const accuracy = ACCURACY_MAX / (1 + ACCURACY_SENSITIVITY * kl);
+	const efficiency = EFFICIENCY_MAX / Math.sqrt(clicks);
+	return Math.floor(accuracy + efficiency);
 }
 
 export function getFullScore(samples: number[], level: Level): ScoreResult {
@@ -82,17 +89,19 @@ export function getFullScore(samples: number[], level: Level): ScoreResult {
 			kl: Infinity,
 			clicks: 0,
 			score: 0,
-			accuracyRating: 0,
+			accuracyScore: 0,
+			efficiencyBonus: 0,
 			histogramData: []
 		};
 	}
 
 	const { kl, histogramData } = computeKL(samples, level);
 	const clicks = samples.length;
-	const score = computeScore(kl, clicks, level);
-	const accuracyRating = Math.exp(-level.klWeight * kl);
+	const accuracyScore = Math.floor(ACCURACY_MAX / (1 + ACCURACY_SENSITIVITY * kl));
+	const efficiencyBonus = Math.floor(EFFICIENCY_MAX / Math.sqrt(clicks));
+	const score = computeScore(kl, clicks);
 
-	return { kl, clicks, score, accuracyRating, histogramData };
+	return { kl, clicks, score, accuracyScore, efficiencyBonus, histogramData };
 }
 
 export function getDifficultyColor(difficulty: Level['difficulty']): string {

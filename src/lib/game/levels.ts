@@ -7,8 +7,6 @@ export interface Level {
 	difficulty: 'easy' | 'medium' | 'hard' | 'expert';
 	pdf: (x: number) => number;
 	xRange: [number, number];
-	klWeight: number;
-	par: number;
 	numBins: number;
 }
 
@@ -20,9 +18,6 @@ export const levels: Level[] = [
 		difficulty: 'easy',
 		pdf: (x) => gaussian(x, 0, 1),
 		xRange: [-4, 4],
-		klWeight: 8,
-
-		par: 25,
 		numBins: 40
 	},
 	{
@@ -32,9 +27,6 @@ export const levels: Level[] = [
 		difficulty: 'easy',
 		pdf: (x) => uniform(x, -2, 2),
 		xRange: [-4, 4],
-		klWeight: 6,
-
-		par: 20,
 		numBins: 40
 	},
 	{
@@ -44,9 +36,6 @@ export const levels: Level[] = [
 		difficulty: 'easy',
 		pdf: (x) => exponential(x, 1.5),
 		xRange: [-0.5, 5],
-		klWeight: 7,
-
-		par: 25,
 		numBins: 40
 	},
 	{
@@ -56,9 +45,6 @@ export const levels: Level[] = [
 		difficulty: 'medium',
 		pdf: (x) => chiSquared(x, 4),
 		xRange: [-0.5, 15],
-		klWeight: 6,
-
-		par: 30,
 		numBins: 45
 	},
 	{
@@ -72,9 +58,6 @@ export const levels: Level[] = [
 				{ weight: 0.5, pdf: (v) => gaussian(v, 2, 0.8) }
 			]),
 		xRange: [-5, 5],
-		klWeight: 5,
-
-		par: 35,
 		numBins: 45
 	},
 	{
@@ -89,9 +72,6 @@ export const levels: Level[] = [
 				{ weight: 0.3, pdf: (v) => gaussian(v, 3, 0.5) }
 			]),
 		xRange: [-6, 6],
-		klWeight: 4,
-
-		par: 45,
 		numBins: 50
 	},
 	{
@@ -106,9 +86,6 @@ export const levels: Level[] = [
 				{ weight: 0.15, pdf: (v) => gaussian(v, 3, 1.0) }
 			]),
 		xRange: [-6, 7],
-		klWeight: 3,
-
-		par: 55,
 		numBins: 55
 	},
 	{
@@ -125,9 +102,6 @@ export const levels: Level[] = [
 				{ weight: 0.2, pdf: (v) => gaussian(v, 7, 0.6) }
 			]),
 		xRange: [-8, 9],
-		klWeight: 2.5,
-
-		par: 65,
 		numBins: 60
 	}
 ];

@@ -6,7 +6,7 @@
 	let mathContainer: HTMLDivElement | undefined = $state();
 
 	const klFormula = `$$D_{\\mathrm{KL}}(P \\,\\|\\, Q) = \\sum_{i=1}^{k} P(x_i) \\, \\ln \\frac{P(x_i)}{Q(x_i)}$$`;
-	const scoreFormula = `$$\\text{Score} = \\left\\lfloor\\, 10000 \\;\\cdot\\; \\underbrace{e^{-\\lambda \\,\\cdot\\, D_{\\mathrm{KL}}}}_{\\text{accuracy}} \\;\\cdot\\; \\underbrace{\\frac{N_{\\text{par}}}{N_{\\text{par}} + N_{\\text{clicks}}}}_{\\text{efficiency}} \\,\\right\\rfloor$$`;
+	const scoreFormula = `$$\\text{Score} = \\underbrace{\\left\\lfloor \\frac{9000}{1 + 10 \\cdot D_{\\mathrm{KL}}} \\right\\rfloor}_{\\text{accuracy}} \\;+\\; \\underbrace{\\left\\lfloor \\frac{1000}{\\sqrt{N_{\\text{clicks}}}} \\right\\rfloor}_{\\text{efficiency bonus}}$$`;
 
 	onMount(() => {
 		if (canvas) drawVisual();
@@ -183,7 +183,7 @@
 		</div>
 
 		<p>
-			where {@html '\\(\\lambda\\)'} is a per-level sensitivity weight, and {@html '\\(N_{\\text{par}}\\)'} is the level's target click count. The accuracy term rewards low divergence exponentially, while the efficiency term rewards using fewer samples — creating a natural tension between quality and economy.
+			The accuracy component (up to 9,000) decays smoothly as KL increases — no cliff, no level-specific tuning. The efficiency bonus (up to ~1,000) rewards placing fewer clicks with diminishing returns via {@html '\\(1/\\sqrt{n}\\)'}. KL divergence drives ~90% of your score; click count is a tiebreaker, not a punishment.
 		</p>
 
 		<h2 class="pt-2 text-sm font-semibold text-white/55">Why it matters</h2>

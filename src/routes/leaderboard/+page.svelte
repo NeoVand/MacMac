@@ -57,7 +57,6 @@
 	<div class="mb-4 flex items-center gap-3">
 		<h2 class="text-lg font-semibold text-white/80">{currentLevel.name}</h2>
 		<span class="text-xs text-white/30 capitalize">{currentLevel.difficulty}</span>
-		<span class="text-xs text-white/20">Par: {currentLevel.par} clicks</span>
 	</div>
 
 	<!-- Table -->

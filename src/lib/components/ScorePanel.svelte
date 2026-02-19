@@ -4,11 +4,10 @@
 
 	interface Props {
 		scoreResult: ScoreResult;
-		par: number;
 		topScore: number;
 	}
 
-	let { scoreResult, par, topScore }: Props = $props();
+	let { scoreResult, topScore }: Props = $props();
 
 	let displayScore = $state(0);
 	let animHandle = 0;
@@ -18,11 +17,6 @@
 
 	const klDisplay = $derived(
 		scoreResult.kl === Infinity ? '---' : scoreResult.kl < 0.001 ? '<.001' : scoreResult.kl.toFixed(3)
-	);
-	const accuracyPct = $derived(Math.round(scoreResult.accuracyRating * 100));
-	const clickRatio = $derived(scoreResult.clicks === 0 ? 0 : scoreResult.clicks / par);
-	const clickColor = $derived(
-		clickRatio <= 0.8 ? '#4ade80' : clickRatio <= 1.3 ? '#fbbf24' : '#f97316'
 	);
 
 	onMount(() => {
@@ -74,14 +68,15 @@
 		</div>
 		<div>
 			<div class="text-[9px] tracking-widest text-white/25 uppercase">Accuracy</div>
-			<div class="font-mono text-sm tabular-nums text-cyan-400">{accuracyPct}%</div>
+			<div class="font-mono text-sm tabular-nums text-cyan-400">{scoreResult.accuracyScore.toLocaleString()}</div>
+		</div>
+		<div>
+			<div class="text-[9px] tracking-widest text-white/25 uppercase">Efficiency</div>
+			<div class="font-mono text-sm tabular-nums text-green-400">+{scoreResult.efficiencyBonus}</div>
 		</div>
 		<div>
 			<div class="text-[9px] tracking-widest text-white/25 uppercase">Clicks</div>
-			<div class="font-mono text-sm tabular-nums" style="color: {clickColor}">
-				{scoreResult.clicks}
-				<span class="text-[10px] text-white/20">/{par}</span>
-			</div>
+			<div class="font-mono text-sm tabular-nums text-white/50">{scoreResult.clicks}</div>
 		</div>
 	</div>
 </div>

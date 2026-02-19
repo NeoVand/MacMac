@@ -15,7 +15,7 @@
 
 	let samples: number[] = $state([]);
 	let scoreResult: ScoreResult = $state({
-		kl: Infinity, clicks: 0, score: 0, accuracyRating: 0, histogramData: []
+		kl: Infinity, clicks: 0, score: 0, accuracyScore: 0, efficiencyBonus: 0, histogramData: []
 	});
 
 	let isSubmitting = $state(false);
@@ -26,7 +26,7 @@
 	$effect(() => {
 		void levelId;
 		samples = [];
-		scoreResult = { kl: Infinity, clicks: 0, score: 0, accuracyRating: 0, histogramData: [] };
+		scoreResult = { kl: Infinity, clicks: 0, score: 0, accuracyScore: 0, efficiencyBonus: 0, histogramData: [] };
 		showSubmitDialog = false;
 		submitMessage = '';
 		const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('macmac_player_name') : null;
@@ -44,12 +44,12 @@
 		samples = samples.slice(0, -1);
 		scoreResult = samples.length > 0
 			? getFullScore(samples, level)
-			: { kl: Infinity, clicks: 0, score: 0, accuracyRating: 0, histogramData: [] };
+			: { kl: Infinity, clicks: 0, score: 0, accuracyScore: 0, efficiencyBonus: 0, histogramData: [] };
 	}
 
 	function resetSamples() {
 		samples = [];
-		scoreResult = { kl: Infinity, clicks: 0, score: 0, accuracyRating: 0, histogramData: [] };
+		scoreResult = { kl: Infinity, clicks: 0, score: 0, accuracyScore: 0, efficiencyBonus: 0, histogramData: [] };
 		submitMessage = '';
 	}
 
@@ -164,7 +164,7 @@
 
 		<!-- Score panel -->
 		<div class="shrink-0 px-4 pb-2 sm:px-6">
-			<ScorePanel {scoreResult} par={level.par} {topScore} />
+			<ScorePanel {scoreResult} {topScore} />
 		</div>
 
 		<!-- Canvas with floating zoom controls -->
