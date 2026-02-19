@@ -3,6 +3,7 @@
 	import { levels } from '$lib/game/levels';
 	import { getDifficultyColor } from '$lib/game/scoring';
 	import { gaussian, linspace } from '$lib/game/math';
+	import UserAvatar from '$lib/components/UserAvatar.svelte';
 
 	let heroCanvas: HTMLCanvasElement | undefined = $state();
 	let animFrame = 0;
@@ -127,7 +128,12 @@
 	<meta property="og:url" content="https://macmac-gilt.vercel.app" />
 </svelte:head>
 
-<div class="flex min-h-dvh flex-col items-center">
+<div class="relative flex min-h-dvh flex-col items-center">
+	<!-- User avatar top-right -->
+	<div class="absolute right-4 top-4 z-20 sm:right-6">
+		<UserAvatar />
+	</div>
+
 	<!-- Hero + Steps area with canvas behind both -->
 	<div class="relative w-full">
 		<canvas

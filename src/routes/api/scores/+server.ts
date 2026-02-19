@@ -6,17 +6,15 @@ import { and, eq, desc } from 'drizzle-orm';
 import { getLevel } from '$lib/game/levels';
 import { computeKL, computeScore } from '$lib/game/scoring';
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, locals }) => {
 	try {
-		const body = await request.json();
-		const { playerName, playerId, levelId, samples } = body;
+		if (!locals.user) {
+			return json({ success: false, error: 'Sign in to submit scores' }, { status: 401 });
+		}
 
-		if (!playerName || typeof playerName !== 'string' || playerName.trim().length === 0) {
-			return json({ success: false, error: 'Name is required' }, { status: 400 });
-		}
-		if (!playerId || typeof playerId !== 'string') {
-			return json({ success: false, error: 'Player ID is required' }, { status: 400 });
-		}
+		const body = await request.json();
+		const { levelId, samples } = body;
+
 		if (!Array.isArray(samples) || samples.length < 3) {
 			return json({ success: false, error: 'Need at least 3 samples' }, { status: 400 });
 		}
@@ -29,11 +27,12 @@ export const POST: RequestHandler = async ({ request }) => {
 			return json({ success: false, error: 'Invalid level' }, { status: 400 });
 		}
 
-		// Recompute score server-side to prevent cheating
+		const playerId = locals.user.id;
+		const playerName = locals.user.name || 'Anonymous';
+
 		const { kl } = computeKL(samples as number[], level);
 		const score = computeScore(kl, samples.length);
 
-		// Check for existing best score
 		const existing = await db
 			.select()
 			.from(scores)
@@ -44,7 +43,6 @@ export const POST: RequestHandler = async ({ request }) => {
 		const isNewBest = existing.length === 0 || score > existing[0].score;
 
 		if (isNewBest) {
-			// Delete old scores for this player+level, insert new best
 			if (existing.length > 0) {
 				await db
 					.delete(scores)
@@ -52,7 +50,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			}
 
 			await db.insert(scores).values({
-				playerName: playerName.trim().slice(0, 24),
+				playerName: playerName.slice(0, 24),
 				playerId,
 				levelId,
 				score,

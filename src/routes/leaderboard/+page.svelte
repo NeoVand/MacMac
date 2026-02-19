@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { levels } from '$lib/game/levels';
 	import { getDifficultyColor } from '$lib/game/scoring';
+	import UserAvatar from '$lib/components/UserAvatar.svelte';
 
 	let { data } = $props();
 
@@ -25,13 +26,16 @@
 				Leaderboard
 			</h1>
 		</div>
-		<a
-			href="/play/1"
-			class="flex h-10 items-center gap-2 rounded-lg border border-game-cyan/30 bg-game-cyan/10 px-5 text-[13px] font-semibold text-game-cyan transition hover:border-game-cyan/50 hover:bg-game-cyan/15"
+		<div class="flex items-center gap-3">
+			<a
+				href="/play/1"
+				class="flex h-10 items-center gap-2 rounded-lg border border-game-cyan/30 bg-game-cyan/10 px-5 text-[13px] font-semibold text-game-cyan transition hover:border-game-cyan/50 hover:bg-game-cyan/15"
 		>
 			<svg viewBox="0 0 20 20" fill="currentColor" class="h-3.5 w-3.5"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg>
 			Play
 		</a>
+			<UserAvatar size="sm" />
+		</div>
 	</div>
 
 	<!-- Level Tabs -->
