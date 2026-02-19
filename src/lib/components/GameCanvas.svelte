@@ -287,29 +287,29 @@
 
 	function drawOnboardingHint(ctx: CanvasRenderingContext2D, baseY: number) {
 		const cx = PAD.left + pw * 0.5;
-		const textY = baseY - 50;
-		const arrowTipY = baseY - 8;
+		const textY = baseY - 55;
+		const arrowStartY = textY + 8;
+		const arrowTipY = baseY - 10;
 
-		// Text
-		ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+		ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
 		ctx.font = "italic 14px 'Inter', sans-serif";
 		ctx.textAlign = 'center';
 		ctx.fillText('Click here to add samples', cx, textY);
 
-		// Curved arrow from text to baseline
-		ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+		// Straight line down
+		ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
 		ctx.lineWidth = 1.5;
 		ctx.beginPath();
-		ctx.moveTo(cx, textY + 6);
-		ctx.bezierCurveTo(cx + 20, textY + 20, cx + 15, arrowTipY - 10, cx, arrowTipY);
+		ctx.moveTo(cx, arrowStartY);
+		ctx.lineTo(cx, arrowTipY - 5);
 		ctx.stroke();
 
-		// Arrowhead
-		ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+		// Arrowhead pointing down
+		ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
 		ctx.beginPath();
-		ctx.moveTo(cx, arrowTipY + 2);
-		ctx.lineTo(cx - 4, arrowTipY - 6);
-		ctx.lineTo(cx + 4, arrowTipY - 6);
+		ctx.moveTo(cx, arrowTipY);
+		ctx.lineTo(cx - 5, arrowTipY - 8);
+		ctx.lineTo(cx + 5, arrowTipY - 8);
 		ctx.closePath();
 		ctx.fill();
 	}
