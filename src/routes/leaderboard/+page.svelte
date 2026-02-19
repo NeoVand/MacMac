@@ -13,7 +13,7 @@
 	<title>Leaderboard — MacMac</title>
 </svelte:head>
 
-<div class="mx-auto min-h-dvh max-w-3xl px-4 py-6">
+<div class="mx-auto min-h-dvh max-w-2xl px-6 py-8 sm:px-10">
 	<!-- Header -->
 	<div class="mb-8 flex items-center justify-between">
 		<div>

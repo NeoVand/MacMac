@@ -28,18 +28,18 @@
 	let mouseX = $state(-1);
 	let mouseY = $state(-1);
 
-	const PAD = { top: 24, right: 24, bottom: 40, left: 24 };
+	const PAD = { top: 30, right: 30, bottom: 44, left: 30 };
 
 	const pw = $derived(width - PAD.left - PAD.right);
 	const ph = $derived(height - PAD.top - PAD.bottom);
 
-	function toScreenX(x: number): number {
+	function toSX(x: number) {
 		return PAD.left + ((x - viewXMin) / (viewXMax - viewXMin)) * pw;
 	}
-	function toDataX(sx: number): number {
+	function toDX(sx: number) {
 		return viewXMin + ((sx - PAD.left) / pw) * (viewXMax - viewXMin);
 	}
-	function toScreenY(y: number, yMax: number): number {
+	function toSY(y: number, yMax: number) {
 		return PAD.top + ph - (y / yMax) * ph;
 	}
 
@@ -78,7 +78,7 @@
 	});
 
 	function draw() {
-		if (!canvas) return;
+		if (!canvas || pw <= 0 || ph <= 0) return;
 		const ctx = canvas.getContext('2d');
 		if (!ctx) return;
 
@@ -89,32 +89,38 @@
 		ctx.clearRect(0, 0, width, height);
 
 		// Background
-		const bg = ctx.createRadialGradient(width / 2, height * 0.3, 0, width / 2, height * 0.3, width);
-		bg.addColorStop(0, '#111133');
-		bg.addColorStop(1, '#080816');
+		const bg = ctx.createRadialGradient(width / 2, height * 0.35, 0, width / 2, height * 0.35, width * 0.8);
+		bg.addColorStop(0, '#111130');
+		bg.addColorStop(1, '#08081a');
 		ctx.fillStyle = bg;
 		ctx.fillRect(0, 0, width, height);
 
-		// PDF evaluation
-		const nPts = 500;
+		// PDF
+		const nPts = 400;
 		const xs = linspace(viewXMin, viewXMax, nPts);
 		const pdfVals = xs.map((x) => level.pdf(x));
-		let yMax = Math.max(...pdfVals) * 1.15;
+		const pdfMax = Math.max(...pdfVals);
+		let yMax = pdfMax * 1.15;
 		if (yMax <= 0) yMax = 1;
 
-		const baseY = toScreenY(0, yMax);
+		const baseY = toSY(0, yMax);
 
 		drawGrid(ctx, yMax, baseY);
 
-		// KDE from samples
+		// KDE overlay — scaled so its peak matches the PDF peak
 		if (samples.length >= 2) {
-			drawKDE(ctx, xs, yMax, baseY);
+			drawKDE(ctx, xs, pdfMax, yMax, baseY);
 		}
 
 		drawPDF(ctx, xs, pdfVals, yMax, baseY);
 		drawSamples(ctx, baseY);
 		drawAxisLabels(ctx, baseY);
-		drawCrosshair(ctx, yMax, baseY);
+
+		// Only draw crosshair near the bottom half / axis area
+		const axisZoneTop = baseY - ph * 0.4;
+		if (mouseX >= PAD.left && mouseX <= PAD.left + pw && mouseY >= axisZoneTop && mouseY <= height) {
+			drawCrosshair(ctx, yMax, baseY);
+		}
 	}
 
 	function drawGrid(ctx: CanvasRenderingContext2D, yMax: number, baseY: number) {
@@ -124,15 +130,14 @@
 		ctx.strokeStyle = 'rgba(255,255,255,0.03)';
 		ctx.lineWidth = 1;
 		for (let x = xStart; x <= viewXMax; x += xStep) {
-			const sx = toScreenX(x);
+			const sx = toSX(x);
 			ctx.beginPath();
 			ctx.moveTo(sx, PAD.top);
 			ctx.lineTo(sx, baseY);
 			ctx.stroke();
 		}
 
-		// x-axis
-		ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+		ctx.strokeStyle = 'rgba(255,255,255,0.1)';
 		ctx.lineWidth = 1;
 		ctx.beginPath();
 		ctx.moveTo(PAD.left, baseY);
@@ -149,106 +154,102 @@
 	) {
 		// Glow
 		ctx.beginPath();
-		ctx.strokeStyle = 'rgba(0, 200, 255, 0.15)';
+		ctx.strokeStyle = 'rgba(0, 200, 255, 0.12)';
 		ctx.lineWidth = 10;
 		for (let i = 0; i < xs.length; i++) {
-			const sx = toScreenX(xs[i]);
-			const sy = toScreenY(vals[i], yMax);
-			if (i === 0) ctx.moveTo(sx, sy);
-			else ctx.lineTo(sx, sy);
+			const sx = toSX(xs[i]);
+			const sy = toSY(vals[i], yMax);
+			i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
 		}
 		ctx.stroke();
 
 		// Main curve
 		ctx.beginPath();
 		ctx.strokeStyle = '#00ccff';
-		ctx.lineWidth = 3;
+		ctx.lineWidth = 2.5;
 		for (let i = 0; i < xs.length; i++) {
-			const sx = toScreenX(xs[i]);
-			const sy = toScreenY(vals[i], yMax);
-			if (i === 0) ctx.moveTo(sx, sy);
-			else ctx.lineTo(sx, sy);
+			const sx = toSX(xs[i]);
+			const sy = toSY(vals[i], yMax);
+			i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
 		}
 		ctx.stroke();
 
-		// Fill
-		ctx.lineTo(toScreenX(xs[xs.length - 1]), baseY);
-		ctx.lineTo(toScreenX(xs[0]), baseY);
+		// Fill under
+		ctx.lineTo(toSX(xs[xs.length - 1]), baseY);
+		ctx.lineTo(toSX(xs[0]), baseY);
 		ctx.closePath();
-		const grad = ctx.createLinearGradient(0, PAD.top, 0, baseY);
-		grad.addColorStop(0, 'rgba(0, 200, 255, 0.08)');
-		grad.addColorStop(1, 'rgba(0, 200, 255, 0.0)');
-		ctx.fillStyle = grad;
+		const g = ctx.createLinearGradient(0, PAD.top, 0, baseY);
+		g.addColorStop(0, 'rgba(0, 200, 255, 0.07)');
+		g.addColorStop(1, 'rgba(0, 200, 255, 0.0)');
+		ctx.fillStyle = g;
 		ctx.fill();
 	}
 
 	function drawKDE(
 		ctx: CanvasRenderingContext2D,
 		xs: number[],
+		pdfMax: number,
 		yMax: number,
 		baseY: number
 	) {
-		const kdeVals = computeKDE(samples, xs);
+		const rawKDE = computeKDE(samples, xs);
+		const kdeMax = Math.max(...rawKDE);
 
-		// Filled area
+		// Scale KDE so its peak matches the PDF peak — pure shape comparison
+		const scale = kdeMax > 0 ? pdfMax / kdeMax : 1;
+		const kdeVals = rawKDE.map((v) => v * scale);
+
+		// Fill
 		ctx.beginPath();
 		for (let i = 0; i < xs.length; i++) {
-			const sx = toScreenX(xs[i]);
-			const sy = toScreenY(Math.min(kdeVals[i], yMax * 0.98), yMax);
-			if (i === 0) ctx.moveTo(sx, sy);
-			else ctx.lineTo(sx, sy);
+			const sx = toSX(xs[i]);
+			const sy = toSY(kdeVals[i], yMax);
+			i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
 		}
-		ctx.lineTo(toScreenX(xs[xs.length - 1]), baseY);
-		ctx.lineTo(toScreenX(xs[0]), baseY);
+		ctx.lineTo(toSX(xs[xs.length - 1]), baseY);
+		ctx.lineTo(toSX(xs[0]), baseY);
 		ctx.closePath();
-		const grad = ctx.createLinearGradient(0, PAD.top, 0, baseY);
-		grad.addColorStop(0, 'rgba(255, 130, 40, 0.25)');
-		grad.addColorStop(1, 'rgba(255, 100, 30, 0.03)');
-		ctx.fillStyle = grad;
+		const g = ctx.createLinearGradient(0, PAD.top, 0, baseY);
+		g.addColorStop(0, 'rgba(255, 130, 40, 0.22)');
+		g.addColorStop(1, 'rgba(255, 100, 30, 0.02)');
+		ctx.fillStyle = g;
 		ctx.fill();
 
-		// KDE curve line
+		// Curve
 		ctx.beginPath();
-		ctx.strokeStyle = 'rgba(255, 160, 60, 0.8)';
+		ctx.strokeStyle = 'rgba(255, 150, 50, 0.75)';
 		ctx.lineWidth = 2;
 		for (let i = 0; i < xs.length; i++) {
-			const sx = toScreenX(xs[i]);
-			const sy = toScreenY(Math.min(kdeVals[i], yMax * 0.98), yMax);
-			if (i === 0) ctx.moveTo(sx, sy);
-			else ctx.lineTo(sx, sy);
+			const sx = toSX(xs[i]);
+			const sy = toSY(kdeVals[i], yMax);
+			i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
 		}
 		ctx.stroke();
 	}
 
 	function drawSamples(ctx: CanvasRenderingContext2D, baseY: number) {
 		for (const s of samples) {
-			const sx = toScreenX(s);
+			const sx = toSX(s);
 			if (sx < PAD.left || sx > PAD.left + pw) continue;
 
-			// Tick line
-			ctx.strokeStyle = 'rgba(255, 150, 50, 0.4)';
+			// Tick
+			ctx.strokeStyle = 'rgba(255, 150, 50, 0.35)';
 			ctx.lineWidth = 1;
 			ctx.beginPath();
-			ctx.moveTo(sx, baseY);
-			ctx.lineTo(sx, baseY + 7);
+			ctx.moveTo(sx, baseY - 3);
+			ctx.lineTo(sx, baseY + 8);
 			ctx.stroke();
 
 			// Dot
 			ctx.fillStyle = '#ff9933';
 			ctx.beginPath();
-			ctx.arc(sx, baseY + 2, 3, 0, Math.PI * 2);
-			ctx.fill();
-
-			// Glow
-			ctx.fillStyle = 'rgba(255, 150, 50, 0.2)';
-			ctx.beginPath();
-			ctx.arc(sx, baseY + 2, 6, 0, Math.PI * 2);
+			ctx.arc(sx, baseY + 3, 3.5, 0, Math.PI * 2);
 			ctx.fill();
 		}
 	}
 
 	function drawAxisLabels(ctx: CanvasRenderingContext2D, baseY: number) {
-		ctx.fillStyle = 'rgba(255,255,255,0.2)';
+		ctx.fillStyle = 'rgba(255,255,255,0.22)';
 		ctx.font = '11px ui-monospace, monospace';
 		ctx.textAlign = 'center';
 
@@ -256,53 +257,42 @@
 		const xStart = Math.ceil(viewXMin / xStep) * xStep;
 
 		for (let x = xStart; x <= viewXMax; x += xStep) {
-			const sx = toScreenX(x);
-			const label = Math.abs(x) < 1e-10 ? '0' : x.toFixed(1);
-			ctx.fillText(label, sx, baseY + 22);
+			const sx = toSX(x);
+			ctx.fillText(Math.abs(x) < 1e-10 ? '0' : x.toFixed(1), sx, baseY + 24);
 		}
 	}
 
 	function drawCrosshair(ctx: CanvasRenderingContext2D, yMax: number, baseY: number) {
-		if (mouseX < PAD.left || mouseX > PAD.left + pw) return;
-		if (mouseY < PAD.top - 20 || mouseY > baseY + 30) return;
+		const dataX = toDX(mouseX);
 
-		const dataX = toDataX(mouseX);
-		const pdfY = level.pdf(dataX);
-		const curveY = toScreenY(Math.min(pdfY, yMax), yMax);
-
-		// Vertical line
-		ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+		// Subtle vertical line from axis down only
+		ctx.strokeStyle = 'rgba(255,255,255,0.08)';
 		ctx.lineWidth = 1;
-		ctx.setLineDash([3, 3]);
+		ctx.setLineDash([2, 4]);
 		ctx.beginPath();
-		ctx.moveTo(mouseX, PAD.top);
+		ctx.moveTo(mouseX, baseY - 20);
 		ctx.lineTo(mouseX, baseY);
 		ctx.stroke();
 		ctx.setLineDash([]);
 
-		// Dot on curve
-		ctx.fillStyle = '#00ccff';
-		ctx.shadowColor = '#00ccff';
-		ctx.shadowBlur = 12;
+		// Click target dot on axis
+		ctx.fillStyle = 'rgba(255,255,255,0.7)';
 		ctx.beginPath();
-		ctx.arc(mouseX, curveY, 5, 0, Math.PI * 2);
+		ctx.arc(mouseX, baseY, 5, 0, Math.PI * 2);
 		ctx.fill();
-		ctx.shadowBlur = 0;
-
-		// Click target on axis
-		ctx.fillStyle = 'rgba(255,255,255,0.8)';
+		ctx.fillStyle = 'rgba(255,255,255,0.15)';
 		ctx.beginPath();
-		ctx.arc(mouseX, baseY, 4, 0, Math.PI * 2);
+		ctx.arc(mouseX, baseY, 10, 0, Math.PI * 2);
 		ctx.fill();
 
-		// Value label
-		ctx.fillStyle = 'rgba(255,255,255,0.4)';
-		ctx.font = '10px ui-monospace, monospace';
-		ctx.textAlign = 'left';
-		ctx.fillText(`x=${dataX.toFixed(2)}`, mouseX + 10, curveY - 6);
+		// Small label
+		ctx.fillStyle = 'rgba(255,255,255,0.35)';
+		ctx.font = '9px ui-monospace, monospace';
+		ctx.textAlign = 'center';
+		ctx.fillText(dataX.toFixed(1), mouseX, baseY + 36);
 	}
 
-	function niceStep(range: number, maxTicks: number): number {
+	function niceStep(range: number, maxTicks: number) {
 		const rough = range / maxTicks;
 		const mag = Math.pow(10, Math.floor(Math.log10(rough)));
 		const norm = rough / mag;
@@ -318,14 +308,14 @@
 		const cx = e.clientX - r.left;
 		const cy = e.clientY - r.top;
 		if (cx < PAD.left || cx > PAD.left + pw) return;
-		if (cy < PAD.top - 20 || cy > PAD.top + ph + 20) return;
-		onSampleAdd(toDataX(cx));
+		if (cy < 0 || cy > height) return;
+		onSampleAdd(toDX(cx));
 	}
 
 	function handleWheel(e: WheelEvent) {
 		e.preventDefault();
 		const r = canvas!.getBoundingClientRect();
-		const mx = toDataX(e.clientX - r.left);
+		const mx = toDX(e.clientX - r.left);
 		const f = e.deltaY > 0 ? 1.1 : 0.9;
 		const nMin = mx - (mx - viewXMin) * f;
 		const nMax = mx + (viewXMax - mx) * f;
@@ -353,9 +343,8 @@
 		mouseY = e.clientY - r.top;
 		if (!isPanning) return;
 		const dx = e.clientX - panStartX;
-		const shift = -dx * ((panStartViewMax - panStartViewMin) / pw);
-		viewXMin = panStartViewMin + shift;
-		viewXMax = panStartViewMax + shift;
+		viewXMin = panStartViewMin - dx * ((panStartViewMax - panStartViewMin) / pw);
+		viewXMax = panStartViewMax - dx * ((panStartViewMax - panStartViewMin) / pw);
 	}
 
 	function handleMouseLeave() {
@@ -364,9 +353,7 @@
 		mouseY = -1;
 	}
 
-	function handleMouseUp() {
-		isPanning = false;
-	}
+	function handleMouseUp() { isPanning = false; }
 
 	function handleTouchStart(e: TouchEvent) {
 		if (e.touches.length === 2) {
@@ -380,22 +367,20 @@
 	}
 
 	function handleTouchMove(e: TouchEvent) {
-		if (e.touches.length === 2) {
-			e.preventDefault();
-			const dx = e.touches[0].clientX - e.touches[1].clientX;
-			const dy = e.touches[0].clientY - e.touches[1].clientY;
-			const dist = Math.sqrt(dx * dx + dy * dy);
-			const scale = lastPinchDist / dist;
-			const midSX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-			const r = canvas!.getBoundingClientRect();
-			const midX = toDataX(midSX - r.left);
-			const newRange = (panStartViewMax - panStartViewMin) * scale;
-			const minR = 0.5, maxR = (level.xRange[1] - level.xRange[0]) * 3;
-			if (newRange >= minR && newRange <= maxR) {
-				const ratio = (midX - panStartViewMin) / (panStartViewMax - panStartViewMin);
-				viewXMin = midX - ratio * newRange;
-				viewXMax = midX + (1 - ratio) * newRange;
-			}
+		if (e.touches.length !== 2) return;
+		e.preventDefault();
+		const dx = e.touches[0].clientX - e.touches[1].clientX;
+		const dy = e.touches[0].clientY - e.touches[1].clientY;
+		const dist = Math.sqrt(dx * dx + dy * dy);
+		const scale = lastPinchDist / dist;
+		const midSX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+		const r = canvas!.getBoundingClientRect();
+		const midX = toDX(midSX - r.left);
+		const newRange = (panStartViewMax - panStartViewMin) * scale;
+		if (newRange >= 0.5 && newRange <= (level.xRange[1] - level.xRange[0]) * 3) {
+			const ratio = (midX - panStartViewMin) / (panStartViewMax - panStartViewMin);
+			viewXMin = midX - ratio * newRange;
+			viewXMax = midX + (1 - ratio) * newRange;
 		}
 	}
 
@@ -405,26 +390,9 @@
 			const t = e.changedTouches[0];
 			const r = canvas!.getBoundingClientRect();
 			const cx = t.clientX - r.left;
-			const cy = t.clientY - r.top;
-			if (cx >= PAD.left && cx <= PAD.left + pw && cy >= PAD.top - 20 && cy <= PAD.top + ph + 20) {
-				onSampleAdd(toDataX(cx));
+			if (cx >= PAD.left && cx <= PAD.left + pw) {
+				onSampleAdd(toDX(cx));
 			}
-		}
-	}
-
-	export function zoomIn() {
-		const mid = (viewXMin + viewXMax) / 2;
-		const r = (viewXMax - viewXMin) * 0.8;
-		viewXMin = mid - r / 2;
-		viewXMax = mid + r / 2;
-	}
-
-	export function zoomOut() {
-		const mid = (viewXMin + viewXMax) / 2;
-		const r = (viewXMax - viewXMin) * 1.25;
-		if (r <= (level.xRange[1] - level.xRange[0]) * 3) {
-			viewXMin = mid - r / 2;
-			viewXMax = mid + r / 2;
 		}
 	}
 </script>
@@ -432,8 +400,8 @@
 <div bind:this={container} class="h-full w-full">
 	<canvas
 		bind:this={canvas}
-		style="width: {width}px; height: {height}px; cursor: none;"
-		class="block"
+		style="width: {width}px; height: {height}px;"
+		class="block cursor-crosshair"
 		aria-label="Click to place samples"
 		onclick={handleClick}
 		onwheel={handleWheel}
