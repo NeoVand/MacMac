@@ -5,8 +5,13 @@
 	import GameCanvas from '$lib/components/GameCanvas.svelte';
 	import ScorePanel from '$lib/components/ScorePanel.svelte';
 
+	let { data } = $props();
+
 	const levelId = $derived(Number(page.params.level));
 	const level = $derived(getLevel(levelId));
+	const topScore = $derived(data.topScore ?? 0);
+
+	let gameCanvas: ReturnType<typeof GameCanvas> | undefined = $state();
 
 	let samples: number[] = $state([]);
 	let scoreResult: ScoreResult = $state({
@@ -159,12 +164,33 @@
 
 		<!-- Score panel -->
 		<div class="shrink-0 px-4 pb-2 sm:px-6">
-			<ScorePanel {scoreResult} par={level.par} />
+			<ScorePanel {scoreResult} par={level.par} {topScore} />
 		</div>
 
-		<!-- Canvas: fills remaining vertical space -->
-		<div class="min-h-0 flex-1 px-2 sm:px-4">
-			<GameCanvas {level} {samples} onSampleAdd={addSample} />
+		<!-- Canvas with floating zoom controls -->
+		<div class="relative min-h-0 flex-1 px-2 sm:px-4">
+			<GameCanvas bind:this={gameCanvas} {level} {samples} onSampleAdd={addSample} />
+
+			<!-- Floating zoom controls -->
+			<div class="absolute right-4 top-3 flex flex-col gap-1 sm:right-6">
+				<button
+					onclick={() => gameCanvas?.zoomIn()}
+					class="flex h-7 w-7 items-center justify-center rounded-md bg-white/[0.04] text-xs text-white/30 transition hover:bg-white/[0.08] hover:text-white/60"
+					aria-label="Zoom in"
+				>+</button>
+				<button
+					onclick={() => gameCanvas?.zoomOut()}
+					class="flex h-7 w-7 items-center justify-center rounded-md bg-white/[0.04] text-xs text-white/30 transition hover:bg-white/[0.08] hover:text-white/60"
+					aria-label="Zoom out"
+				>−</button>
+				<button
+					onclick={() => gameCanvas?.resetZoom()}
+					class="flex h-7 w-7 items-center justify-center rounded-md bg-white/[0.04] text-[9px] text-white/30 transition hover:bg-white/[0.08] hover:text-white/60"
+					aria-label="Reset view"
+				>
+					<svg viewBox="0 0 16 16" fill="currentColor" class="h-3 w-3"><path fill-rule="evenodd" d="M3.5 2A1.5 1.5 0 002 3.5v9A1.5 1.5 0 003.5 14h9a1.5 1.5 0 001.5-1.5v-9A1.5 1.5 0 0012.5 2h-9zm3.25 4a.75.75 0 00-.75.75v2.5a.75.75 0 001.5 0v-2.5A.75.75 0 006.75 6zm3.25.75a.75.75 0 00-1.5 0v2.5a.75.75 0 001.5 0v-2.5z" clip-rule="evenodd" /></svg>
+				</button>
+			</div>
 		</div>
 
 		<!-- Bottom controls — always accessible, never overlaid -->

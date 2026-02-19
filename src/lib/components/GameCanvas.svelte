@@ -173,10 +173,8 @@
 		ctx.scale(dpr, dpr);
 		ctx.clearRect(0, 0, width, height);
 
-		const bg = ctx.createRadialGradient(width / 2, height * 0.35, 0, width / 2, height * 0.35, width * 0.8);
-		bg.addColorStop(0, '#111130');
-		bg.addColorStop(1, '#08081a');
-		ctx.fillStyle = bg;
+		// Match app background exactly
+		ctx.fillStyle = '#0a0a1a';
 		ctx.fillRect(0, 0, width, height);
 
 		const nPts = 400;
@@ -188,7 +186,13 @@
 
 		const baseY = toSY(0, yMax);
 
-		drawGrid(ctx, yMax, baseY);
+		// x-axis line only
+		ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+		ctx.lineWidth = 1;
+		ctx.beginPath();
+		ctx.moveTo(PAD.left, baseY);
+		ctx.lineTo(PAD.left + pw, baseY);
+		ctx.stroke();
 
 		if (displayKde.length === nPts) {
 			drawKDE(ctx, xs, yMax, baseY);
@@ -202,28 +206,6 @@
 		if (mouseX >= PAD.left && mouseX <= PAD.left + pw && mouseY >= axisZoneTop && mouseY <= height) {
 			drawCrosshair(ctx, yMax, baseY);
 		}
-	}
-
-	function drawGrid(ctx: CanvasRenderingContext2D, yMax: number, baseY: number) {
-		const xStep = niceStep(viewXMax - viewXMin, 8);
-		const xStart = Math.ceil(viewXMin / xStep) * xStep;
-
-		ctx.strokeStyle = 'rgba(255,255,255,0.03)';
-		ctx.lineWidth = 1;
-		for (let x = xStart; x <= viewXMax; x += xStep) {
-			const sx = toSX(x);
-			ctx.beginPath();
-			ctx.moveTo(sx, PAD.top);
-			ctx.lineTo(sx, baseY);
-			ctx.stroke();
-		}
-
-		ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-		ctx.lineWidth = 1;
-		ctx.beginPath();
-		ctx.moveTo(PAD.left, baseY);
-		ctx.lineTo(PAD.left + pw, baseY);
-		ctx.stroke();
 	}
 
 	function drawPDF(ctx: CanvasRenderingContext2D, xs: number[], vals: number[], yMax: number, baseY: number) {
@@ -444,6 +426,26 @@
 				onSampleAdd(toDX(cx));
 			}
 		}
+	}
+
+	export function zoomIn() {
+		const mid = (viewXMin + viewXMax) / 2;
+		const r = (viewXMax - viewXMin) * 0.8;
+		viewXMin = mid - r / 2;
+		viewXMax = mid + r / 2;
+	}
+
+	export function zoomOut() {
+		const mid = (viewXMin + viewXMax) / 2;
+		const r = (viewXMax - viewXMin) * 1.25;
+		if (r <= (level.xRange[1] - level.xRange[0]) * 3) {
+			viewXMin = mid - r / 2;
+			viewXMax = mid + r / 2;
+		}
+	}
+
+	export function resetZoom() {
+		resetView();
 	}
 </script>
 
