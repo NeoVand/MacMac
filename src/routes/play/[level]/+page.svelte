@@ -4,6 +4,7 @@
 	import { getFullScore, getDifficultyColor, type ScoreResult } from '$lib/game/scoring';
 	import GameCanvas from '$lib/components/GameCanvas.svelte';
 	import ScorePanel from '$lib/components/ScorePanel.svelte';
+	import { ZoomIn, ZoomOut, Fullscreen } from 'lucide-svelte';
 
 	let { data } = $props();
 
@@ -175,21 +176,19 @@
 			<div class="absolute right-4 top-3 flex flex-col gap-1 sm:right-6">
 				<button
 					onclick={() => gameCanvas?.zoomIn()}
-					class="flex h-7 w-7 items-center justify-center rounded-md bg-white/[0.04] text-xs text-white/30 transition hover:bg-white/[0.08] hover:text-white/60"
+					class="flex h-7 w-7 items-center justify-center rounded-md bg-white/[0.04] text-white/30 transition hover:bg-white/[0.08] hover:text-white/60"
 					aria-label="Zoom in"
-				>+</button>
+				><ZoomIn size={14} /></button>
 				<button
 					onclick={() => gameCanvas?.zoomOut()}
-					class="flex h-7 w-7 items-center justify-center rounded-md bg-white/[0.04] text-xs text-white/30 transition hover:bg-white/[0.08] hover:text-white/60"
+					class="flex h-7 w-7 items-center justify-center rounded-md bg-white/[0.04] text-white/30 transition hover:bg-white/[0.08] hover:text-white/60"
 					aria-label="Zoom out"
-				>−</button>
+				><ZoomOut size={14} /></button>
 				<button
 					onclick={() => gameCanvas?.resetZoom()}
 					class="flex h-7 w-7 items-center justify-center rounded-md bg-white/[0.04] text-white/30 transition hover:bg-white/[0.08] hover:text-white/60"
 					aria-label="Reset view"
-				>
-					<svg viewBox="0 0 20 20" fill="currentColor" class="h-3.5 w-3.5"><path fill-rule="evenodd" d="M4.755 10.059a7.5 7.5 0 0112.548-3.364l1.903 1.903h-3.183a.75.75 0 100 1.5h4.992a.75.75 0 00.75-.75V4.356a.75.75 0 00-1.5 0v3.18l-1.9-1.9A9 9 0 003.306 9.67a.75.75 0 101.45.388zm10.49-.117a7.5 7.5 0 01-12.548 3.364l-1.903-1.903h3.183a.75.75 0 100-1.5H0a.75.75 0 00-.75.75v4.992a.75.75 0 001.5 0v-3.18l1.9 1.9a9 9 0 0014.166-5.034.75.75 0 10-1.45-.389z" clip-rule="evenodd" /></svg>
-				</button>
+				><Fullscreen size={14} /></button>
 			</div>
 		</div>
 
