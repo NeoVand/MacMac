@@ -197,6 +197,10 @@
 		drawSamples(ctx, baseY);
 		drawAxisLabels(ctx, baseY);
 
+		if (samples.length === 0) {
+			drawOnboardingHint(ctx, baseY);
+		}
+
 		const axisZoneTop = baseY - ph * 0.4;
 		if (mouseX >= PAD.left && mouseX <= PAD.left + pw && mouseY >= axisZoneTop && mouseY <= height) {
 			drawCrosshair(ctx, yMax, baseY);
@@ -279,6 +283,35 @@
 			ctx.arc(sx, baseY, 5, 0, Math.PI * 2);
 			ctx.fill();
 		}
+	}
+
+	function drawOnboardingHint(ctx: CanvasRenderingContext2D, baseY: number) {
+		const cx = PAD.left + pw * 0.5;
+		const textY = baseY - 50;
+		const arrowTipY = baseY - 8;
+
+		// Text
+		ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+		ctx.font = "italic 14px 'Inter', sans-serif";
+		ctx.textAlign = 'center';
+		ctx.fillText('Click here to add samples', cx, textY);
+
+		// Curved arrow from text to baseline
+		ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+		ctx.lineWidth = 1.5;
+		ctx.beginPath();
+		ctx.moveTo(cx, textY + 6);
+		ctx.bezierCurveTo(cx + 20, textY + 20, cx + 15, arrowTipY - 10, cx, arrowTipY);
+		ctx.stroke();
+
+		// Arrowhead
+		ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+		ctx.beginPath();
+		ctx.moveTo(cx, arrowTipY + 2);
+		ctx.lineTo(cx - 4, arrowTipY - 6);
+		ctx.lineTo(cx + 4, arrowTipY - 6);
+		ctx.closePath();
+		ctx.fill();
 	}
 
 	function drawAxisLabels(ctx: CanvasRenderingContext2D, baseY: number) {
