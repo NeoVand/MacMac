@@ -20,7 +20,10 @@
 			<a href="/" class="inline-block transition hover:opacity-80" style="font-family: 'Space Grotesk', sans-serif;">
 				<span class="text-sm text-white/50">mac</span><span class="text-sm text-game-cyan/50">mac</span>
 			</a>
-			<h1 class="mt-1.5 text-xl font-bold text-white">Leaderboard</h1>
+			<h1 class="mt-1.5 flex items-center gap-2 text-xl font-bold text-white">
+				<svg viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5 text-yellow-500/70"><path d="M2 4l3 12h14l3-12-5 4-5-6-5 6-5-4zm3 14h14v2H5v-2z" /></svg>
+				Leaderboard
+			</h1>
 		</div>
 		<a
 			href="/play/1"
