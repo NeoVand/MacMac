@@ -14,7 +14,7 @@
 	let animHandle = 0;
 	let mounted = $state(false);
 
-	const isLeader = $derived(scoreResult.score > 0 && scoreResult.score > topScore);
+	const isLeader = $derived(topScore > 0 && scoreResult.score > topScore);
 
 	const klDisplay = $derived(
 		scoreResult.kl === Infinity ? '---' : scoreResult.kl < 0.001 ? '<.001' : scoreResult.kl.toFixed(3)
