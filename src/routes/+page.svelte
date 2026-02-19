@@ -126,7 +126,7 @@
 
 <div class="flex min-h-dvh flex-col items-center">
 	<!-- Hero -->
-	<div class="relative flex w-full max-w-2xl flex-col items-center px-4 pt-14 sm:pt-20">
+	<div class="relative flex w-full max-w-2xl flex-col items-center px-4 pt-10 sm:pt-14">
 		<canvas
 			bind:this={heroCanvas}
 			class="absolute inset-0 h-full w-full opacity-50"
@@ -136,7 +136,7 @@
 		<h1 class="relative z-10 mb-2 text-center" style="font-family: 'Space Grotesk', sans-serif;">
 			<span class="text-6xl tracking-tight text-white/90 sm:text-8xl">mac</span><span class="bg-gradient-to-r from-game-cyan to-purple-400 bg-clip-text text-6xl tracking-tight text-transparent sm:text-8xl">mac</span>
 		</h1>
-		<p class="relative z-10 mb-7 max-w-xs text-center text-[13px] leading-relaxed text-white/30 sm:text-sm">
+		<p class="relative z-10 mb-5 max-w-xs text-center text-[13px] leading-relaxed text-white/30 sm:text-sm">
 			See a curve. Click to sample. Match the shape with the fewest clicks.
 		</p>
 
@@ -166,7 +166,7 @@
 	</div>
 
 	<!-- Steps -->
-	<div class="mt-10 flex w-full max-w-sm justify-center gap-8 px-4 sm:mt-12">
+	<div class="mt-6 flex w-full max-w-sm justify-center gap-8 px-4 sm:mt-8">
 		<div class="text-center">
 			<div class="mb-0.5 font-mono text-sm text-white/10">01</div>
 			<div class="text-[11px] text-white/30">See the curve</div>
@@ -182,7 +182,7 @@
 	</div>
 
 	<!-- Levels -->
-	<div class="mt-10 w-full max-w-3xl px-4 pb-16 sm:mt-12">
+	<div class="mt-6 w-full max-w-3xl px-4 pb-16 sm:mt-8">
 		<h2 class="mb-4 text-[10px] font-medium tracking-[0.2em] text-white/15 uppercase">Levels</h2>
 		<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
 			{#each levels as level}
