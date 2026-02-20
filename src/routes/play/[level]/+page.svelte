@@ -53,6 +53,29 @@
 		timerRunning = false;
 	});
 
+	// Restore game state after OAuth redirect
+	onMount(() => {
+		if (typeof sessionStorage === 'undefined') return;
+		const saved = sessionStorage.getItem('macmac_game_state');
+		if (!saved) return;
+		sessionStorage.removeItem('macmac_game_state');
+		try {
+			const state = JSON.parse(saved);
+			if (state.levelId !== levelId) return;
+			samples = state.samples || [];
+			totalClicks = state.totalClicks || samples.length;
+			elapsedMs = state.elapsedMs || 0;
+			pausedElapsed = elapsedMs;
+			if (samples.length > 0 && level) {
+				recalcScore();
+				// Auto-open submit dialog since they were trying to submit
+				showDialog = true;
+				submitted = false;
+				startReplay();
+			}
+		} catch { /* ignore bad data */ }
+	});
+
 	let lastScoreRecalcSec = 0;
 
 	function startTimer() {
@@ -147,6 +170,15 @@
 	}
 
 	async function signInWith(provider: 'github' | 'google') {
+		// Save game state before OAuth redirect so we can restore it on return
+		if (typeof sessionStorage !== 'undefined') {
+			sessionStorage.setItem('macmac_game_state', JSON.stringify({
+				levelId: levelId,
+				samples,
+				totalClicks,
+				elapsedMs
+			}));
+		}
 		await authClient.signIn.social({ provider, callbackURL: window.location.href });
 	}
 
