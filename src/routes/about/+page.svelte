@@ -1,28 +1,94 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { tick } from 'svelte';
 	import { gaussian, linspace } from '$lib/game/math';
+	import { computeKDE } from '$lib/game/kde';
+	import { computeMatchScore, computeTimeBonus } from '$lib/game/scoring';
 	import AppHeader from '$lib/components/AppHeader.svelte';
 
 	let canvas: HTMLCanvasElement | undefined = $state();
 	let mathContainer: HTMLDivElement | undefined = $state();
 
 	const mseFormula = `$$\\text{MSE} = \\frac{1}{n} \\sum_{i=1}^{n} \\left( \\frac{p(x_i)}{\\max(p)} - \\frac{\\hat{q}(x_i)}{\\max(\\hat{q})} \\right)^2$$`;
-	const scoreFormula = `$$\\text{Score} = \\underbrace{\\left\\lfloor \\frac{8000}{1 + 100 \\cdot \\text{MSE}} \\right\\rfloor}_{\\text{shape match}} + \\underbrace{\\left\\lfloor 2000 \\cdot \\max\\left(0, 1 - \\frac{t}{60}\\right) \\right\\rfloor}_{\\text{time bonus}}$$`;
+	const scoreFormula = `$$\\text{Score} = \\underbrace{\\operatorname{round}\\left( \\frac{8000}{1 + 100 \\cdot \\text{MSE}} \\right)}_{\\text{shape match}} + \\underbrace{\\operatorname{round}\\left( 2000 \\cdot \\max\\left(0, 1 - \\frac{t}{60}\\right) \\right)}_{\\text{time bonus}}$$`;
+
+	const NUM_SAMPLES = 30;
+	const SAMPLE_INTERVAL_MS = 200;
+	const HOLD_AT_END_MS = 2200;
+	const FADE_OUT_MS = 550;
+	const START_DELAY_MS = 380;
+	const LERP_SPEED = 0.14;
+	const FADE_OUT_LERP = 0.22;
+
+	function sampleFromPdf(pdf: (x: number) => number, xMin: number, xMax: number, n: number): number[] {
+		const gridSize = 600;
+		const xs = linspace(xMin, xMax, gridSize);
+		const densities = xs.map(pdf);
+		const total = densities.reduce((a, b) => a + b, 0);
+		if (total <= 0) return linspace(xMin, xMax, n);
+		const samples: number[] = [];
+		for (let i = 0; i < n; i++) {
+			const u = (i + 0.5) / n;
+			let cum = 0;
+			for (let j = 0; j < gridSize; j++) {
+				cum += densities[j] / total;
+				if (cum >= u) {
+					samples.push(xs[j]);
+					break;
+				}
+			}
+			if (samples.length === i) samples.push(xs[gridSize - 1]);
+		}
+		return samples;
+	}
+
+	function shuffle<T>(arr: T[]): T[] {
+		const out = [...arr];
+		for (let i = out.length - 1; i > 0; i--) {
+			const j = Math.floor(Math.random() * (i + 1));
+			[out[i], out[j]] = [out[j], out[i]];
+		}
+		return out;
+	}
+
+	function computeMse(pVals: number[], qVals: number[]): number {
+		const pMax = Math.max(...pVals) || 1;
+		const qMax = Math.max(...qVals) || 1;
+		let mse = 0;
+		for (let i = 0; i < pVals.length; i++) {
+			const p = pVals[i] / pMax;
+			const q = qMax > 0 ? qVals[i] / qMax : 0;
+			mse += (p - q) ** 2;
+		}
+		return mse / pVals.length;
+	}
+
+	let animSampleIdx = 0;
+	let animTimer = 0;
+	let displayKde: number[] = [];
+	let targetKde: number[] = [];
+	let animHandle = 0;
 
 	onMount(() => {
-		if (canvas) drawVisual();
-		renderMath();
+		startVisualAnimation();
+		tick().then(() => {
+			requestAnimationFrame(() => {
+				requestAnimationFrame(() => {
+					renderMath();
+				});
+			});
+		});
+		return () => cancelAnimationFrame(animHandle);
 	});
 
 	async function renderMath() {
-		// Wait for KaTeX to load from CDN
 		const check = () => typeof (window as any).renderMathInElement === 'function';
 		if (!check()) {
 			await new Promise<void>((resolve) => {
 				const interval = setInterval(() => {
 					if (check()) { clearInterval(interval); resolve(); }
-				}, 100);
-				setTimeout(() => { clearInterval(interval); resolve(); }, 3000);
+				}, 50);
+				setTimeout(() => { clearInterval(interval); resolve(); }, 5000);
 			});
 		}
 		if (mathContainer && check()) {
@@ -36,11 +102,112 @@
 		}
 	}
 
-	function drawVisual() {
+	function startVisualAnimation() {
 		if (!canvas) return;
-		const ctx = canvas.getContext('2d');
-		if (!ctx) return;
+		const xMin = -5, xMax = 5.5;
+		const pts = linspace(xMin, xMax, 200);
+		const pdf = (x: number) =>
+			0.25 * gaussian(x, -2.5, 0.6) + 0.45 * gaussian(x, 0.5, 0.9) + 0.3 * gaussian(x, 3, 0.5);
 
+		const allSamples = sampleFromPdf(pdf, xMin, xMax, NUM_SAMPLES);
+		const baseCurveKde = computeKDE(allSamples, pts);
+		let animOrder = shuffle([...allSamples]);
+
+		displayKde = new Array(pts.length).fill(0);
+		targetKde = new Array(pts.length).fill(0);
+
+		let lastTime = performance.now();
+		let holdTimer = 0;
+		let fadeOutTimer = 0;
+		let phase: 'adding' | 'holding' | 'fadingOut' = 'adding';
+		let elapsedMs = 0;
+		let fadeFactor = 1;
+		let frozenStats: { mse: number; score: number; elapsedMs: number } | null = null;
+
+		function frame(now: number) {
+			if (!canvas) return;
+			const ctx = canvas.getContext('2d');
+			if (!ctx) return;
+
+			const dt = Math.min((now - lastTime) / 1000, 0.1);
+			lastTime = now;
+
+			if (phase === 'adding') {
+				if (animSampleIdx > 0) elapsedMs += dt * 1000;
+				animTimer += dt * 1000;
+				const interval = animSampleIdx === 0 ? START_DELAY_MS : SAMPLE_INTERVAL_MS;
+				if (animTimer >= interval) {
+					animTimer = 0;
+					animSampleIdx = Math.min(animSampleIdx + 1, animOrder.length);
+					if (animSampleIdx >= animOrder.length) {
+						phase = 'holding';
+						holdTimer = 0;
+					}
+				}
+				targetKde = animSampleIdx > 0 ? computeKDE(animOrder.slice(0, animSampleIdx), pts) : new Array(pts.length).fill(0);
+			} else if (phase === 'holding') {
+				holdTimer += dt * 1000;
+				if (holdTimer >= HOLD_AT_END_MS) {
+					phase = 'fadingOut';
+					fadeOutTimer = 0;
+					frozenStats = {
+						mse: computeMse(baseCurveKde, displayKde),
+						score: computeMatchScore(computeMse(baseCurveKde, displayKde)) + computeTimeBonus(elapsedMs),
+						elapsedMs
+					};
+				}
+				targetKde = computeKDE(animOrder, pts);
+			} else {
+				fadeOutTimer += dt * 1000;
+				targetKde = new Array(pts.length).fill(0);
+				for (let i = 0; i < displayKde.length; i++) {
+					displayKde[i] += (targetKde[i] - displayKde[i]) * FADE_OUT_LERP;
+				}
+				fadeFactor = Math.max(0, 1 - fadeOutTimer / FADE_OUT_MS);
+				if (fadeOutTimer >= FADE_OUT_MS) {
+					animSampleIdx = 0;
+					animTimer = 0;
+					elapsedMs = 0;
+					fadeFactor = 1;
+					frozenStats = null;
+					phase = 'adding';
+					animOrder = shuffle([...allSamples]);
+					displayKde = displayKde.map(() => 0);
+					targetKde = new Array(pts.length).fill(0);
+				}
+			}
+
+			if (phase !== 'fadingOut') {
+				for (let i = 0; i < displayKde.length; i++) {
+					displayKde[i] += (targetKde[i] - displayKde[i]) * LERP_SPEED;
+				}
+			}
+
+			const currentSamples = phase === 'fadingOut' ? animOrder : animOrder.slice(0, animSampleIdx);
+			const mse = computeMse(baseCurveKde, displayKde);
+			const stats = frozenStats ?? {
+				mse,
+				score: computeMatchScore(mse) + computeTimeBonus(elapsedMs),
+				elapsedMs
+			};
+
+			drawFrame(ctx, pts, xMin, xMax, currentSamples, baseCurveKde, stats, fadeFactor);
+			animHandle = requestAnimationFrame(frame);
+		}
+		animHandle = requestAnimationFrame(frame);
+	}
+
+	function drawFrame(
+		ctx: CanvasRenderingContext2D,
+		pts: number[],
+		xMin: number,
+		xMax: number,
+		currentSamples: number[],
+		baseCurveKde: number[],
+		stats: { mse: number; score: number; elapsedMs: number },
+		fadeFactor: number = 1
+	) {
+		if (!canvas) return;
 		const w = canvas.clientWidth;
 		const h = canvas.clientHeight;
 		const dpr = window.devicePixelRatio || 1;
@@ -52,21 +219,44 @@
 		const pw = w - pad * 2;
 		const ph = h - pad * 2;
 
-		const pdf = (x: number) =>
-			0.25 * gaussian(x, -2.5, 0.6) + 0.45 * gaussian(x, 0.5, 0.9) + 0.3 * gaussian(x, 3, 0.5);
-
-		const xMin = -5, xMax = 5.5;
-		const pts = linspace(xMin, xMax, 300);
-		const vals = pts.map(pdf);
-		const yMax = Math.max(...vals) * 1.15;
+		const baseMax = baseCurveKde.length > 0 ? Math.max(...baseCurveKde) : 1;
+		const kdeMax = displayKde.length > 0 ? Math.max(...displayKde) : 0;
+		const yMax = Math.max(baseMax, kdeMax) * 1.15 || 1;
 
 		const toX = (x: number) => pad + ((x - xMin) / (xMax - xMin)) * pw;
 		const toY = (y: number) => pad + ph - (y / yMax) * ph;
+		const baseY = toY(0);
 
-		const pathPts: [number, number][] = pts.map((x, i) => [toX(x), toY(vals[i])]);
+		ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--surface').trim() || '#12122a';
+		ctx.fillRect(0, 0, w, h);
 
-		// Family of curves
-		const scales = [0.5, 0.7, 0.85, 1.0];
+		// Stats overlay (top left) — compact, elegant
+		const tertiary = getComputedStyle(document.documentElement).getPropertyValue('--text-tertiary').trim() || 'rgba(255,255,255,0.35)';
+		const secondary = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary').trim() || 'rgba(255,255,255,0.55)';
+		const cyan = getComputedStyle(document.documentElement).getPropertyValue('--accent-cyan').trim() || '#00d4ff';
+		const orange = getComputedStyle(document.documentElement).getPropertyValue('--accent-orange').trim() || '#ff9933';
+		ctx.font = '500 11px Inter, system-ui, sans-serif';
+		ctx.textBaseline = 'top';
+		const lineH = 15;
+		const statX = pad + 2;
+		let statY = pad + 2;
+		ctx.fillStyle = tertiary;
+		ctx.fillText('MSE ', statX, statY);
+		ctx.fillStyle = cyan;
+		ctx.fillText(stats.mse.toFixed(4), statX + ctx.measureText('MSE ').width, statY);
+		statY += lineH;
+		ctx.fillStyle = tertiary;
+		ctx.fillText('Time ', statX, statY);
+		ctx.fillStyle = secondary;
+		ctx.fillText((stats.elapsedMs / 1000).toFixed(1) + 's', statX + ctx.measureText('Time ').width, statY);
+		statY += lineH;
+		ctx.fillStyle = tertiary;
+		ctx.fillText('Score ', statX, statY);
+		ctx.fillStyle = orange;
+		ctx.fillText(stats.score.toLocaleString(), statX + ctx.measureText('Score ').width, statY);
+
+		// Base curve family (cyan) — KDE of all 30 samples, so it exactly matches when orange fills in
+		const scales = linspace(0.25, 1, 16);
 		const strokeGrad = ctx.createLinearGradient(toX(xMin), 0, toX(xMax), 0);
 		strokeGrad.addColorStop(0, '#00ccff');
 		strokeGrad.addColorStop(0.5, '#a855f7');
@@ -74,15 +264,17 @@
 
 		for (let si = 0; si < scales.length; si++) {
 			const s = scales[si];
-			const alpha = si === scales.length - 1 ? 0.9 : 0.1 + si * 0.06;
-			const lw = si === scales.length - 1 ? 2 : 1;
-			const sp: [number, number][] = pts.map((x, i) => [toX(x), toY(vals[i] * s)]);
+			const isMain = si === scales.length - 1;
+			const alpha = isMain ? 0.9 : 0.04 + (si / (scales.length - 1)) * 0.5;
+			const lw = isMain ? 2 : 0.6 + (si / (scales.length - 1)) * 0.5;
+			const vals = baseCurveKde.map((v) => v * s);
+			const sp: [number, number][] = pts.map((x, i) => [toX(x), toY(vals[i])]);
 
-			if (si === scales.length - 1) {
+			if (isMain) {
 				ctx.beginPath();
 				sp.forEach(([x, y], i) => i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y));
-				ctx.lineTo(toX(xMax), toY(0));
-				ctx.lineTo(toX(xMin), toY(0));
+				ctx.lineTo(toX(xMax), baseY);
+				ctx.lineTo(toX(xMin), baseY);
 				ctx.closePath();
 				const g = ctx.createLinearGradient(0, pad, 0, pad + ph);
 				g.addColorStop(0, 'rgba(0, 200, 255, 0.08)');
@@ -100,22 +292,61 @@
 			ctx.globalAlpha = 1;
 		}
 
-		const baseY = toY(0);
-		const sampleXs = [-3, -2.8, -2.3, -2, -1, 0, 0.2, 0.5, 0.7, 1, 1.3, 2.5, 2.8, 3, 3.2, 3.5];
-		for (const sx of sampleXs) {
-			ctx.fillStyle = 'rgba(255, 153, 51, 0.5)';
+		// KDE curve (orange, builds as samples are added)
+		if (currentSamples.length > 0 && displayKde.length === pts.length && fadeFactor > 0.01) {
+			ctx.globalAlpha = fadeFactor;
+			const clamped = displayKde.map((v) => Math.min(v, yMax * 0.99));
+			ctx.beginPath();
+			for (let i = 0; i < pts.length; i++) {
+				const sy = toY(clamped[i]);
+				i === 0 ? ctx.moveTo(toX(pts[i]), sy) : ctx.lineTo(toX(pts[i]), sy);
+			}
+			ctx.lineTo(toX(pts[pts.length - 1]), baseY);
+			ctx.lineTo(toX(pts[0]), baseY);
+			ctx.closePath();
+			const kdeGrad = ctx.createLinearGradient(0, pad, 0, baseY);
+			kdeGrad.addColorStop(0, 'rgba(255, 130, 40, 0.2)');
+			kdeGrad.addColorStop(1, 'rgba(255, 100, 30, 0.02)');
+			ctx.fillStyle = kdeGrad;
+			ctx.fill();
+
+			ctx.beginPath();
+			for (let i = 0; i < pts.length; i++) {
+				const sy = toY(clamped[i]);
+				i === 0 ? ctx.moveTo(toX(pts[i]), sy) : ctx.lineTo(toX(pts[i]), sy);
+			}
+			ctx.strokeStyle = 'rgba(255, 150, 50, 0.75)';
+			ctx.lineWidth = 1.5;
+			ctx.setLineDash([4, 3]);
+			ctx.lineCap = 'round';
+			ctx.lineJoin = 'round';
+			ctx.stroke();
+			ctx.setLineDash([]);
+			ctx.lineCap = 'butt';
+			ctx.lineJoin = 'miter';
+			ctx.globalAlpha = 1;
+		}
+
+		// Sample dots (only those added so far)
+		if (fadeFactor > 0.01) {
+			ctx.globalAlpha = fadeFactor;
+		}
+		for (const sx of currentSamples) {
+			ctx.fillStyle = 'rgba(255, 150, 50, 0.15)';
+			ctx.beginPath();
+			ctx.arc(toX(sx), baseY, 6, 0, Math.PI * 2);
+			ctx.fill();
+			ctx.fillStyle = 'rgba(255, 153, 51, 0.65)';
 			ctx.beginPath();
 			ctx.arc(toX(sx), baseY, 3.5, 0, Math.PI * 2);
 			ctx.fill();
 		}
+		if (fadeFactor < 1) ctx.globalAlpha = 1;
 	}
 </script>
 
 <svelte:head>
 	<title>About — macmac</title>
-	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous" />
-	<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
-	<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous"></script>
 </svelte:head>
 
 <div class="min-h-dvh">
@@ -124,7 +355,7 @@
 	<div bind:this={mathContainer} class="mx-auto max-w-xl px-4 sm:px-6">
 	<canvas
 		bind:this={canvas}
-		class="mt-6 h-32 w-full rounded-xl sm:h-40"
+		class="mt-6 h-32 w-full rounded-3xl sm:h-40"
 		style="background: var(--surface);"
 	></canvas>
 
@@ -162,7 +393,7 @@
 			<strong style="color: var(--text-primary); opacity: 0.55;">Shape match</strong> is measured by the mean squared error between the target PDF and your KDE, both normalized to the same peak height. This compares the visual shape directly:
 		</p>
 
-		<div class="overflow-x-auto rounded-lg px-4 py-3" style="background: var(--surface);">
+		<div class="overflow-x-auto rounded-3xl px-4 py-3" style="background: var(--surface);">
 			{@html mseFormula}
 		</div>
 
@@ -176,7 +407,7 @@
 
 		<p>The final score:</p>
 
-		<div class="overflow-x-auto rounded-lg px-4 py-3" style="background: var(--surface);">
+		<div class="overflow-x-auto rounded-3xl px-4 py-3" style="background: var(--surface);">
 			{@html scoreFormula}
 		</div>
 

@@ -204,10 +204,18 @@
 	}
 
 	// Smooth replay with continuous animation
+	const REPLAY_START_DELAY_FRAMES = 12;
+	const REPLAY_STEP_FRAMES = 18;
+	const REPLAY_HOLD_FRAMES = 90;
+	const REPLAY_FADE_OUT_FRAMES = 33;
+	const REPLAY_FADE_LERP = 0.22;
+
 	let replayStepTimer = 0;
 	let replayXs: number[] = [];
-	let replayPaused = false;
+	let replayPhase: 'adding' | 'holding' | 'fadingOut' = 'adding';
 	let replayPauseTimer = 0;
+	let replayFadeTimer = 0;
+	let replayFadeFactor = 1;
 
 	function startReplay() {
 		if (!level) return;
@@ -216,38 +224,53 @@
 		replayIdx = 0;
 		replayKde = new Array(200).fill(0);
 		replayStepTimer = 0;
-		replayPaused = false;
+		replayPhase = 'adding';
 		replayPauseTimer = 0;
+		replayFadeTimer = 0;
+		replayFadeFactor = 1;
 
 		function frame() {
 			if (!showDialog) return;
 
-			if (replayPaused) {
-				// Hold at end for ~90 frames (~1.5s), then reset smoothly
-				replayPauseTimer++;
-				if (replayPauseTimer > 90) {
-					replayPaused = false;
-					replayPauseTimer = 0;
-					replayIdx = 0;
-					// Don't zero KDE — it will lerp down smoothly
-				}
-			} else {
-				// Advance sample step every ~18 frames (~300ms at 60fps)
+			if (replayPhase === 'adding') {
+				const interval = replayIdx === 0 ? REPLAY_START_DELAY_FRAMES : REPLAY_STEP_FRAMES;
 				replayStepTimer++;
-				if (replayStepTimer >= 18) {
+				if (replayStepTimer >= interval) {
 					replayStepTimer = 0;
 					replayIdx++;
 					if (replayIdx > samples.length) {
-						replayPaused = true;
+						replayPhase = 'holding';
+						replayPauseTimer = 0;
 					}
+				}
+			} else if (replayPhase === 'holding') {
+				replayPauseTimer++;
+				if (replayPauseTimer > REPLAY_HOLD_FRAMES) {
+					replayPhase = 'fadingOut';
+					replayFadeTimer = 0;
+				}
+			} else {
+				replayFadeTimer++;
+				const targetKde = new Array(200).fill(0);
+				for (let i = 0; i < 200; i++) {
+					replayKde[i] += (targetKde[i] - replayKde[i]) * REPLAY_FADE_LERP;
+				}
+				replayFadeFactor = Math.max(0, 1 - replayFadeTimer / REPLAY_FADE_OUT_FRAMES);
+				if (replayFadeTimer >= REPLAY_FADE_OUT_FRAMES) {
+					replayIdx = 0;
+					replayStepTimer = 0;
+					replayPhase = 'adding';
+					replayFadeFactor = 1;
+					replayKde = replayKde.map(() => 0);
 				}
 			}
 
-			// Lerp KDE toward target (lerps to zero when replayIdx resets)
-			const replaySamples = samples.slice(0, Math.min(replayIdx, samples.length));
-			const targetKde = replaySamples.length > 0 ? computeKDE(replaySamples, replayXs) : new Array(200).fill(0);
-			for (let i = 0; i < 200; i++) {
-				replayKde[i] += (targetKde[i] - replayKde[i]) * 0.12;
+			if (replayPhase !== 'fadingOut') {
+				const replaySamples = samples.slice(0, Math.min(replayIdx, samples.length));
+				const targetKde = replaySamples.length > 0 ? computeKDE(replaySamples, replayXs) : new Array(200).fill(0);
+				for (let i = 0; i < 200; i++) {
+					replayKde[i] += (targetKde[i] - replayKde[i]) * 0.12;
+				}
 			}
 
 			drawReplay();
@@ -305,7 +328,8 @@
 		ctx.stroke();
 
 		// KDE curve (lerped)
-		if (replayIdx > 0) {
+		if (replayIdx > 0 && replayFadeFactor > 0.01) {
+			ctx.globalAlpha = replayFadeFactor;
 			const clampedKde = replayKde.map((v) => Math.min(v, yMax * 0.99));
 
 			ctx.beginPath();
@@ -336,19 +360,24 @@
 			ctx.setLineDash([]);
 			ctx.lineCap = 'butt';
 			ctx.lineJoin = 'miter';
-
-			const replaySamples = samples.slice(0, replayIdx);
-			for (const sp of replaySamples) {
-				ctx.fillStyle = sampleGlow;
-				ctx.beginPath();
-				ctx.arc(toX(sp), baseY, 6, 0, Math.PI * 2);
-				ctx.fill();
-				ctx.fillStyle = sampleDot;
-				ctx.beginPath();
-				ctx.arc(toX(sp), baseY, 3.5, 0, Math.PI * 2);
-				ctx.fill();
-			}
+			ctx.globalAlpha = 1;
 		}
+
+		if (replayIdx > 0 && replayFadeFactor > 0.01) {
+			ctx.globalAlpha = replayFadeFactor;
+		}
+		const replaySamples = replayPhase === 'fadingOut' ? samples : samples.slice(0, replayIdx);
+		for (const sp of replaySamples) {
+			ctx.fillStyle = sampleGlow;
+			ctx.beginPath();
+			ctx.arc(toX(sp), baseY, 6, 0, Math.PI * 2);
+			ctx.fill();
+			ctx.fillStyle = sampleDot;
+			ctx.beginPath();
+			ctx.arc(toX(sp), baseY, 3.5, 0, Math.PI * 2);
+			ctx.fill();
+		}
+		if (replayFadeFactor < 1) ctx.globalAlpha = 1;
 
 		// PDF curve — family of curves (uniform scale spacing)
 		const pdfFamilyScales = linspace(0.08, 1, 28);
