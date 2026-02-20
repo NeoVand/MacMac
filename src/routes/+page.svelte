@@ -52,7 +52,7 @@
 		ctx.scale(dpr, dpr);
 		ctx.clearRect(0, 0, w, h);
 
-		const padX = 30, padTop = 20, padBot = 10;
+		const padX = 48, padTop = 10, padBot = 6;
 		const pw = w - padX * 2;
 		const ph = h - padTop - padBot;
 
@@ -71,7 +71,7 @@
 		const xMin = -5, xMax = 5;
 		const pts = linspace(xMin, xMax, 300);
 		const vals = pts.map(pdf);
-		const yMax = Math.max(...vals) * 1.1;
+		const yMax = Math.max(...vals) * 1.0;
 
 		const toX = (x: number) => padX + ((x - xMin) / (xMax - xMin)) * pw;
 		const toY = (y: number) => padTop + ph - (y / yMax) * ph;
@@ -153,36 +153,23 @@
 	</div>
 
 	<!-- Hero + Steps -->
-	<div class="relative w-full">
+	<div class="relative flex min-h-[240px] w-full flex-col sm:min-h-[280px]">
 		<canvas
 			bind:this={heroCanvas}
 			class="absolute inset-0 h-full w-full opacity-50"
 			style="pointer-events: none;"
 		></canvas>
 
-		<div class="relative z-10 flex flex-col items-center px-4 pt-2 sm:pt-12">
+		<div class="relative z-10 flex min-h-[240px] flex-1 flex-col items-center px-4 pt-2 sm:min-h-[280px] sm:pt-12">
 			<h1 class="mb-1 text-center sm:mb-2" style="font-family: 'Space Grotesk', sans-serif;">
 				<span class="text-5xl tracking-tight sm:text-8xl" style="color: var(--text-primary); opacity: 0.85;">mac</span><span class="bg-gradient-to-r from-game-cyan to-purple-400 bg-clip-text text-5xl tracking-tight text-transparent sm:text-8xl">mac</span>
 			</h1>
-
-			<!-- Steps -->
-			<div class="mt-6 flex w-full max-w-sm justify-center gap-6 sm:mt-14 sm:gap-8">
-				<div class="text-center">
-					<div class="mb-0.5 font-mono text-sm" style="color: var(--text-tertiary);">01</div>
-					<div class="text-[11px]" style="color: var(--text-secondary);">See the curve</div>
-				</div>
-				<div class="text-center">
-					<div class="mb-0.5 font-mono text-sm" style="color: var(--text-tertiary);">02</div>
-					<div class="text-[11px]" style="color: var(--text-secondary);">Click to sample</div>
-				</div>
-				<div class="text-center">
-					<div class="mb-0.5 font-mono text-sm" style="color: var(--text-tertiary);">03</div>
-					<div class="text-[11px]" style="color: var(--text-secondary);">Beat the board</div>
-				</div>
-			</div>
+			<p class="mb-0 text-center text-sm font-medium tracking-[0.2em] uppercase sm:text-base" style="color: var(--text-secondary);">
+				the sampling game
+			</p>
 
 			<!-- Action buttons -->
-			<div class="mx-auto mt-6 flex w-full max-w-sm flex-wrap justify-center gap-2 pb-4 px-2 sm:mt-10 sm:max-w-none sm:gap-2.5 sm:pb-6 sm:px-0">
+			<div class="mx-auto mt-6 flex w-full max-w-sm flex-wrap justify-center gap-2 px-2 sm:mt-10 sm:max-w-none sm:gap-2.5 sm:px-0">
 				<a href="/play/1" class="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 text-[11px] font-semibold backdrop-blur-sm transition hover:brightness-110 sm:h-11 sm:flex-initial sm:gap-2 sm:rounded-2xl sm:px-6 sm:text-[13px]" style="background: color-mix(in srgb, var(--accent-cyan) 10%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);">
 					<svg viewBox="0 0 20 20" fill="currentColor" class="h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg>
 					<span class="truncate">Play</span>
