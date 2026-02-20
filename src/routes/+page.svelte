@@ -175,20 +175,16 @@
 		</div>
 	</div>
 
-	<!-- Buttons -->
+	<!-- Buttons: Play + Leaderboard (About is in header) -->
 	<div class="flex w-full justify-center px-4 pt-6 sm:pt-8">
-		<div class="flex w-full max-w-sm flex-wrap justify-center gap-2 sm:max-w-none sm:gap-2.5">
-			<a href="/play/1" class="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 text-[11px] font-semibold backdrop-blur-sm transition hover:brightness-110 sm:h-11 sm:flex-initial sm:gap-2 sm:rounded-2xl sm:px-6 sm:text-[13px]" style="background: color-mix(in srgb, var(--accent-cyan) 10%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);">
-				<svg viewBox="0 0 20 20" fill="currentColor" class="h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg>
-				<span class="truncate">Play</span>
+		<div class="flex flex-nowrap items-center justify-center gap-2 sm:gap-3">
+			<a href="/play/1" class="flex flex-initial items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[13px] font-bold tracking-wide backdrop-blur-sm transition hover:brightness-110 hover:scale-[1.02] active:scale-[0.98] sm:gap-2.5 sm:px-5 sm:py-3 sm:text-[14px]" style="font-family: 'Space Grotesk', sans-serif; background: color-mix(in srgb, var(--accent-cyan) 14%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 35%, transparent); color: var(--accent-cyan); box-shadow: 0 2px 12px color-mix(in srgb, var(--accent-cyan) 15%, transparent);">
+				<svg viewBox="0 0 20 20" fill="currentColor" class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg>
+				<span class="whitespace-nowrap">Play</span>
 			</a>
-			<a href="/leaderboard" class="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 text-[11px] font-medium backdrop-blur-sm transition hover:brightness-110 sm:h-11 sm:flex-initial sm:gap-2 sm:rounded-2xl sm:px-6 sm:text-[13px]" style="background: color-mix(in srgb, #eab308 7%, transparent); border: 1px solid color-mix(in srgb, #eab308 20%, transparent); color: color-mix(in srgb, #eab308 70%, var(--text-primary));">
-				<svg viewBox="0 0 24 24" fill="#eab308" class="h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5"><path d="M2 4l3 12h14l3-12-5 4-5-6-5 6-5-4zm3 14h14v2H5v-2z" /></svg>
-				<span class="truncate">Leaderboard</span>
-			</a>
-			<a href="/about" class="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 text-[11px] font-medium backdrop-blur-sm transition hover:brightness-110 sm:h-11 sm:flex-initial sm:gap-2 sm:rounded-2xl sm:px-6 sm:text-[13px]" style="background: color-mix(in srgb, var(--text-primary) 4%, transparent); border: 1px solid var(--border); color: var(--text-secondary);">
-				<svg viewBox="0 0 20 20" fill="currentColor" class="h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd" /></svg>
-				<span class="truncate">About</span>
+			<a href="/leaderboard" class="flex flex-initial items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[13px] font-bold tracking-wide backdrop-blur-sm transition hover:brightness-110 hover:scale-[1.02] active:scale-[0.98] sm:gap-2.5 sm:px-5 sm:py-3 sm:text-[14px]" style="font-family: 'Space Grotesk', sans-serif; background: color-mix(in srgb, #eab308 12%, transparent); border: 1px solid color-mix(in srgb, #eab308 30%, transparent); color: color-mix(in srgb, #eab308 80%, var(--text-primary)); box-shadow: 0 2px 12px color-mix(in srgb, #eab308 15%, transparent);">
+				<svg viewBox="0 0 24 24" fill="#eab308" class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4"><path d="M2 4l3 12h14l3-12-5 4-5-6-5 6-5-4zm3 14h14v2H5v-2z" /></svg>
+				<span class="whitespace-nowrap">Leaderboard</span>
 			</a>
 		</div>
 	</div>

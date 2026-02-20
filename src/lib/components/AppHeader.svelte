@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Info } from 'lucide-svelte';
 	import UserAvatar from './UserAvatar.svelte';
 	import ThemeToggle from './ThemeToggle.svelte';
 
@@ -46,6 +47,9 @@
 		{/if}
 		<a href="/leaderboard" class="flex h-9 w-9 items-center justify-center rounded-full transition hover:opacity-70" style="background: var(--surface);" aria-label="Leaderboard">
 			<svg viewBox="0 0 24 24" fill="#eab308" class="h-4 w-4"><path d="M2 4l3 12h14l3-12-5 4-5-6-5 6-5-4zm3 14h14v2H5v-2z" /></svg>
+		</a>
+		<a href="/about" class="flex h-9 w-9 items-center justify-center rounded-full transition hover:opacity-70" style="background: var(--surface); color: var(--text-secondary);" aria-label="About">
+			<Info size={16} />
 		</a>
 		<ThemeToggle />
 		<UserAvatar />
