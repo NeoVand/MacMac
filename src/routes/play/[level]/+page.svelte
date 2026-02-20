@@ -8,9 +8,8 @@
 	import { computeKDE } from '$lib/game/kde';
 	import GameCanvas from '$lib/components/GameCanvas.svelte';
 	import ScorePanel from '$lib/components/ScorePanel.svelte';
-	import UserAvatar from '$lib/components/UserAvatar.svelte';
-	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
-	import { ZoomIn, ZoomOut, Fullscreen, Github, Eraser, ChevronLeft, ChevronRight } from 'lucide-svelte';
+	import AppHeader from '$lib/components/AppHeader.svelte';
+	import { ZoomIn, ZoomOut, Fullscreen, Github, Eraser } from 'lucide-svelte';
 
 	let { data } = $props();
 
@@ -336,32 +335,9 @@
 {:else}
 	<!-- Desktop: constrain to centered max-width -->
 	<div class="mx-auto flex h-dvh max-w-4xl flex-col overflow-hidden" style="background: var(--bg);">
-		<!-- Row 1: utility bar -->
-		<div class="flex shrink-0 items-center justify-between px-4 py-2 sm:px-6">
-			<a href="/" class="inline-block transition hover:opacity-80" style="font-family: 'Space Grotesk', sans-serif;">
-				<span class="text-base" style="color: var(--text-secondary);">mac</span><span class="text-base" style="color: var(--accent-cyan); opacity: 0.6;">mac</span>
-			</a>
+		<AppHeader showNav prevHref={prevLevel ? `/play/${prevLevel}` : null} nextHref={nextLevel ? `/play/${nextLevel}` : null} />
 
-			<div class="flex items-center gap-1.5">
-				{#if prevLevel}
-					<a href="/play/{prevLevel}" class="flex h-9 w-9 items-center justify-center rounded-full transition hover:opacity-70" style="background: var(--surface); color: var(--text-secondary);" aria-label="Previous level">
-						<ChevronLeft size={18} />
-					</a>
-				{/if}
-				{#if nextLevel}
-					<a href="/play/{nextLevel}" class="flex h-9 w-9 items-center justify-center rounded-full transition hover:opacity-70" style="background: var(--surface); color: var(--text-secondary);" aria-label="Next level">
-						<ChevronRight size={18} />
-					</a>
-				{/if}
-				<a href="/leaderboard" class="flex h-9 w-9 items-center justify-center rounded-full transition hover:opacity-70" style="background: var(--surface);" aria-label="Leaderboard">
-					<svg viewBox="0 0 24 24" fill="#eab308" class="h-4 w-4"><path d="M2 4l3 12h14l3-12-5 4-5-6-5 6-5-4zm3 14h14v2H5v-2z" /></svg>
-				</a>
-				<ThemeToggle />
-				<UserAvatar size="sm" />
-			</div>
-		</div>
-
-		<!-- Row 2: level name -->
+		<!-- Level name -->
 		<div class="flex shrink-0 items-center gap-2 px-4 pb-1.5 sm:px-6">
 			<span class="inline-block h-2.5 w-2.5 rounded-full" style="background: {getDifficultyColor(level.difficulty)}"></span>
 			<span class="text-sm font-semibold" style="color: var(--text-primary); opacity: 0.7;">{level.id}. {level.name}</span>

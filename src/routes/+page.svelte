@@ -3,8 +3,7 @@
 	import { levels } from '$lib/game/levels';
 	import { getDifficultyColor } from '$lib/game/scoring';
 	import { gaussian, linspace } from '$lib/game/math';
-	import UserAvatar from '$lib/components/UserAvatar.svelte';
-	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import AppHeader from '$lib/components/AppHeader.svelte';
 
 	let heroCanvas: HTMLCanvasElement | undefined = $state();
 	let animFrame = 0;
@@ -147,10 +146,8 @@
 </svelte:head>
 
 <div class="relative flex min-h-dvh flex-col items-center">
-	<!-- Top-right controls -->
-	<div class="absolute right-4 top-4 z-20 flex items-center gap-2 sm:right-6">
-		<ThemeToggle />
-		<UserAvatar />
+	<div class="relative z-20 w-full">
+		<AppHeader />
 	</div>
 
 	<!-- Hero + Steps -->

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { gaussian, linspace } from '$lib/game/math';
+	import AppHeader from '$lib/components/AppHeader.svelte';
 
 	let canvas: HTMLCanvasElement | undefined = $state();
 	let mathContainer: HTMLDivElement | undefined = $state();
@@ -117,11 +118,10 @@
 	<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous"></script>
 </svelte:head>
 
-<div bind:this={mathContainer} class="mx-auto min-h-dvh max-w-xl px-6 py-8 sm:px-10 sm:py-12">
-	<a href="/" class="inline-block transition hover:opacity-80" style="font-family: 'Space Grotesk', sans-serif;">
-		<span class="text-sm" style="color: var(--text-secondary);">mac</span><span class="text-sm" style="color: var(--accent-cyan); opacity: 0.6;">mac</span>
-	</a>
+<div bind:this={mathContainer} class="min-h-dvh">
+	<AppHeader breadcrumb="About" breadcrumbIcon="info" />
 
+	<div class="mx-auto max-w-xl px-4 sm:px-6">
 	<canvas
 		bind:this={canvas}
 		class="mt-6 h-32 w-full rounded-xl sm:h-40"
@@ -210,6 +210,7 @@
 				</a>
 			</div>
 		</div>
+	</div>
 	</div>
 </div>
 
