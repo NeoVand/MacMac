@@ -32,6 +32,7 @@
 	let displayKde: number[] = [];
 	let targetKde: number[] = [];
 	let animHandle = 0;
+	let themeVersion = $state(0);
 
 	const LERP_SPEED = 0.12;
 	const PAD = { top: 30, right: 30, bottom: 44, left: 30 };
@@ -39,8 +40,30 @@
 	const pw = $derived(width - PAD.left - PAD.right);
 	const ph = $derived(height - PAD.top - PAD.bottom);
 
-	function cssVar(name: string): string {
-		return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+	// Cached color palette — refreshed on theme change, not per frame
+	let colors = {
+		canvasBg: '#0a0a1a', axis: 'rgba(255,255,255,0.07)', text: 'rgba(255,255,255,0.22)',
+		hint: 'rgba(255,255,255,0.25)', crosshair: 'rgba(255,255,255,0.7)',
+		crosshairRing: 'rgba(255,255,255,0.15)', curveGlow: 'rgba(0,200,255,0.12)',
+		curveFillStart: 'rgba(0,200,255,0.07)', curveFillEnd: 'rgba(0,200,255,0.0)',
+		accentCyan: '#00d4ff', kdeFillStart: 'rgba(255,130,40,0.22)',
+		kdeFillEnd: 'rgba(255,100,30,0.02)', kdeStroke: 'rgba(255,150,50,0.75)',
+		sampleGlow: 'rgba(255,150,50,0.1)', sampleDot: 'rgba(255,153,51,0.65)',
+	};
+
+	function refreshColors() {
+		const s = getComputedStyle(document.documentElement);
+		const v = (name: string) => s.getPropertyValue(name).trim();
+		colors = {
+			canvasBg: v('--canvas-bg'), axis: v('--canvas-axis'), text: v('--canvas-text'),
+			hint: v('--canvas-hint'), crosshair: v('--canvas-crosshair'),
+			crosshairRing: v('--canvas-crosshair-ring'), curveGlow: v('--curve-glow'),
+			curveFillStart: v('--curve-fill-start'), curveFillEnd: v('--curve-fill-end'),
+			accentCyan: v('--accent-cyan'), kdeFillStart: v('--kde-fill-start'),
+			kdeFillEnd: v('--kde-fill-end'), kdeStroke: v('--kde-stroke'),
+			sampleGlow: v('--sample-glow'), sampleDot: v('--sample-dot'),
+		};
+		themeVersion++;
 	}
 
 	function toSX(x: number) { return PAD.left + ((x - viewXMin) / (viewXMax - viewXMin)) * pw; }
@@ -81,6 +104,14 @@
 	}
 
 	onMount(() => {
+		refreshColors();
+
+		// Watch for theme class changes on <html>
+		const observer = new MutationObserver(() => {
+			refreshColors();
+		});
+		observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+
 		let running = true;
 		function frame() {
 			if (!running) return;
@@ -98,7 +129,7 @@
 			animHandle = requestAnimationFrame(frame);
 		}
 		frame();
-		return () => { running = false; cancelAnimationFrame(animHandle); };
+		return () => { running = false; cancelAnimationFrame(animHandle); observer.disconnect(); };
 	});
 
 	let lastDrawnWidth = 0;
@@ -107,16 +138,19 @@
 	let lastDrawnViewMin = 0;
 	let lastDrawnViewMax = 0;
 	let lastDrawnSamplesLen = 0;
+	let lastDrawnTheme = 0;
 
 	function draw(kdeAnimating: boolean) {
 		if (!canvas || pw <= 0 || ph <= 0) return;
 		const stateChanged =
 			width !== lastDrawnWidth || height !== lastDrawnHeight ||
 			mouseX !== lastDrawnMouseX || viewXMin !== lastDrawnViewMin ||
-			viewXMax !== lastDrawnViewMax || samples.length !== lastDrawnSamplesLen;
+			viewXMax !== lastDrawnViewMax || samples.length !== lastDrawnSamplesLen ||
+			themeVersion !== lastDrawnTheme;
 		if (!kdeAnimating && !stateChanged) return;
 		lastDrawnWidth = width; lastDrawnHeight = height; lastDrawnMouseX = mouseX;
-		lastDrawnViewMin = viewXMin; lastDrawnViewMax = viewXMax; lastDrawnSamplesLen = samples.length;
+		lastDrawnViewMin = viewXMin; lastDrawnViewMax = viewXMax;
+		lastDrawnSamplesLen = samples.length; lastDrawnTheme = themeVersion;
 
 		const ctx = canvas.getContext('2d');
 		if (!ctx) return;
@@ -127,7 +161,7 @@
 		ctx.scale(dpr, dpr);
 		ctx.clearRect(0, 0, width, height);
 
-		ctx.fillStyle = cssVar('--canvas-bg');
+		ctx.fillStyle = colors.canvasBg;
 		ctx.fillRect(0, 0, width, height);
 
 		const nPts = 400;
@@ -139,7 +173,7 @@
 		const baseY = toSY(0, yMax);
 
 		// Axis
-		ctx.strokeStyle = cssVar('--canvas-axis');
+		ctx.strokeStyle = colors.axis;
 		ctx.lineWidth = 1;
 		ctx.beginPath();
 		ctx.moveTo(PAD.left, baseY);
@@ -159,11 +193,11 @@
 	}
 
 	function drawPDF(ctx: CanvasRenderingContext2D, xs: number[], vals: number[], yMax: number, baseY: number) {
-		const accentCyan = cssVar('--accent-cyan');
+		const accentCyan = colors.accentCyan;
 
 		// Glow
 		ctx.beginPath();
-		ctx.strokeStyle = cssVar('--curve-glow');
+		ctx.strokeStyle = colors.curveGlow;
 		ctx.lineWidth = 10;
 		for (let i = 0; i < xs.length; i++) {
 			const sx = toSX(xs[i]); const sy = toSY(vals[i], yMax);
@@ -186,8 +220,8 @@
 		ctx.lineTo(toSX(xs[0]), baseY);
 		ctx.closePath();
 		const g = ctx.createLinearGradient(0, PAD.top, 0, baseY);
-		g.addColorStop(0, cssVar('--curve-fill-start'));
-		g.addColorStop(1, cssVar('--curve-fill-end'));
+		g.addColorStop(0, colors.curveFillStart);
+		g.addColorStop(1, colors.curveFillEnd);
 		ctx.fillStyle = g;
 		ctx.fill();
 	}
@@ -204,13 +238,13 @@
 		ctx.lineTo(toSX(xs[0]), baseY);
 		ctx.closePath();
 		const g = ctx.createLinearGradient(0, PAD.top, 0, baseY);
-		g.addColorStop(0, cssVar('--kde-fill-start'));
-		g.addColorStop(1, cssVar('--kde-fill-end'));
+		g.addColorStop(0, colors.kdeFillStart);
+		g.addColorStop(1, colors.kdeFillEnd);
 		ctx.fillStyle = g;
 		ctx.fill();
 
 		ctx.beginPath();
-		ctx.strokeStyle = cssVar('--kde-stroke');
+		ctx.strokeStyle = colors.kdeStroke;
 		ctx.lineWidth = 2;
 		for (let i = 0; i < xs.length; i++) {
 			const sx = toSX(xs[i]); const sy = toSY(clamped[i], yMax);
@@ -220,8 +254,8 @@
 	}
 
 	function drawSamples(ctx: CanvasRenderingContext2D, baseY: number) {
-		const glow = cssVar('--sample-glow');
-		const dot = cssVar('--sample-dot');
+		const glow = colors.sampleGlow;
+		const dot = colors.sampleDot;
 		for (const s of samples) {
 			const sx = toSX(s);
 			if (sx < PAD.left || sx > PAD.left + pw) continue;
@@ -237,7 +271,7 @@
 		const textY = baseY - 55;
 		const arrowStartY = textY + 8;
 		const arrowTipY = baseY - 10;
-		const hintColor = cssVar('--canvas-hint');
+		const hintColor = colors.hint;
 
 		ctx.fillStyle = hintColor;
 		ctx.font = "italic 14px 'Inter', sans-serif";
@@ -255,7 +289,7 @@
 	}
 
 	function drawAxisLabels(ctx: CanvasRenderingContext2D, baseY: number) {
-		ctx.fillStyle = cssVar('--canvas-text');
+		ctx.fillStyle = colors.text;
 		ctx.font = '11px ui-monospace, monospace';
 		ctx.textAlign = 'center';
 		const xStep = niceStep(viewXMax - viewXMin, 8);
@@ -267,17 +301,17 @@
 
 	function drawCrosshair(ctx: CanvasRenderingContext2D, yMax: number, baseY: number) {
 		const dataX = toDX(mouseX);
-		ctx.strokeStyle = cssVar('--canvas-axis');
+		ctx.strokeStyle = colors.axis;
 		ctx.lineWidth = 1; ctx.setLineDash([2, 4]);
 		ctx.beginPath(); ctx.moveTo(mouseX, baseY - 20); ctx.lineTo(mouseX, baseY); ctx.stroke();
 		ctx.setLineDash([]);
 
-		ctx.fillStyle = cssVar('--canvas-crosshair');
+		ctx.fillStyle = colors.crosshair;
 		ctx.beginPath(); ctx.arc(mouseX, baseY, 5, 0, Math.PI * 2); ctx.fill();
-		ctx.fillStyle = cssVar('--canvas-crosshair-ring');
+		ctx.fillStyle = colors.crosshairRing;
 		ctx.beginPath(); ctx.arc(mouseX, baseY, 10, 0, Math.PI * 2); ctx.fill();
 
-		ctx.fillStyle = cssVar('--canvas-text');
+		ctx.fillStyle = colors.text;
 		ctx.font = '9px ui-monospace, monospace';
 		ctx.textAlign = 'center';
 		ctx.fillText(dataX.toFixed(1), mouseX, baseY + 36);

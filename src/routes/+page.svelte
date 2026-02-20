@@ -9,12 +9,25 @@
 	let heroCanvas: HTMLCanvasElement | undefined = $state();
 	let animFrame = 0;
 
-	function cssVar(name: string): string {
-		return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+	let heroColors = { accentCyan: '#00d4ff', accentPurple: '#a855f7', curveGlow: 'rgba(0,200,255,0.12)', curveFillStart: 'rgba(0,200,255,0.07)', curveFillEnd: 'rgba(0,200,255,0.0)' };
+
+	function refreshHeroColors() {
+		const s = getComputedStyle(document.documentElement);
+		const v = (n: string) => s.getPropertyValue(n).trim();
+		heroColors = {
+			accentCyan: v('--accent-cyan'), accentPurple: v('--accent-purple'),
+			curveGlow: v('--curve-glow'), curveFillStart: v('--curve-fill-start'),
+			curveFillEnd: v('--curve-fill-end')
+		};
 	}
 
 	onMount(() => {
 		if (!heroCanvas) return;
+		refreshHeroColors();
+
+		const observer = new MutationObserver(() => refreshHeroColors());
+		observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+
 		let running = true;
 		let t = 0;
 		function animate() {
@@ -24,7 +37,7 @@
 			animFrame = requestAnimationFrame(animate);
 		}
 		animate();
-		return () => { running = false; cancelAnimationFrame(animFrame); };
+		return () => { running = false; cancelAnimationFrame(animFrame); observer.disconnect(); };
 	});
 
 	function drawHero(t: number) {
@@ -62,8 +75,8 @@
 		const toX = (x: number) => padX + ((x - xMin) / (xMax - xMin)) * pw;
 		const toY = (y: number) => padTop + ph - (y / yMax) * ph;
 
-		const accentCyan = cssVar('--accent-cyan');
-		const accentPurple = cssVar('--accent-purple');
+		const accentCyan = heroColors.accentCyan;
+		const accentPurple = heroColors.accentPurple;
 
 		const scales = [0.15, 0.22, 0.29, 0.36, 0.43, 0.50, 0.57, 0.64, 0.72, 0.80, 0.90, 1.0];
 		const strokeGrad = ctx.createLinearGradient(toX(xMin), 0, toX(xMax), 0);
@@ -84,14 +97,14 @@
 				ctx.lineTo(toX(xMin), toY(0));
 				ctx.closePath();
 				const fillGrad = ctx.createLinearGradient(0, padTop, 0, padTop + ph);
-				fillGrad.addColorStop(0, cssVar('--curve-fill-start'));
-				fillGrad.addColorStop(1, cssVar('--curve-fill-end'));
+				fillGrad.addColorStop(0, heroColors.curveFillStart);
+				fillGrad.addColorStop(1, heroColors.curveFillEnd);
 				ctx.fillStyle = fillGrad;
 				ctx.fill();
 
 				ctx.beginPath();
 				scaledPts.forEach(([x, y], i) => i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y));
-				ctx.strokeStyle = cssVar('--curve-glow');
+				ctx.strokeStyle = heroColors.curveGlow;
 				ctx.lineWidth = 12;
 				ctx.stroke();
 			}
