@@ -119,17 +119,22 @@
 		}
 	}
 
-	function levelSvgPath(level: typeof levels[0], w: number, h: number): string {
+	const FAMILY_SCALES = [0.25, 0.4, 0.55, 0.7, 0.85, 1.0];
+
+	function levelSvgPaths(level: typeof levels[0], w: number, h: number): { path: string; scale: number }[] {
 		const pad = 4;
 		const xs = linspace(level.xRange[0], level.xRange[1], 60);
 		const vals = xs.map((x) => level.pdf(x));
 		const yMax = Math.max(...vals) * 1.1 || 1;
-		const pts = xs.map((x, i) => {
-			const sx = pad + ((x - level.xRange[0]) / (level.xRange[1] - level.xRange[0])) * (w - pad * 2);
-			const sy = pad + (h - pad * 2) - (vals[i] / yMax) * (h - pad * 2);
-			return `${sx.toFixed(1)},${sy.toFixed(1)}`;
+
+		return FAMILY_SCALES.map((s) => {
+			const pts = xs.map((x, i) => {
+				const sx = pad + ((x - level.xRange[0]) / (level.xRange[1] - level.xRange[0])) * (w - pad * 2);
+				const sy = pad + (h - pad * 2) - ((vals[i] * s) / yMax) * (h - pad * 2);
+				return `${sx.toFixed(1)},${sy.toFixed(1)}`;
+			});
+			return { path: `M${pts.join('L')}`, scale: s };
 		});
-		return `M${pts.join('L')}`;
 	}
 </script>
 
@@ -202,7 +207,7 @@
 		<h2 class="mb-4 text-[10px] font-medium tracking-[0.2em] uppercase" style="color: var(--text-tertiary);">Levels</h2>
 		<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
 			{#each levels as level}
-				{@const path = levelSvgPath(level, 160, 48)}
+				{@const family = levelSvgPaths(level, 160, 48)}
 				<a
 					href="/play/{level.id}"
 					class="group overflow-hidden rounded-xl p-3 transition hover:opacity-80"
@@ -215,8 +220,18 @@
 								<stop offset="100%" stop-color="var(--accent-purple)" />
 							</linearGradient>
 						</defs>
-						<path d="{path}L160,48L0,48Z" fill="url(#lc{level.id})" opacity="0.1" />
-						<path d={path} fill="none" stroke="url(#lc{level.id})" stroke-width="1.5" />
+						{#each family as { path, scale }, i}
+							{#if i === family.length - 1}
+								<path d="{path}L160,48L0,48Z" fill="url(#lc{level.id})" opacity="0.08" />
+							{/if}
+							<path
+								d={path}
+								fill="none"
+								stroke="url(#lc{level.id})"
+								stroke-width={i === family.length - 1 ? 1.5 : 0.7}
+								opacity={i === family.length - 1 ? 1 : 0.15 + scale * 0.4}
+							/>
+						{/each}
 					</svg>
 					<div class="flex items-center gap-1.5">
 						<span class="inline-block h-1.5 w-1.5 rounded-full" style="background-color: {getDifficultyColor(level.difficulty)}"></span>
