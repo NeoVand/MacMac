@@ -35,6 +35,7 @@
 	let animHandle = 0;
 	let themeVersion = $state(0);
 	let pdfReveal = 0;
+	let displayYMax = 1;
 
 	const LERP_SPEED = 0.12;
 	const PAD = { top: 30, right: 30, bottom: 44, left: 30 };
@@ -77,9 +78,13 @@
 	$effect(() => {
 		level;
 		resetView();
-		displayKde = [];
-		targetKde = [];
+		const nPts = 400;
+		displayKde = new Array(nPts).fill(0);
+		targetKde = new Array(nPts).fill(0);
 		pdfReveal = 0;
+		// Initialize yMax from the PDF so it's ready before animation starts
+		const xs = linspace(level.xRange[0], level.xRange[1], 100);
+		displayYMax = Math.max(...xs.map((x) => level.pdf(x))) * 1.15 || 1;
 	});
 
 	$effect(() => {
@@ -141,6 +146,19 @@
 					displayKde[i] = targetKde[i];
 				}
 			}
+
+			// Smooth yMax transitions
+			const kdeMax = displayKde.length > 0 ? Math.max(...displayKde) : 0;
+			const rawPdfMax = pw > 0 ? Math.max(...linspace(viewXMin, viewXMax, 100).map((x) => level.pdf(x))) : 1;
+			const targetYMax = Math.max(rawPdfMax, kdeMax) * 1.15 || 1;
+			const yDiff = targetYMax - displayYMax;
+			if (Math.abs(yDiff) > 0.001) {
+				displayYMax += yDiff * 0.08;
+				needsUpdate = true;
+			} else {
+				displayYMax = targetYMax;
+			}
+
 			draw(needsUpdate);
 			animHandle = requestAnimationFrame(frame);
 		}
@@ -183,10 +201,7 @@
 		const nPts = 400;
 		const xs = linspace(viewXMin, viewXMax, nPts);
 		const rawPdf = xs.map((x) => level.pdf(x));
-		const rawMax = Math.max(...rawPdf);
-		let yMax = rawMax * 1.15;
-		if (yMax <= 0) yMax = 1;
-		// Scale drawn PDF by pdfReveal (coordinate system stays stable)
+		const yMax = displayYMax > 0 ? displayYMax : 1;
 		const pdfVals = rawPdf.map((v) => v * pdfReveal);
 		const baseY = toSY(0, yMax);
 
