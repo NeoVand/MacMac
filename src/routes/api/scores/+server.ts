@@ -28,7 +28,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 
 		const playerId = locals.user.id;
-		const playerName = locals.user.name || 'Anonymous';
+		const fullName = locals.user.name || 'Anonymous';
+		const nameParts = fullName.trim().split(/\s+/);
+		const playerName = nameParts.length > 1
+			? `${nameParts[0]} ${nameParts[nameParts.length - 1][0]}.`
+			: nameParts[0];
 		const totalClicks = typeof clientClicks === 'number' && clientClicks > 0 ? clientClicks : samples.length;
 		const durationMs = typeof duration === 'number' && duration > 0 && duration < 3600000 ? Math.round(duration) : null;
 
