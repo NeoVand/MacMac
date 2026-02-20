@@ -93,7 +93,7 @@ body {
 }
 
 * {
-	transition-property: background-color, border-color, color, box-shadow;
+	transition-property: border-color, color, box-shadow;
 	transition-duration: 0.3s;
 	transition-timing-function: ease;
 }

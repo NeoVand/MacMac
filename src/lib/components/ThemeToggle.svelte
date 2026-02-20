@@ -17,13 +17,13 @@
 
 <button
 	onclick={toggle}
-	class="flex h-8 w-8 items-center justify-center rounded-full transition"
-	style="background: var(--border); color: var(--text-secondary);"
+	class="flex h-9 w-9 items-center justify-center rounded-full transition hover:opacity-70"
+	style="background: var(--surface); color: var(--text-secondary);"
 	aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
 >
 	{#if isDark}
-		<Sun size={15} />
+		<Sun size={16} />
 	{:else}
-		<Moon size={15} />
+		<Moon size={16} />
 	{/if}
 </button>

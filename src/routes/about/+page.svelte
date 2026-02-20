@@ -118,10 +118,10 @@
 	<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous"></script>
 </svelte:head>
 
-<div bind:this={mathContainer} class="min-h-dvh">
+<div class="min-h-dvh">
 	<AppHeader breadcrumb="About" breadcrumbIcon="info" />
 
-	<div class="mx-auto max-w-xl px-4 sm:px-6">
+	<div bind:this={mathContainer} class="mx-auto max-w-xl px-4 sm:px-6">
 	<canvas
 		bind:this={canvas}
 		class="mt-6 h-32 w-full rounded-xl sm:h-40"

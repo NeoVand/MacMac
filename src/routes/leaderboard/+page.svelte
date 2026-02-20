@@ -28,26 +28,31 @@
 <div class="min-h-dvh">
 	<AppHeader breadcrumb="Leaderboard" breadcrumbIcon="crown" />
 
-	<div class="mx-auto max-w-2xl px-4 pb-12 sm:px-6">
+	<div class="mx-auto max-w-2xl px-4 pb-12 pt-4 sm:px-6">
 		<!-- Level tabs -->
-		<div class="mb-4 flex gap-1.5 overflow-x-auto pb-1">
-			{#each levels as level}
-				<button
-					onclick={() => (selectedLevel = level.id)}
-					class="flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-[12px] font-medium transition"
-					style={selectedLevel === level.id
-						? `background: var(--surface); border: 1px solid var(--border-hover); color: var(--text-primary);`
-						: `border: 1px solid transparent; color: var(--text-tertiary);`}
-				>
-					<span class="h-1.5 w-1.5 rounded-full" style="background-color: {getDifficultyColor(level.difficulty)}"></span>
-					<span class="hidden sm:inline">{level.name}</span>
-					<span class="sm:hidden">{level.id}</span>
-				</button>
-			{/each}
+		<div class="relative mb-5">
+			<!-- svelte-ignore css_unused_selector -->
+			<div class="hide-scrollbar flex gap-1.5 overflow-x-auto pb-2" style="-webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%); mask-image: linear-gradient(to right, black 85%, transparent 100%);">
+				{#each levels as level}
+					<button
+						onclick={() => (selectedLevel = level.id)}
+						class="flex shrink-0 items-center gap-1.5 rounded-2xl px-3.5 py-2 text-[12px] font-medium transition"
+						style={selectedLevel === level.id
+							? `background: var(--surface); border: 1px solid var(--border-hover); color: var(--text-primary);`
+							: `border: 1px solid transparent; color: var(--text-tertiary);`}
+					>
+						<span class="h-1.5 w-1.5 rounded-full" style="background-color: {getDifficultyColor(level.difficulty)}"></span>
+						<span class="hidden sm:inline">{level.name}</span>
+						<span class="sm:hidden">{level.id}</span>
+					</button>
+				{/each}
+				<!-- Spacer so last tab isn't hidden by fade -->
+				<div class="w-8 shrink-0"></div>
+			</div>
 		</div>
 
 		<!-- Level heading -->
-		<div class="mb-4 flex items-center gap-2">
+		<div class="mb-5 flex items-center gap-2">
 			<span class="inline-block h-2 w-2 rounded-full" style="background: {getDifficultyColor(currentLevel.difficulty)}"></span>
 			<h2 class="text-base font-semibold" style="color: var(--text-primary);">{currentLevel.name}</h2>
 			<span class="rounded-md px-1.5 py-0.5 text-[10px] font-medium capitalize" style="background: var(--surface); color: var(--text-tertiary);">{currentLevel.difficulty}</span>
@@ -105,3 +110,13 @@
 		{/if}
 	</div>
 </div>
+
+<style>
+	.hide-scrollbar {
+		-ms-overflow-style: none;
+		scrollbar-width: none;
+	}
+	.hide-scrollbar::-webkit-scrollbar {
+		display: none;
+	}
+</style>
