@@ -13,7 +13,7 @@
 	let { breadcrumb, breadcrumbIcon = 'none', showNav = false, prevHref = null, nextHref = null }: Props = $props();
 </script>
 
-<header class="flex shrink-0 items-center justify-between px-4 py-3 sm:px-6">
+<header class="flex shrink-0 items-center justify-between px-4 py-2 sm:px-6 sm:py-3">
 	<!-- Left: logo + breadcrumb -->
 	<div class="flex items-center gap-2.5">
 		<a href="/" class="inline-block transition hover:opacity-80" style="font-family: 'Space Grotesk', sans-serif;">
