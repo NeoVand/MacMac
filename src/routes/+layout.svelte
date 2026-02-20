@@ -19,8 +19,15 @@
 		href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@700&display=swap"
 		rel="stylesheet"
 	/>
+	<!-- Initialize theme before paint to avoid flash -->
+	{@html `<script>
+		(function() {
+			var t = localStorage.getItem('macmac-theme');
+			if (t === 'dark' || (!t)) document.documentElement.classList.add('dark');
+		})();
+	<\/script>`}
 </svelte:head>
 
-<div class="min-h-dvh bg-game-bg text-white">
+<div class="min-h-dvh" style="background: var(--bg); color: var(--text-primary);">
 	{@render children()}
 </div>

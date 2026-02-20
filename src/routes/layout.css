@@ -2,15 +2,81 @@
 @plugin '@tailwindcss/typography';
 
 @theme {
-	--color-game-bg: #0a0a1a;
-	--color-game-surface: #12122a;
-	--color-game-cyan: #00d4ff;
-	--color-game-orange: #ff6b35;
-	--color-game-purple: #7c3aed;
+	--color-game-bg: var(--bg);
+	--color-game-surface: var(--surface);
+	--color-game-cyan: var(--accent-cyan);
+	--color-game-orange: var(--accent-orange);
+	--color-game-purple: var(--accent-purple);
+	--color-game-text: var(--text-primary);
+}
+
+:root {
+	--bg: #f8f6f0;
+	--surface: #efede6;
+	--canvas-bg: #f1efe8;
+	--accent-cyan: #0891b2;
+	--accent-orange: #d97706;
+	--accent-purple: #7c3aed;
+	--text-primary: #1c1917;
+	--text-secondary: rgba(28, 25, 23, 0.55);
+	--text-tertiary: rgba(28, 25, 23, 0.3);
+	--border: rgba(28, 25, 23, 0.08);
+	--border-hover: rgba(28, 25, 23, 0.15);
+	--glass: rgba(248, 246, 240, 0.8);
+	--glass-hover: rgba(248, 246, 240, 0.9);
+	--overlay: rgba(248, 246, 240, 0.6);
+	--canvas-axis: rgba(28, 25, 23, 0.12);
+	--canvas-text: rgba(28, 25, 23, 0.3);
+	--canvas-hint: rgba(28, 25, 23, 0.2);
+	--canvas-crosshair: rgba(28, 25, 23, 0.5);
+	--canvas-crosshair-ring: rgba(28, 25, 23, 0.1);
+	--curve-glow: rgba(8, 145, 178, 0.1);
+	--curve-fill-start: rgba(8, 145, 178, 0.08);
+	--curve-fill-end: rgba(8, 145, 178, 0.0);
+	--kde-fill-start: rgba(217, 119, 6, 0.18);
+	--kde-fill-end: rgba(217, 119, 6, 0.02);
+	--kde-stroke: rgba(217, 119, 6, 0.7);
+	--sample-glow: rgba(217, 119, 6, 0.08);
+	--sample-dot: rgba(217, 119, 6, 0.6);
+}
+
+.dark {
+	--bg: #0a0a1a;
+	--surface: #12122a;
+	--canvas-bg: #0a0a1a;
+	--accent-cyan: #00d4ff;
+	--accent-orange: #ff9933;
+	--accent-purple: #a855f7;
+	--text-primary: #ffffff;
+	--text-secondary: rgba(255, 255, 255, 0.5);
+	--text-tertiary: rgba(255, 255, 255, 0.25);
+	--border: rgba(255, 255, 255, 0.06);
+	--border-hover: rgba(255, 255, 255, 0.12);
+	--glass: rgba(10, 10, 26, 0.8);
+	--glass-hover: rgba(10, 10, 26, 0.9);
+	--overlay: rgba(0, 0, 0, 0.6);
+	--canvas-axis: rgba(255, 255, 255, 0.07);
+	--canvas-text: rgba(255, 255, 255, 0.22);
+	--canvas-hint: rgba(255, 255, 255, 0.25);
+	--canvas-crosshair: rgba(255, 255, 255, 0.7);
+	--canvas-crosshair-ring: rgba(255, 255, 255, 0.15);
+	--curve-glow: rgba(0, 200, 255, 0.12);
+	--curve-fill-start: rgba(0, 200, 255, 0.07);
+	--curve-fill-end: rgba(0, 200, 255, 0.0);
+	--kde-fill-start: rgba(255, 130, 40, 0.22);
+	--kde-fill-end: rgba(255, 100, 30, 0.02);
+	--kde-stroke: rgba(255, 150, 50, 0.75);
+	--sample-glow: rgba(255, 150, 50, 0.1);
+	--sample-dot: rgba(255, 153, 51, 0.65);
 }
 
 html {
-	background-color: #0a0a1a;
+	background-color: var(--bg);
+	color-scheme: light;
+	transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+html.dark {
 	color-scheme: dark;
 }
 
@@ -23,4 +89,15 @@ body {
 		sans-serif;
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
+	color: var(--text-primary);
+}
+
+* {
+	transition-property: background-color, border-color, color, box-shadow;
+	transition-duration: 0.3s;
+	transition-timing-function: ease;
+}
+
+canvas, svg, img, video {
+	transition: none;
 }
