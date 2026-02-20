@@ -7,6 +7,7 @@
 <svelte:head>
 	<link rel="icon" href="/favicon.svg" />
 	<meta name="theme-color" content="#0a0a1a" />
+	<meta name="format-detection" content="telephone=no" />
 	<meta property="og:type" content="website" />
 	<meta property="og:image" content="https://macmac-gilt.vercel.app/og-image.png" />
 	<meta property="og:image:width" content="1200" />

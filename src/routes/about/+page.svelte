@@ -84,17 +84,62 @@
 		return () => cancelAnimationFrame(animHandle);
 	});
 
+	async function ensureKaTeX(): Promise<void> {
+		if (typeof (window as any).renderMathInElement === 'function') return;
+		return new Promise((resolve, reject) => {
+			const timeout = setTimeout(() => reject(new Error('KaTeX load timeout')), 3000);
+			const check = () => {
+				if (typeof (window as any).renderMathInElement === 'function') {
+					clearTimeout(timeout);
+					resolve();
+					return true;
+				}
+				return false;
+			};
+			if (check()) return;
+			const interval = setInterval(() => {
+				if (check()) {
+					clearInterval(interval);
+				}
+			}, 100);
+		});
+	}
+
 	async function renderMath() {
-		const check = () => typeof (window as any).renderMathInElement === 'function';
-		if (!check()) {
-			await new Promise<void>((resolve) => {
-				const interval = setInterval(() => {
-					if (check()) { clearInterval(interval); resolve(); }
-				}, 50);
-				setTimeout(() => { clearInterval(interval); resolve(); }, 5000);
-			});
+		if (!mathContainer) return;
+		try {
+			await ensureKaTeX();
+			const render = (window as any).renderMathInElement;
+			if (render && mathContainer) {
+				render(mathContainer, {
+					delimiters: [
+						{ left: '$$', right: '$$', display: true },
+						{ left: '\\(', right: '\\)', display: false }
+					],
+					throwOnError: false
+				});
+				// Retry after layout settles (fixes mobile Safari timing)
+				setTimeout(() => {
+					if (render && mathContainer && mathContainer.querySelector('.katex') === null) {
+						render(mathContainer, {
+							delimiters: [
+								{ left: '$$', right: '$$', display: true },
+								{ left: '\\(', right: '\\)', display: false }
+							],
+							throwOnError: false
+						});
+					}
+				}, 300);
+			}
+		} catch {
+			// Fallback: load KaTeX dynamically when layout scripts haven't loaded (mobile)
+			loadKaTeXAndRender();
 		}
-		if (mathContainer && check()) {
+	}
+
+	function loadKaTeXAndRender() {
+		if (!mathContainer) return;
+		if (typeof (window as any).renderMathInElement === 'function') {
 			(window as any).renderMathInElement(mathContainer, {
 				delimiters: [
 					{ left: '$$', right: '$$', display: true },
@@ -102,7 +147,35 @@
 				],
 				throwOnError: false
 			});
+			return;
 		}
+		const katexCss = document.createElement('link');
+		katexCss.rel = 'stylesheet';
+		katexCss.href = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css';
+		katexCss.crossOrigin = 'anonymous';
+		document.head.appendChild(katexCss);
+
+		const katexJs = document.createElement('script');
+		katexJs.src = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js';
+		katexJs.crossOrigin = 'anonymous';
+		katexJs.onload = () => {
+			const autoRender = document.createElement('script');
+			autoRender.src = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js';
+			autoRender.crossOrigin = 'anonymous';
+			autoRender.onload = () => {
+				if (mathContainer && typeof (window as any).renderMathInElement === 'function') {
+					(window as any).renderMathInElement(mathContainer, {
+						delimiters: [
+							{ left: '$$', right: '$$', display: true },
+							{ left: '\\(', right: '\\)', display: false }
+						],
+						throwOnError: false
+					});
+				}
+			};
+			document.head.appendChild(autoRender);
+		};
+		document.head.appendChild(katexJs);
 	}
 
 	function startVisualAnimation() {
@@ -397,7 +470,7 @@
 			<strong style="color: var(--text-primary); opacity: 0.55;">Shape match</strong> is measured by the mean squared error between the target PDF and your KDE, both normalized to the same peak height. This compares the visual shape directly:
 		</p>
 
-		<div class="overflow-x-auto rounded-3xl px-4 py-3" style="background: var(--surface);">
+		<div class="formula-box overflow-x-auto rounded-3xl px-4 py-3 sm:overflow-visible" style="background: var(--surface);">
 			{@html mseFormula}
 		</div>
 
@@ -411,7 +484,7 @@
 
 		<p>The final score:</p>
 
-		<div class="overflow-x-auto rounded-3xl px-4 py-3" style="background: var(--surface);">
+		<div class="formula-box overflow-x-auto rounded-3xl px-4 py-3 sm:overflow-visible" style="background: var(--surface);">
 			{@html scoreFormula}
 		</div>
 
@@ -457,5 +530,19 @@
 	}
 	:global(.katex .mord.text) {
 		opacity: 0.6;
+	}
+	/* Scale down equations on mobile to avoid horizontal scroll */
+	.formula-box :global(.katex) {
+		font-size: 0.7em;
+	}
+	@media (min-width: 400px) {
+		.formula-box :global(.katex) {
+			font-size: 0.85em;
+		}
+	}
+	@media (min-width: 640px) {
+		.formula-box :global(.katex) {
+			font-size: 1.05em;
+		}
 	}
 </style>
