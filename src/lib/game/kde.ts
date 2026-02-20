@@ -1,7 +1,8 @@
 /**
  * Kernel Density Estimation with Gaussian kernel.
- * Bandwidth uses Scott's rule with a smoothly decaying minimum floor
- * to prevent wild jumps between consecutive sample additions.
+ * Bandwidth uses Scott's rule with a floor and a ceiling.
+ * The ceiling (0.5) ensures clusters resolve into distinct peaks
+ * rather than merging into one blob on multi-modal distributions.
  */
 export function computeKDE(samples: number[], evalPoints: number[]): number[] {
 	const n = samples.length;
@@ -21,23 +22,19 @@ export function computeKDE(samples: number[], evalPoints: number[]): number[] {
 	});
 }
 
+const BW_CEILING = 0.5;
+
 function stableBandwidth(samples: number[]): number {
 	const n = samples.length;
 
-	// Compute data spread even for small n
 	const mean = samples.reduce((a, b) => a + b, 0) / n;
 	const variance = n > 1
 		? samples.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1)
 		: 0;
 	const std = Math.sqrt(variance);
 
-	// Scott's rule: h = 1.06 * std * n^(-1/5)
-	// More stable than Silverman's for small n (no IQR which is noisy)
 	const scottH = std > 0 ? 1.06 * std * Math.pow(n, -0.2) : 0;
-
-	// Smooth floor that starts wide and narrows as n grows
-	// At n=1: floor=0.35, n=5: floor=0.2, n=20: floor=0.1, n=80: floor=0.05
 	const floor = 0.35 / Math.pow(n, 0.35);
 
-	return Math.max(floor, scottH);
+	return Math.min(Math.max(floor, scottH), BW_CEILING);
 }
