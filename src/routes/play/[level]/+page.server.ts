@@ -11,9 +11,10 @@ export const load: PageServerLoad = async ({ params }) => {
 		.from(scores)
 		.where(eq(scores.levelId, levelId))
 		.orderBy(desc(scores.score))
-		.limit(1);
+		.limit(3);
 
 	return {
+		topScores: topScores.map((row) => row.score),
 		topScore: topScores.length > 0 ? topScores[0].score : 0,
 		topPlayer: topScores.length > 0 ? topScores[0].playerName : null
 	};

@@ -1,24 +1,36 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import type { ScoreResult } from '$lib/game/scoring';
+	type TopRank = 1 | 2 | 3 | null;
 
 	interface Props {
 		scoreResult: ScoreResult;
-		topScore: number;
+		scoreRank: TopRank;
 		elapsedMs: number;
 	}
 
-	let { scoreResult, topScore, elapsedMs }: Props = $props();
+	let { scoreResult, scoreRank, elapsedMs }: Props = $props();
 
 	let dScore = $state(0);
 	let dMatch = $state(0);
 	let dTimeBonus = $state(0);
 	let dClicks = $state(0);
-	let mounted = $state(false);
 
-	const isLeader = $derived(topScore > 0 && scoreResult.score > topScore);
+	const isTopThree = $derived(scoreRank !== null);
+	const rankColor = $derived.by(() => {
+		switch (scoreRank) {
+			case 1:
+				return '#eab308'; // gold
+			case 2:
+				return '#a8b4c4'; // silver
+			case 3:
+				return '#a56a43'; // bronze
+			default:
+				return 'var(--text-primary)';
+		}
+	});
 
-	const timerDisplay = $derived(() => {
+	const timerDisplay = $derived.by(() => {
 		const totalSec = Math.floor(elapsedMs / 1000);
 		const m = Math.floor(totalSec / 60);
 		const s = totalSec % 60;
@@ -26,7 +38,11 @@
 	});
 
 	onMount(() => {
-		mounted = true;
+		dScore = scoreResult.score;
+		dMatch = scoreResult.matchPct;
+		dTimeBonus = scoreResult.timeBonus;
+		dClicks = scoreResult.clicks;
+
 		let running = true;
 		function tick() {
 			if (!running) return;
@@ -43,15 +59,6 @@
 		tick();
 		return () => { running = false; };
 	});
-
-	$effect(() => {
-		if (!mounted) {
-			dScore = scoreResult.score;
-			dMatch = scoreResult.matchPct;
-			dTimeBonus = scoreResult.timeBonus;
-			dClicks = scoreResult.clicks;
-		}
-	});
 </script>
 
 <div class="flex flex-wrap items-end gap-x-5 gap-y-1">
@@ -59,11 +66,11 @@
 	<div>
 		<div class="flex items-center gap-1.5">
 			<span class="text-[9px] font-medium tracking-[0.15em] uppercase" style="color: var(--text-tertiary);">Score</span>
-			{#if isLeader}
-				<svg viewBox="0 0 24 24" fill="currentColor" class="h-3 w-3 text-yellow-500"><path d="M2 4l3 12h14l3-12-5 4-5-6-5 6-5-4zm3 14h14v2H5v-2z" /></svg>
+			{#if isTopThree}
+				<svg viewBox="0 0 24 24" fill="currentColor" class="h-3 w-3" style="color: {rankColor};"><path d="M2 4l3 12h14l3-12-5 4-5-6-5 6-5-4zm3 14h14v2H5v-2z" /></svg>
 			{/if}
 		</div>
-		<div class="text-3xl font-extrabold tabular-nums leading-none sm:text-4xl" style="color: {isLeader ? '#eab308' : 'var(--text-primary)'};">
+		<div class="text-3xl font-extrabold tabular-nums leading-none sm:text-4xl" style="color: {rankColor};">
 			{Math.round(dScore).toLocaleString()}
 		</div>
 	</div>
@@ -96,7 +103,7 @@
 	<div>
 		<div class="text-[9px] font-medium tracking-[0.15em] uppercase" style="color: var(--text-tertiary);">Time</div>
 		<div class="text-xl font-bold tabular-nums leading-none sm:text-2xl" style="color: var(--accent-cyan);">
-			{timerDisplay()}
+			{timerDisplay}
 		</div>
 	</div>
 </div>

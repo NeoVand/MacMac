@@ -12,9 +12,11 @@
 	import { ZoomIn, ZoomOut, Fullscreen, Github } from 'lucide-svelte';
 
 	let { data } = $props();
+	type TopRank = 1 | 2 | 3 | null;
 
 	const levelId = $derived(Number(page.params.level));
 	const level = $derived(getLevel(levelId));
+	const topScores = $derived((data.topScores as number[] | undefined) ?? []);
 	const topScore = $derived(data.topScore ?? 0);
 
 	const session = authClient.useSession();
@@ -333,6 +335,18 @@
 
 	// Rank: compare score to topScore
 	const isNewBest = $derived(topScore > 0 && scoreResult.score > topScore);
+	const scoreRank = $derived.by<TopRank>(() => {
+		const score = scoreResult.score;
+		if (score <= 0) return null;
+
+		let betterScores = 0;
+		for (const s of topScores) {
+			if (s > score) betterScores++;
+		}
+
+		const rank = betterScores + 1;
+		return rank <= 3 ? rank as Exclude<TopRank, null> : null;
+	});
 </script>
 
 <svelte:head>
@@ -361,7 +375,7 @@
 
 		<!-- Score panel -->
 		<div class="shrink-0 px-4 pb-1 sm:px-6">
-			<ScorePanel {scoreResult} {topScore} {elapsedMs} />
+			<ScorePanel {scoreResult} {scoreRank} {elapsedMs} />
 		</div>
 
 		<!-- Canvas -->
