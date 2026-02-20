@@ -449,7 +449,7 @@
 
 		<p>
 			In MCMC, the goal is to draw samples from a probability distribution. The challenge is doing it
-			<em class="text-white/50">efficiently</em> — capturing the shape of a distribution with as few samples as possible.
+			<em style="color: var(--text-primary); opacity: 0.75;">efficiently</em> — capturing the shape of a distribution with as few samples as possible.
 			That's exactly what you're doing in this game.
 		</p>
 
