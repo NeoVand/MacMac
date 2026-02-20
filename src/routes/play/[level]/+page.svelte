@@ -333,8 +333,7 @@
 		</div>
 	</div>
 {:else}
-	<!-- Desktop: constrain to centered max-width -->
-	<div class="mx-auto flex h-dvh max-w-4xl flex-col overflow-hidden" style="background: var(--bg);">
+	<div class="flex h-dvh flex-col overflow-hidden" style="background: var(--bg);">
 		<AppHeader showNav prevHref={prevLevel ? `/play/${prevLevel}` : null} nextHref={nextLevel ? `/play/${nextLevel}` : null} />
 
 		<!-- Level name -->
