@@ -10,6 +10,7 @@ export const scores = sqliteTable('scores', {
 	score: integer('score').notNull(),
 	klDivergence: real('kl_divergence').notNull(),
 	clicks: integer('clicks').notNull(),
+	duration: integer('duration'),
 	samples: text('samples').notNull(),
 	createdAt: integer('created_at', { mode: 'timestamp' })
 		.notNull()

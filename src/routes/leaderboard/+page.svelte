@@ -72,7 +72,8 @@
 						<th class="pb-3 pr-4">Player</th>
 						<th class="pb-3 pr-4 text-right">Score</th>
 						<th class="pb-3 pr-4 text-right">KL</th>
-						<th class="pb-3 text-right">Clicks</th>
+						<th class="pb-3 pr-4 text-right">Clicks</th>
+						<th class="pb-3 text-right">Time</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -82,7 +83,8 @@
 							<td class="py-2.5 pr-4 font-medium">{entry.playerName}</td>
 							<td class="py-2.5 pr-4 text-right font-mono tabular-nums">{entry.score.toLocaleString()}</td>
 							<td class="py-2.5 pr-4 text-right font-mono text-xs tabular-nums">{entry.kl < 0.001 ? '<.001' : entry.kl.toFixed(3)}</td>
-							<td class="py-2.5 text-right font-mono text-xs tabular-nums">{entry.clicks}</td>
+							<td class="py-2.5 pr-4 text-right font-mono text-xs tabular-nums">{entry.clicks}</td>
+							<td class="py-2.5 text-right font-mono text-xs tabular-nums">{entry.duration ? `${Math.floor(entry.duration / 60000)}:${(Math.floor(entry.duration / 1000) % 60).toString().padStart(2, '0')}` : '---'}</td>
 						</tr>
 					{/each}
 				</tbody>

@@ -8,9 +8,10 @@
 		level: Level;
 		samples: number[];
 		onSampleAdd: (x: number) => void;
+		eraserMode?: boolean;
 	}
 
-	let { level, samples, onSampleAdd }: Props = $props();
+	let { level, samples, onSampleAdd, eraserMode = false }: Props = $props();
 
 	let canvas: HTMLCanvasElement | undefined = $state();
 	let container: HTMLDivElement | undefined = $state();
@@ -72,7 +73,16 @@
 
 	function resetView() { viewXMin = level.xRange[0]; viewXMax = level.xRange[1]; }
 
-	$effect(() => { level; resetView(); displayKde = []; targetKde = []; });
+	$effect(() => {
+		level;
+		resetView();
+		displayKde = [];
+		targetKde = [];
+		// Force immediate draw on next tick so level change is snappy
+		requestAnimationFrame(() => {
+			lastDrawnTheme = -1; // Force redraw
+		});
+	});
 
 	$effect(() => {
 		if (!container) return;
@@ -408,8 +418,8 @@
 <div bind:this={container} class="h-full w-full">
 	<canvas
 		bind:this={canvas}
-		style="width: {width}px; height: {height}px;"
-		class="block cursor-crosshair"
+		style="width: {width}px; height: {height}px; cursor: {eraserMode ? 'pointer' : 'crosshair'};"
+		class="block"
 		aria-label="Click to place samples"
 		onclick={handleClick}
 		onwheel={handleWheel}

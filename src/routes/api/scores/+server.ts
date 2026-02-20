@@ -13,7 +13,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 
 		const body = await request.json();
-		const { levelId, samples } = body;
+		const { levelId, samples, duration, clicks: clientClicks } = body;
 
 		if (!Array.isArray(samples) || samples.length < 3) {
 			return json({ success: false, error: 'Need at least 3 samples' }, { status: 400 });
@@ -29,9 +29,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		const playerId = locals.user.id;
 		const playerName = locals.user.name || 'Anonymous';
+		const totalClicks = typeof clientClicks === 'number' && clientClicks > 0 ? clientClicks : samples.length;
+		const durationMs = typeof duration === 'number' && duration > 0 && duration < 3600000 ? Math.round(duration) : null;
 
 		const { kl } = computeKL(samples as number[], level);
-		const score = computeScore(kl, samples.length);
+		const score = computeScore(kl, totalClicks);
 
 		const existing = await db
 			.select()
@@ -44,9 +46,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		if (isNewBest) {
 			if (existing.length > 0) {
-				await db
-					.delete(scores)
-					.where(and(eq(scores.playerId, playerId), eq(scores.levelId, levelId)));
+				await db.delete(scores).where(and(eq(scores.playerId, playerId), eq(scores.levelId, levelId)));
 			}
 
 			await db.insert(scores).values({
@@ -55,7 +55,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				levelId,
 				score,
 				klDivergence: kl,
-				clicks: samples.length,
+				clicks: totalClicks,
+				duration: durationMs,
 				samples: JSON.stringify(samples)
 			});
 		}
