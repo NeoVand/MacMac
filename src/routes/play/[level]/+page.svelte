@@ -192,6 +192,8 @@
 	// Smooth replay with continuous animation
 	let replayStepTimer = 0;
 	let replayXs: number[] = [];
+	let replayPaused = false;
+	let replayPauseTimer = 0;
 
 	function startReplay() {
 		if (!level) return;
@@ -200,26 +202,38 @@
 		replayIdx = 0;
 		replayKde = new Array(200).fill(0);
 		replayStepTimer = 0;
+		replayPaused = false;
+		replayPauseTimer = 0;
 
 		function frame() {
 			if (!showDialog) return;
 
-			// Advance sample step every ~12 frames (~200ms at 60fps)
-			replayStepTimer++;
-			if (replayStepTimer >= 12) {
-				replayStepTimer = 0;
-				replayIdx++;
-				if (replayIdx > samples.length) {
+			if (replayPaused) {
+				// Hold at end for ~90 frames (~1.5s), then reset smoothly
+				replayPauseTimer++;
+				if (replayPauseTimer > 90) {
+					replayPaused = false;
+					replayPauseTimer = 0;
 					replayIdx = 0;
-					replayKde = new Array(200).fill(0);
+					// Don't zero KDE — it will lerp down smoothly
+				}
+			} else {
+				// Advance sample step every ~18 frames (~300ms at 60fps)
+				replayStepTimer++;
+				if (replayStepTimer >= 18) {
+					replayStepTimer = 0;
+					replayIdx++;
+					if (replayIdx > samples.length) {
+						replayPaused = true;
+					}
 				}
 			}
 
-			// Lerp KDE toward target
-			const replaySamples = samples.slice(0, replayIdx);
+			// Lerp KDE toward target (lerps to zero when replayIdx resets)
+			const replaySamples = samples.slice(0, Math.min(replayIdx, samples.length));
 			const targetKde = replaySamples.length > 0 ? computeKDE(replaySamples, replayXs) : new Array(200).fill(0);
 			for (let i = 0; i < 200; i++) {
-				replayKde[i] += (targetKde[i] - replayKde[i]) * 0.15;
+				replayKde[i] += (targetKde[i] - replayKde[i]) * 0.12;
 			}
 
 			drawReplay();
