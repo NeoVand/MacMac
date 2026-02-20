@@ -34,6 +34,8 @@
 	let isSubmitting = $state(false);
 	let showDialog = $state(false);
 	let submitted = $state(false);
+	let submittedRank = $state<number | null>(null);
+	let rankPreview = $state<number | null>(null);
 	let pausedElapsed = $state(0);
 
 	// Replay
@@ -49,9 +51,27 @@
 		scoreResult = { ...emptyScore };
 		showDialog = false;
 		submitted = false;
+		submittedRank = null;
+		rankPreview = null;
 		startTime = 0;
 		elapsedMs = 0;
 		timerRunning = false;
+	});
+
+	// Fetch rank preview when modal opens (for signed-out users and pre-submit preview)
+	$effect(() => {
+		if (!showDialog || scoreResult.score <= 0) {
+			rankPreview = null;
+			return;
+		}
+		let cancelled = false;
+		fetch(`/api/scores/rank?levelId=${levelId}&score=${Math.round(scoreResult.score)}`)
+			.then((r) => r.json())
+			.then((data) => {
+				if (!cancelled && typeof data.rank === 'number') rankPreview = data.rank;
+			})
+			.catch(() => {});
+		return () => { cancelled = true; };
 	});
 
 	// Restore game state after OAuth redirect
@@ -198,6 +218,7 @@
 			const result = await res.json();
 			if (result.success) {
 				submitted = true;
+				submittedRank = typeof result.rank === 'number' ? result.rank : null;
 			}
 		} catch { /* silent */ }
 		finally { isSubmitting = false; }
@@ -543,6 +564,11 @@
 				{/if}
 
 				{#if !$session.data}
+					{#if rankPreview !== null}
+						<div class="mb-3 text-center text-sm font-bold" style="color: var(--accent-cyan);">
+							You'd be #{rankPreview} on this level!
+						</div>
+					{/if}
 					<p class="mb-3 text-xs" style="color: var(--text-secondary);">Sign in to submit your score to the leaderboard.</p>
 					<div class="flex flex-col gap-2">
 						<button onclick={() => signInWith('github')} class="flex h-10 items-center justify-center gap-2 rounded-lg text-sm font-medium transition hover:opacity-80" style="background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary);">
@@ -557,6 +583,11 @@
 				{:else if submitted}
 					<!-- Post-submit: success -->
 					<div class="mb-3 text-center text-sm font-semibold" style="color: #4ade80;">Score submitted!</div>
+					{#if submittedRank !== null}
+						<div class="mb-3 text-center text-sm font-bold" style="color: var(--accent-cyan);">
+							You're #{submittedRank} on this level!
+						</div>
+					{/if}
 					<div class="flex gap-2">
 						<button onclick={closeDialog} class="flex-1 rounded-lg py-2.5 text-sm font-medium transition hover:opacity-70" style="background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary);">Keep Playing</button>
 						{#if nextLevel}
@@ -571,6 +602,11 @@
 					</div>
 				{:else}
 					<!-- Pre-submit: confirm -->
+					{#if rankPreview !== null}
+						<div class="mb-3 text-center text-sm font-bold" style="color: var(--accent-cyan);">
+							You'd be #{rankPreview} on this level!
+						</div>
+					{/if}
 					<div class="mb-4 flex items-center gap-3 rounded-lg px-3 py-2" style="background: var(--surface); border: 1px solid var(--border);">
 						{#if $session.data.user.image}
 							<img src={$session.data.user.image} alt="" class="h-7 w-7 rounded-full" />

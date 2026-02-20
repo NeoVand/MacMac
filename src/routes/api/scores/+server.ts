@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import { scores } from '$lib/server/db/schema';
-import { and, eq, desc } from 'drizzle-orm';
+import { and, eq, desc, gt, count } from 'drizzle-orm';
 import { getLevel } from '$lib/game/levels';
 import { computeShapeMatch, computeScore } from '$lib/game/scoring';
 
@@ -70,11 +70,20 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			});
 		}
 
+		// Compute rank: 1 + count of scores strictly better than this one
+		const scoreForRank = isNewBest ? score : existing[0].score;
+		const [{ value: betterCount }] = await db
+			.select({ value: count() })
+			.from(scores)
+			.where(and(eq(scores.levelId, levelId), gt(scores.score, scoreForRank)));
+		const rank = betterCount + 1;
+
 		return json({
 			success: true,
 			isNewBest,
 			score,
-			bestScore: isNewBest ? score : existing[0].score
+			bestScore: isNewBest ? score : existing[0].score,
+			rank
 		});
 	} catch (err) {
 		console.error('Score submission error:', err);
