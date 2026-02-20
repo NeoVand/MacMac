@@ -35,7 +35,10 @@
 			drawHero(t);
 			animFrame = requestAnimationFrame(animate);
 		}
-		animate();
+		// Double rAF: wait for layout to complete (fixes mobile Safari canvas 0x0 on first paint)
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => animate());
+		});
 		return () => { running = false; cancelAnimationFrame(animFrame); observer.disconnect(); };
 	});
 
@@ -46,6 +49,7 @@
 
 		const w = heroCanvas.clientWidth;
 		const h = heroCanvas.clientHeight;
+		if (w <= 0 || h <= 0) return; // Skip until layout provides dimensions (mobile)
 		const dpr = window.devicePixelRatio || 1;
 		heroCanvas.width = w * dpr;
 		heroCanvas.height = h * dpr;
@@ -156,7 +160,7 @@
 	<div class="relative flex min-h-[240px] w-full flex-col sm:min-h-[280px]">
 		<canvas
 			bind:this={heroCanvas}
-			class="absolute inset-0 h-full w-full opacity-50"
+			class="absolute inset-0 min-h-[240px] w-full opacity-50 sm:min-h-[280px]"
 			style="pointer-events: none;"
 		></canvas>
 

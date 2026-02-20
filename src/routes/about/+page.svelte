@@ -70,7 +70,10 @@
 	let animHandle = 0;
 
 	onMount(() => {
-		startVisualAnimation();
+		// Double rAF: wait for layout before starting canvas (fixes mobile Safari 0x0 on first paint)
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => startVisualAnimation());
+		});
 		tick().then(() => {
 			requestAnimationFrame(() => {
 				requestAnimationFrame(() => {
@@ -210,6 +213,7 @@
 		if (!canvas) return;
 		const w = canvas.clientWidth;
 		const h = canvas.clientHeight;
+		if (w <= 0 || h <= 0) return; // Skip until layout provides dimensions (mobile)
 		const dpr = window.devicePixelRatio || 1;
 		canvas.width = w * dpr;
 		canvas.height = h * dpr;
@@ -355,7 +359,7 @@
 	<div bind:this={mathContainer} class="mx-auto max-w-xl px-4 sm:px-6">
 	<canvas
 		bind:this={canvas}
-		class="mt-6 h-32 w-full rounded-3xl sm:h-40"
+		class="mt-6 h-32 min-h-[128px] w-full rounded-3xl sm:h-40 sm:min-h-[160px]"
 		style="background: var(--surface);"
 	></canvas>
 
