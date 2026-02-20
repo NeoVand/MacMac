@@ -34,6 +34,8 @@
 
 	let isSubmitting = $state(false);
 	let showDialog = $state(false);
+	let submitted = $state(false);
+	let pausedElapsed = $state(0);
 
 	// Replay
 	let replayCanvas: HTMLCanvasElement | undefined = $state();
@@ -48,6 +50,7 @@
 		eraserMode = false;
 		scoreResult = { ...emptyScore };
 		showDialog = false;
+		submitted = false;
 		startTime = 0;
 		elapsedMs = 0;
 		timerRunning = false;
@@ -129,16 +132,40 @@
 		timerRunning = false;
 	}
 
+	function resumeTimer() {
+		if (!timerRunning && samples.length > 0) {
+			startTime = Date.now() - pausedElapsed;
+			timerRunning = true;
+			lastScoreRecalcSec = Math.floor(pausedElapsed / 1000);
+			function tick() {
+				if (!timerRunning) return;
+				elapsedMs = Date.now() - startTime;
+				const sec = Math.floor(elapsedMs / 1000);
+				if (sec > lastScoreRecalcSec && samples.length > 0) {
+					lastScoreRecalcSec = sec;
+					recalcScore();
+				}
+				timerHandle = requestAnimationFrame(tick);
+			}
+			tick();
+		}
+	}
+
 	function openSubmit() {
 		if (samples.length < 3) return;
 		stopTimer();
+		pausedElapsed = elapsedMs;
 		showDialog = true;
+		submitted = false;
 		startReplay();
 	}
 
 	function closeDialog() {
 		showDialog = false;
 		if (replayTimer) clearTimeout(replayTimer);
+		if (!submitted) {
+			resumeTimer();
+		}
 	}
 
 	async function signInWith(provider: 'github' | 'google') {
@@ -156,7 +183,7 @@
 			});
 			const result = await res.json();
 			if (result.success) {
-				closeDialog();
+				submitted = true;
 			}
 		} catch { /* silent */ }
 		finally { isSubmitting = false; }
@@ -420,7 +447,23 @@
 						</button>
 					</div>
 					<button onclick={closeDialog} class="mt-3 w-full rounded-lg py-2 text-sm font-medium transition hover:opacity-70" style="background: var(--surface); color: var(--text-tertiary);">Cancel</button>
+				{:else if submitted}
+					<!-- Post-submit: success -->
+					<div class="mb-3 text-center text-sm font-semibold" style="color: #4ade80;">Score submitted!</div>
+					<div class="flex gap-2">
+						<button onclick={closeDialog} class="flex-1 rounded-lg py-2.5 text-sm font-medium transition hover:opacity-70" style="background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary);">Keep Playing</button>
+						{#if nextLevel}
+							<a href="/play/{nextLevel}" class="flex flex-1 items-center justify-center rounded-lg py-2.5 text-sm font-semibold transition hover:opacity-80" style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);">
+								Next Level
+							</a>
+						{:else}
+							<a href="/leaderboard" class="flex flex-1 items-center justify-center rounded-lg py-2.5 text-sm font-semibold transition hover:opacity-80" style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);">
+								Leaderboard
+							</a>
+						{/if}
+					</div>
 				{:else}
+					<!-- Pre-submit: confirm -->
 					<div class="mb-4 flex items-center gap-3 rounded-lg px-3 py-2" style="background: var(--surface); border: 1px solid var(--border);">
 						{#if $session.data.user.image}
 							<img src={$session.data.user.image} alt="" class="h-7 w-7 rounded-full" />
