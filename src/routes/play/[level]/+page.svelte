@@ -162,7 +162,7 @@
 
 	function closeDialog() {
 		showDialog = false;
-		if (replayTimer) clearTimeout(replayTimer);
+		if (replayTimer) cancelAnimationFrame(replayTimer as unknown as number);
 		if (!submitted) {
 			resumeTimer();
 		}
@@ -189,39 +189,55 @@
 		finally { isSubmitting = false; }
 	}
 
-	// Smooth replay with lerped KDE
+	// Smooth replay with continuous animation
+	let replayPdfReveal = 0;
+	let replayStepTimer = 0;
+	let replayXs: number[] = [];
+
 	function startReplay() {
 		if (!level) return;
 		const [xMin, xMax] = level.xRange;
-		const xs = linspace(xMin, xMax, 200);
+		replayXs = linspace(xMin, xMax, 200);
 		replayIdx = 0;
 		replayKde = new Array(200).fill(0);
+		replayPdfReveal = 0;
+		replayStepTimer = 0;
 
-		function step() {
+		function frame() {
 			if (!showDialog) return;
-			replayIdx++;
-			if (replayIdx > samples.length) {
-				replayIdx = 0;
-				replayKde = new Array(200).fill(0);
+
+			// Animate PDF rising
+			if (replayPdfReveal < 0.999) {
+				replayPdfReveal += (1 - replayPdfReveal) * 0.05;
+				if (replayPdfReveal > 0.999) replayPdfReveal = 1;
 			}
 
-			// Compute target KDE for current step
+			// Advance sample step every ~12 frames (~200ms at 60fps)
+			replayStepTimer++;
+			if (replayStepTimer >= 12 && replayPdfReveal > 0.8) {
+				replayStepTimer = 0;
+				replayIdx++;
+				if (replayIdx > samples.length) {
+					replayIdx = 0;
+					replayKde = new Array(200).fill(0);
+					replayPdfReveal = 0;
+				}
+			}
+
+			// Lerp KDE toward target
 			const replaySamples = samples.slice(0, replayIdx);
-			const targetKde = replaySamples.length > 0 ? computeKDE(replaySamples, xs) : new Array(200).fill(0);
-
-			// Lerp toward target
+			const targetKde = replaySamples.length > 0 ? computeKDE(replaySamples, replayXs) : new Array(200).fill(0);
 			for (let i = 0; i < 200; i++) {
-				replayKde[i] += (targetKde[i] - replayKde[i]) * 0.4;
+				replayKde[i] += (targetKde[i] - replayKde[i]) * 0.15;
 			}
-			replayKde = [...replayKde];
-			drawReplay(xs);
 
-			replayTimer = setTimeout(step, 180);
+			drawReplay();
+			replayTimer = requestAnimationFrame(frame) as unknown as ReturnType<typeof setTimeout>;
 		}
-		step();
+		frame();
 	}
 
-	function drawReplay(xs: number[]) {
+	function drawReplay() {
 		if (!replayCanvas || !level) return;
 		const ctx = replayCanvas.getContext('2d');
 		if (!ctx) return;
@@ -244,49 +260,47 @@
 		const pad = 12;
 		const pw = w - pad * 2, ph = h - pad * 2;
 		const [xMin, xMax] = level.xRange;
-		const pdfVals = xs.map((x) => level.pdf(x));
-		const pdfMax = Math.max(...pdfVals);
-		let yMax = pdfMax * 1.15;
-		if (yMax <= 0) yMax = 1;
+		const rawPdf = replayXs.map((x) => level.pdf(x));
+		const pdfVals = rawPdf.map((v) => v * replayPdfReveal);
+		const pdfMax = Math.max(...rawPdf) * 1.15;
+		let yMax = pdfMax > 0 ? pdfMax : 1;
 
 		const toX = (x: number) => pad + ((x - xMin) / (xMax - xMin)) * pw;
 		const toY = (y: number) => pad + ph - (y / yMax) * ph;
 		const baseY = toY(0);
 
-		// PDF curve
+		// PDF curve (animated rise)
 		ctx.beginPath();
 		ctx.strokeStyle = accentCyan;
 		ctx.lineWidth = 1.5;
-		for (let i = 0; i < xs.length; i++) {
-			i === 0 ? ctx.moveTo(toX(xs[i]), toY(pdfVals[i])) : ctx.lineTo(toX(xs[i]), toY(pdfVals[i]));
+		for (let i = 0; i < replayXs.length; i++) {
+			const sy = toY(pdfVals[i]);
+			i === 0 ? ctx.moveTo(toX(replayXs[i]), sy) : ctx.lineTo(toX(replayXs[i]), sy);
 		}
 		ctx.stroke();
 
 		// KDE curve (lerped)
 		if (replayIdx > 0) {
-			// Fill
 			ctx.beginPath();
-			for (let i = 0; i < xs.length; i++) {
+			for (let i = 0; i < replayXs.length; i++) {
 				const sy = toY(Math.min(replayKde[i], yMax * 0.99));
-				i === 0 ? ctx.moveTo(toX(xs[i]), sy) : ctx.lineTo(toX(xs[i]), sy);
+				i === 0 ? ctx.moveTo(toX(replayXs[i]), sy) : ctx.lineTo(toX(replayXs[i]), sy);
 			}
-			ctx.lineTo(toX(xs[xs.length - 1]), baseY);
-			ctx.lineTo(toX(xs[0]), baseY);
+			ctx.lineTo(toX(replayXs[replayXs.length - 1]), baseY);
+			ctx.lineTo(toX(replayXs[0]), baseY);
 			ctx.closePath();
 			ctx.fillStyle = kdeFill;
 			ctx.fill();
 
-			// Stroke
 			ctx.beginPath();
 			ctx.strokeStyle = kdeStroke;
 			ctx.lineWidth = 1.5;
-			for (let i = 0; i < xs.length; i++) {
+			for (let i = 0; i < replayXs.length; i++) {
 				const sy = toY(Math.min(replayKde[i], yMax * 0.99));
-				i === 0 ? ctx.moveTo(toX(xs[i]), sy) : ctx.lineTo(toX(xs[i]), sy);
+				i === 0 ? ctx.moveTo(toX(replayXs[i]), sy) : ctx.lineTo(toX(replayXs[i]), sy);
 			}
 			ctx.stroke();
 
-			// Sample dots
 			const replaySamples = samples.slice(0, replayIdx);
 			for (const sp of replaySamples) {
 				ctx.fillStyle = kdeStroke;

@@ -35,6 +35,7 @@
 	let targetKde: number[] = [];
 	let animHandle = 0;
 	let themeVersion = $state(0);
+	let pdfReveal = 0;
 
 	const LERP_SPEED = 0.12;
 	const PAD = { top: 30, right: 30, bottom: 44, left: 30 };
@@ -79,10 +80,7 @@
 		resetView();
 		displayKde = [];
 		targetKde = [];
-		// Force immediate draw on next tick so level change is snappy
-		requestAnimationFrame(() => {
-			lastDrawnTheme = -1; // Force redraw
-		});
+		pdfReveal = 0;
 	});
 
 	$effect(() => {
@@ -127,6 +125,14 @@
 		function frame() {
 			if (!running) return;
 			let needsUpdate = false;
+
+			// Animate PDF reveal
+			if (pdfReveal < 0.999) {
+				pdfReveal += (1 - pdfReveal) * 0.06;
+				if (pdfReveal > 0.999) pdfReveal = 1;
+				needsUpdate = true;
+			}
+
 			for (let i = 0; i < displayKde.length; i++) {
 				const diff = targetKde[i] - displayKde[i];
 				if (Math.abs(diff) > 0.0001) {
@@ -177,8 +183,9 @@
 
 		const nPts = 400;
 		const xs = linspace(viewXMin, viewXMax, nPts);
-		const pdfVals = xs.map((x) => level.pdf(x));
-		const pdfMax = Math.max(...pdfVals);
+		const rawPdf = xs.map((x) => level.pdf(x));
+		const pdfVals = rawPdf.map((v) => v * pdfReveal);
+		const pdfMax = Math.max(...rawPdf) * pdfReveal;
 		let yMax = pdfMax * 1.15;
 		if (yMax <= 0) yMax = 1;
 		const baseY = toSY(0, yMax);
