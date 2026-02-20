@@ -63,8 +63,10 @@
 		const s2 = 0.8 + Math.cos(t * 0.6) * 0.15;
 		const s3 = 0.45 + Math.sin(t * 0.8 + 2) * 0.08;
 
+		// Amplitude oscillates so peaks sometimes get much smaller (0.25 to 1)
+		const amplitude = 0.25 + 0.75 * (0.5 + 0.5 * Math.sin(t * 0.18));
 		const pdf = (x: number) =>
-			0.3 * gaussian(x, m1, s1) + 0.4 * gaussian(x, m2, s2) + 0.3 * gaussian(x, m3, s3);
+			amplitude * (0.3 * gaussian(x, m1, s1) + 0.4 * gaussian(x, m2, s2) + 0.3 * gaussian(x, m3, s3));
 
 		const xMin = -5, xMax = 5;
 		const pts = linspace(xMin, xMax, 300);
@@ -77,7 +79,7 @@
 		const accentCyan = heroColors.accentCyan;
 		const accentPurple = heroColors.accentPurple;
 
-		const scales = [0.15, 0.22, 0.29, 0.36, 0.43, 0.50, 0.57, 0.64, 0.72, 0.80, 0.90, 1.0];
+		const scales = linspace(0.15, 1, 24);
 		const strokeGrad = ctx.createLinearGradient(toX(xMin), 0, toX(xMax), 0);
 		strokeGrad.addColorStop(0, accentCyan);
 		strokeGrad.addColorStop(0.5, accentPurple);
