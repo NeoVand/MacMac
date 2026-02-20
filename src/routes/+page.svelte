@@ -4,7 +4,7 @@
 	import { getDifficultyColor } from '$lib/game/scoring';
 	import { gaussian, linspace } from '$lib/game/math';
 	import AppHeader from '$lib/components/AppHeader.svelte';
-	import { Github, Linkedin, Globe } from 'lucide-svelte';
+	import { Github, Linkedin, Globe, Hand } from 'lucide-svelte';
 
 	let heroCanvas: HTMLCanvasElement | undefined = $state();
 	let animFrame = 0;
@@ -184,11 +184,11 @@
 	<!-- Buttons: Play + Leaderboard (About is in header) -->
 	<div class="flex w-full justify-center px-4 py-6">
 		<div class="flex flex-nowrap items-center justify-center gap-2 sm:gap-3">
-			<a href="/play/1" class="flex flex-initial items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[13px] font-bold tracking-wide backdrop-blur-sm transition hover:scale-[1.02] active:scale-[0.98] sm:gap-2.5 sm:px-5 sm:py-3 sm:text-[14px] hover:brightness-[1.03] dark:hover:brightness-110" style="font-family: 'Space Grotesk', sans-serif; background: color-mix(in srgb, var(--accent-cyan) 14%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 35%, transparent); color: var(--accent-cyan); box-shadow: 0 2px 12px color-mix(in srgb, var(--accent-cyan) 15%, transparent);">
-				<svg viewBox="0 0 20 20" fill="currentColor" class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg>
+			<a href="/play/1" class="flex flex-initial items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[13px] font-bold tracking-wide backdrop-blur-sm transition hover:scale-[1.02] active:scale-[0.98] sm:gap-2.5 sm:px-5 sm:py-3 sm:text-[14px] hover:brightness-[1.03] dark:hover:brightness-110" style="font-family: 'Outfit', sans-serif; background: color-mix(in srgb, var(--accent-cyan) 14%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 35%, transparent); color: var(--accent-cyan); box-shadow: 0 2px 12px color-mix(in srgb, var(--accent-cyan) 15%, transparent);">
+				<Hand class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" strokeWidth={2} />
 				<span class="whitespace-nowrap">Play</span>
 			</a>
-			<a href="/leaderboard" class="flex flex-initial items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[13px] font-bold tracking-wide backdrop-blur-sm transition hover:scale-[1.02] active:scale-[0.98] sm:gap-2.5 sm:px-5 sm:py-3 sm:text-[14px] hover:brightness-[1.03] dark:hover:brightness-110" style="font-family: 'Space Grotesk', sans-serif; background: color-mix(in srgb, #eab308 12%, transparent); border: 1px solid color-mix(in srgb, #eab308 50%, transparent); color: color-mix(in srgb, #eab308 80%, var(--text-primary)); box-shadow: 0 2px 12px color-mix(in srgb, #eab308 15%, transparent);">
+			<a href="/leaderboard" class="flex flex-initial items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[13px] font-bold tracking-wide backdrop-blur-sm transition hover:scale-[1.02] active:scale-[0.98] sm:gap-2.5 sm:px-5 sm:py-3 sm:text-[14px] hover:brightness-[1.03] dark:hover:brightness-110" style="font-family: 'Outfit', sans-serif; background: color-mix(in srgb, #eab308 12%, transparent); border: 1px solid color-mix(in srgb, #eab308 50%, transparent); color: color-mix(in srgb, #eab308 80%, var(--text-primary)); box-shadow: 0 2px 12px color-mix(in srgb, #eab308 15%, transparent);">
 				<svg viewBox="0 0 24 24" fill="#eab308" class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4"><path d="M2 4l3 12h14l3-12-5 4-5-6-5 6-5-4zm3 14h14v2H5v-2z" /></svg>
 				<span class="whitespace-nowrap">Leaderboard</span>
 			</a>
