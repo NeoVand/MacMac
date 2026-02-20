@@ -17,7 +17,7 @@
 	<!-- Left: logo + breadcrumb -->
 	<div class="flex items-center gap-2.5">
 		<a href="/" class="inline-block transition hover:opacity-80" style="font-family: 'Space Grotesk', sans-serif;">
-			<span class="text-lg" style="color: var(--text-secondary);">mac</span><span class="text-lg" style="color: var(--accent-cyan); opacity: 0.6;">mac</span>
+			<span class="text-lg" style="color: var(--text-primary); opacity: 0.85;">mac</span><span class="bg-gradient-to-r from-game-cyan to-purple-400 bg-clip-text text-lg text-transparent">mac</span>
 		</a>
 		{#if breadcrumb}
 			<span style="color: var(--border);">/</span>
