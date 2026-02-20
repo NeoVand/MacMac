@@ -36,6 +36,7 @@
 	let submitted = $state(false);
 	let submittedRank = $state<number | null>(null);
 	let rankPreview = $state<number | null>(null);
+	let rankPreviewLoading = $state(false);
 	let pausedElapsed = $state(0);
 
 	// Replay
@@ -53,6 +54,7 @@
 		submitted = false;
 		submittedRank = null;
 		rankPreview = null;
+		rankPreviewLoading = false;
 		startTime = 0;
 		elapsedMs = 0;
 		timerRunning = false;
@@ -62,15 +64,23 @@
 	$effect(() => {
 		if (!showDialog || scoreResult.score <= 0) {
 			rankPreview = null;
+			rankPreviewLoading = false;
 			return;
 		}
+		rankPreview = null;
+		rankPreviewLoading = true;
 		let cancelled = false;
 		fetch(`/api/scores/rank?levelId=${levelId}&score=${Math.round(scoreResult.score)}`)
 			.then((r) => r.json())
 			.then((data) => {
-				if (!cancelled && typeof data.rank === 'number') rankPreview = data.rank;
+				if (!cancelled) {
+					rankPreview = typeof data.rank === 'number' ? data.rank : null;
+					rankPreviewLoading = false;
+				}
 			})
-			.catch(() => {});
+			.catch(() => {
+				if (!cancelled) rankPreviewLoading = false;
+			});
 		return () => { cancelled = true; };
 	});
 
@@ -564,9 +574,13 @@
 				{/if}
 
 				{#if !$session.data}
-					{#if rankPreview !== null}
+					{#if rankPreviewLoading}
+						<div class="mb-3 flex justify-center">
+							<div class="h-4 w-32 animate-pulse rounded" style="background: color-mix(in srgb, var(--accent-cyan) 25%, var(--surface));"></div>
+						</div>
+					{:else if rankPreview !== null}
 						<div class="mb-3 text-center text-sm font-bold" style="color: var(--accent-cyan);">
-							You'd be #{rankPreview} on this level!
+							Your rank on this level: #{rankPreview}
 						</div>
 					{/if}
 					<p class="mb-3 text-xs" style="color: var(--text-secondary);">Sign in to submit your score to the leaderboard.</p>
@@ -585,7 +599,7 @@
 					<div class="mb-3 text-center text-sm font-semibold" style="color: #4ade80;">Score submitted!</div>
 					{#if submittedRank !== null}
 						<div class="mb-3 text-center text-sm font-bold" style="color: var(--accent-cyan);">
-							You're #{submittedRank} on this level!
+							Your rank on this level: #{submittedRank}
 						</div>
 					{/if}
 					<div class="flex gap-2">
@@ -602,9 +616,13 @@
 					</div>
 				{:else}
 					<!-- Pre-submit: confirm -->
-					{#if rankPreview !== null}
+					{#if rankPreviewLoading}
+						<div class="mb-3 flex justify-center">
+							<div class="h-4 w-32 animate-pulse rounded" style="background: color-mix(in srgb, var(--accent-cyan) 25%, var(--surface));"></div>
+						</div>
+					{:else if rankPreview !== null}
 						<div class="mb-3 text-center text-sm font-bold" style="color: var(--accent-cyan);">
-							You'd be #{rankPreview} on this level!
+							Your rank on this level: #{rankPreview}
 						</div>
 					{/if}
 					<div class="mb-4 flex items-center gap-3 rounded-lg px-3 py-2" style="background: var(--surface); border: 1px solid var(--border);">
