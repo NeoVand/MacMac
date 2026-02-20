@@ -325,11 +325,17 @@
 			ctx.beginPath();
 			ctx.strokeStyle = kdeStroke;
 			ctx.lineWidth = 1.5;
+			ctx.setLineDash([4, 3]);
+			ctx.lineCap = 'round';
+			ctx.lineJoin = 'round';
 			for (let i = 0; i < replayXs.length; i++) {
 				const sy = toY(clampedKde[i]);
 				i === 0 ? ctx.moveTo(toX(replayXs[i]), sy) : ctx.lineTo(toX(replayXs[i]), sy);
 			}
 			ctx.stroke();
+			ctx.setLineDash([]);
+			ctx.lineCap = 'butt';
+			ctx.lineJoin = 'miter';
 
 			const replaySamples = samples.slice(0, replayIdx);
 			for (const sp of replaySamples) {
@@ -344,32 +350,52 @@
 			}
 		}
 
-		// PDF curve + fill
-		ctx.beginPath();
-		ctx.strokeStyle = curveGlow;
-		ctx.lineWidth = 8;
-		for (let i = 0; i < replayXs.length; i++) {
-			const sy = toY(pdfVals[i]);
-			i === 0 ? ctx.moveTo(toX(replayXs[i]), sy) : ctx.lineTo(toX(replayXs[i]), sy);
-		}
-		ctx.stroke();
+		// PDF curve — family of curves (uniform scale spacing)
+		const pdfFamilyScales = linspace(0.08, 1, 28);
+		const dimFactor = 0.55;
 
-		ctx.beginPath();
-		ctx.strokeStyle = accentCyan;
-		ctx.lineWidth = 2;
-		for (let i = 0; i < replayXs.length; i++) {
-			const sy = toY(pdfVals[i]);
-			i === 0 ? ctx.moveTo(toX(replayXs[i]), sy) : ctx.lineTo(toX(replayXs[i]), sy);
+		for (let si = 0; si < pdfFamilyScales.length; si++) {
+			const scale = pdfFamilyScales[si];
+			const isMain = si === pdfFamilyScales.length - 1;
+			const alpha = (isMain ? 1.0 : 0.03 + (si / (pdfFamilyScales.length - 1)) * 0.35) * dimFactor;
+			const lineW = isMain ? 2 : 0.45 + (si / (pdfFamilyScales.length - 1)) * 0.3;
+
+			if (isMain) {
+				ctx.beginPath();
+				for (let i = 0; i < replayXs.length; i++) {
+					const sy = toY(pdfVals[i]);
+					i === 0 ? ctx.moveTo(toX(replayXs[i]), sy) : ctx.lineTo(toX(replayXs[i]), sy);
+				}
+				ctx.lineTo(toX(replayXs[replayXs.length - 1]), baseY);
+				ctx.lineTo(toX(replayXs[0]), baseY);
+				ctx.closePath();
+				const pdfGradient = ctx.createLinearGradient(0, pad, 0, baseY);
+				pdfGradient.addColorStop(0, curveFillStart);
+				pdfGradient.addColorStop(1, curveFillEnd);
+				ctx.fillStyle = pdfGradient;
+				ctx.fill();
+
+				ctx.beginPath();
+				for (let i = 0; i < replayXs.length; i++) {
+					const sy = toY(pdfVals[i]);
+					i === 0 ? ctx.moveTo(toX(replayXs[i]), sy) : ctx.lineTo(toX(replayXs[i]), sy);
+				}
+				ctx.strokeStyle = curveGlow;
+				ctx.lineWidth = 8;
+				ctx.stroke();
+			}
+
+			ctx.beginPath();
+			for (let i = 0; i < replayXs.length; i++) {
+				const sy = toY(pdfVals[i] * scale);
+				i === 0 ? ctx.moveTo(toX(replayXs[i]), sy) : ctx.lineTo(toX(replayXs[i]), sy);
+			}
+			ctx.globalAlpha = alpha;
+			ctx.strokeStyle = accentCyan;
+			ctx.lineWidth = lineW;
+			ctx.stroke();
+			ctx.globalAlpha = 1;
 		}
-		ctx.stroke();
-		ctx.lineTo(toX(replayXs[replayXs.length - 1]), baseY);
-		ctx.lineTo(toX(replayXs[0]), baseY);
-		ctx.closePath();
-		const pdfGradient = ctx.createLinearGradient(0, pad, 0, baseY);
-		pdfGradient.addColorStop(0, curveFillStart);
-		pdfGradient.addColorStop(1, curveFillEnd);
-		ctx.fillStyle = pdfGradient;
-		ctx.fill();
 	}
 
 	const prevLevel = $derived(levelId > 1 ? levelId - 1 : null);

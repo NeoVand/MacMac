@@ -45,7 +45,7 @@
 		hint: 'rgba(255,255,255,0.25)', crosshair: 'rgba(255,255,255,0.7)',
 		crosshairRing: 'rgba(255,255,255,0.15)', curveGlow: 'rgba(0,200,255,0.12)',
 		curveFillStart: 'rgba(0,200,255,0.07)', curveFillEnd: 'rgba(0,200,255,0.0)',
-		accentCyan: '#00d4ff', kdeFillStart: 'rgba(255,130,40,0.22)',
+		accentCyan: '#00d4ff', accentPurple: '#a855f7', kdeFillStart: 'rgba(255,130,40,0.22)',
 		kdeFillEnd: 'rgba(255,100,30,0.02)', kdeStroke: 'rgba(255,150,50,0.75)',
 		sampleGlow: 'rgba(255,150,50,0.1)', sampleDot: 'rgba(255,153,51,0.65)',
 	};
@@ -58,7 +58,7 @@
 			hint: v('--canvas-hint'), crosshair: v('--canvas-crosshair'),
 			crosshairRing: v('--canvas-crosshair-ring'), curveGlow: v('--curve-glow'),
 			curveFillStart: v('--curve-fill-start'), curveFillEnd: v('--curve-fill-end'),
-			accentCyan: v('--accent-cyan'), kdeFillStart: v('--kde-fill-start'),
+			accentCyan: v('--accent-cyan'), accentPurple: v('--accent-purple'), kdeFillStart: v('--kde-fill-start'),
 			kdeFillEnd: v('--kde-fill-end'), kdeStroke: v('--kde-stroke'),
 			sampleGlow: v('--sample-glow'), sampleDot: v('--sample-dot'),
 		};
@@ -227,38 +227,57 @@
 		}
 	}
 
+	const PDF_FAMILY_SCALES = linspace(0.08, 1, 28);
+
 	function drawPDF(ctx: CanvasRenderingContext2D, xs: number[], vals: number[], yMax: number, baseY: number) {
 		const accentCyan = colors.accentCyan;
+		const dimFactor = 0.55;
 
-		// Glow
-		ctx.beginPath();
-		ctx.strokeStyle = colors.curveGlow;
-		ctx.lineWidth = 10;
-		for (let i = 0; i < xs.length; i++) {
-			const sx = toSX(xs[i]); const sy = toSY(vals[i], yMax);
-			i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
+		for (let si = 0; si < PDF_FAMILY_SCALES.length; si++) {
+			const s = PDF_FAMILY_SCALES[si];
+			const isMain = si === PDF_FAMILY_SCALES.length - 1;
+			const alpha = (isMain ? 1.0 : 0.03 + (si / (PDF_FAMILY_SCALES.length - 1)) * 0.35) * dimFactor;
+			const lineW = isMain ? 2.5 : 0.5 + (si / (PDF_FAMILY_SCALES.length - 1)) * 0.4;
+
+			if (isMain) {
+				// Fill under full curve
+				ctx.beginPath();
+				for (let i = 0; i < xs.length; i++) {
+					const sx = toSX(xs[i]); const sy = toSY(vals[i], yMax);
+					i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
+				}
+				ctx.lineTo(toSX(xs[xs.length - 1]), baseY);
+				ctx.lineTo(toSX(xs[0]), baseY);
+				ctx.closePath();
+				const g = ctx.createLinearGradient(0, PAD.top, 0, baseY);
+				g.addColorStop(0, colors.curveFillStart);
+				g.addColorStop(1, colors.curveFillEnd);
+				ctx.fillStyle = g;
+				ctx.fill();
+
+				// Glow
+				ctx.beginPath();
+				for (let i = 0; i < xs.length; i++) {
+					const sx = toSX(xs[i]); const sy = toSY(vals[i], yMax);
+					i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
+				}
+				ctx.strokeStyle = colors.curveGlow;
+				ctx.lineWidth = 10;
+				ctx.stroke();
+			}
+
+			// Stroke family curve — darker shades for inner curves
+			ctx.beginPath();
+			for (let i = 0; i < xs.length; i++) {
+				const sx = toSX(xs[i]); const sy = toSY(vals[i] * s, yMax);
+				i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
+			}
+			ctx.globalAlpha = alpha;
+			ctx.strokeStyle = accentCyan;
+			ctx.lineWidth = lineW;
+			ctx.stroke();
+			ctx.globalAlpha = 1;
 		}
-		ctx.stroke();
-
-		// Main curve
-		ctx.beginPath();
-		ctx.strokeStyle = accentCyan;
-		ctx.lineWidth = 2.5;
-		for (let i = 0; i < xs.length; i++) {
-			const sx = toSX(xs[i]); const sy = toSY(vals[i], yMax);
-			i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
-		}
-		ctx.stroke();
-
-		// Fill under
-		ctx.lineTo(toSX(xs[xs.length - 1]), baseY);
-		ctx.lineTo(toSX(xs[0]), baseY);
-		ctx.closePath();
-		const g = ctx.createLinearGradient(0, PAD.top, 0, baseY);
-		g.addColorStop(0, colors.curveFillStart);
-		g.addColorStop(1, colors.curveFillEnd);
-		ctx.fillStyle = g;
-		ctx.fill();
 	}
 
 	function drawKDE(ctx: CanvasRenderingContext2D, xs: number[], yMax: number, baseY: number) {
@@ -281,11 +300,17 @@
 		ctx.beginPath();
 		ctx.strokeStyle = colors.kdeStroke;
 		ctx.lineWidth = 2;
+		ctx.setLineDash([5, 4]);
+		ctx.lineCap = 'round';
+		ctx.lineJoin = 'round';
 		for (let i = 0; i < xs.length; i++) {
 			const sx = toSX(xs[i]); const sy = toSY(clamped[i], yMax);
 			i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
 		}
 		ctx.stroke();
+		ctx.setLineDash([]);
+		ctx.lineCap = 'butt';
+		ctx.lineJoin = 'miter';
 	}
 
 	function drawSamples(ctx: CanvasRenderingContext2D, baseY: number) {
