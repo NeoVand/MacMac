@@ -9,7 +9,7 @@
 	import GameCanvas from '$lib/components/GameCanvas.svelte';
 	import ScorePanel from '$lib/components/ScorePanel.svelte';
 	import AppHeader from '$lib/components/AppHeader.svelte';
-	import { ZoomIn, ZoomOut, Fullscreen, Github } from 'lucide-svelte';
+	import { Github } from 'lucide-svelte';
 
 	let { data } = $props();
 	type TopRank = 1 | 2 | 3 | null;
@@ -20,7 +20,6 @@
 	const topScore = $derived(data.topScore ?? 0);
 
 	const session = authClient.useSession();
-	let gameCanvas: ReturnType<typeof GameCanvas> | undefined = $state();
 
 	let samples: number[] = $state([]);
 	let totalClicks = $state(0);
@@ -270,64 +269,107 @@
 		ctx.scale(dpr, dpr);
 
 		const s = getComputedStyle(document.documentElement);
-		ctx.fillStyle = s.getPropertyValue('--canvas-bg').trim();
-		ctx.fillRect(0, 0, w, h);
-
+		const canvasBg = s.getPropertyValue('--canvas-bg').trim();
+		const axis = s.getPropertyValue('--canvas-axis').trim();
 		const accentCyan = s.getPropertyValue('--accent-cyan').trim();
+		const curveGlow = s.getPropertyValue('--curve-glow').trim();
+		const curveFillStart = s.getPropertyValue('--curve-fill-start').trim();
+		const curveFillEnd = s.getPropertyValue('--curve-fill-end').trim();
 		const kdeStroke = s.getPropertyValue('--kde-stroke').trim();
-		const kdeFill = s.getPropertyValue('--kde-fill-start').trim();
+		const kdeFillStart = s.getPropertyValue('--kde-fill-start').trim();
+		const kdeFillEnd = s.getPropertyValue('--kde-fill-end').trim();
+		const sampleGlow = s.getPropertyValue('--sample-glow').trim();
+		const sampleDot = s.getPropertyValue('--sample-dot').trim();
+
+		ctx.fillStyle = canvasBg;
+		ctx.fillRect(0, 0, w, h);
 
 		const pad = 12;
 		const pw = w - pad * 2, ph = h - pad * 2;
 		const [xMin, xMax] = level.xRange;
 		const pdfVals = replayXs.map((x) => level.pdf(x));
-		const pdfMax = Math.max(...pdfVals) * 1.15;
-		let yMax = pdfMax > 0 ? pdfMax : 1;
+		const pdfMax = pdfVals.length > 0 ? Math.max(...pdfVals) : 0;
+		const kdeMax = replayKde.length > 0 ? Math.max(...replayKde) : 0;
+		const yMax = Math.max(pdfMax, kdeMax) * 1.15 || 1;
 
 		const toX = (x: number) => pad + ((x - xMin) / (xMax - xMin)) * pw;
 		const toY = (y: number) => pad + ph - (y / yMax) * ph;
 		const baseY = toY(0);
 
-		// PDF curve (animated rise)
+		// Axis
+		ctx.strokeStyle = axis;
+		ctx.lineWidth = 1;
 		ctx.beginPath();
-		ctx.strokeStyle = accentCyan;
-		ctx.lineWidth = 1.5;
-		for (let i = 0; i < replayXs.length; i++) {
-			const sy = toY(pdfVals[i]);
-			i === 0 ? ctx.moveTo(toX(replayXs[i]), sy) : ctx.lineTo(toX(replayXs[i]), sy);
-		}
+		ctx.moveTo(pad, baseY);
+		ctx.lineTo(pad + pw, baseY);
 		ctx.stroke();
 
 		// KDE curve (lerped)
 		if (replayIdx > 0) {
+			const clampedKde = replayKde.map((v) => Math.min(v, yMax * 0.99));
+
 			ctx.beginPath();
 			for (let i = 0; i < replayXs.length; i++) {
-				const sy = toY(Math.min(replayKde[i], yMax * 0.99));
+				const sy = toY(clampedKde[i]);
 				i === 0 ? ctx.moveTo(toX(replayXs[i]), sy) : ctx.lineTo(toX(replayXs[i]), sy);
 			}
 			ctx.lineTo(toX(replayXs[replayXs.length - 1]), baseY);
 			ctx.lineTo(toX(replayXs[0]), baseY);
 			ctx.closePath();
-			ctx.fillStyle = kdeFill;
+			const kdeGradient = ctx.createLinearGradient(0, pad, 0, baseY);
+			kdeGradient.addColorStop(0, kdeFillStart);
+			kdeGradient.addColorStop(1, kdeFillEnd);
+			ctx.fillStyle = kdeGradient;
 			ctx.fill();
 
 			ctx.beginPath();
 			ctx.strokeStyle = kdeStroke;
 			ctx.lineWidth = 1.5;
 			for (let i = 0; i < replayXs.length; i++) {
-				const sy = toY(Math.min(replayKde[i], yMax * 0.99));
+				const sy = toY(clampedKde[i]);
 				i === 0 ? ctx.moveTo(toX(replayXs[i]), sy) : ctx.lineTo(toX(replayXs[i]), sy);
 			}
 			ctx.stroke();
 
 			const replaySamples = samples.slice(0, replayIdx);
 			for (const sp of replaySamples) {
-				ctx.fillStyle = kdeStroke;
+				ctx.fillStyle = sampleGlow;
 				ctx.beginPath();
-				ctx.arc(toX(sp), baseY, 2.5, 0, Math.PI * 2);
+				ctx.arc(toX(sp), baseY, 6, 0, Math.PI * 2);
+				ctx.fill();
+				ctx.fillStyle = sampleDot;
+				ctx.beginPath();
+				ctx.arc(toX(sp), baseY, 3.5, 0, Math.PI * 2);
 				ctx.fill();
 			}
 		}
+
+		// PDF curve + fill
+		ctx.beginPath();
+		ctx.strokeStyle = curveGlow;
+		ctx.lineWidth = 8;
+		for (let i = 0; i < replayXs.length; i++) {
+			const sy = toY(pdfVals[i]);
+			i === 0 ? ctx.moveTo(toX(replayXs[i]), sy) : ctx.lineTo(toX(replayXs[i]), sy);
+		}
+		ctx.stroke();
+
+		ctx.beginPath();
+		ctx.strokeStyle = accentCyan;
+		ctx.lineWidth = 2;
+		for (let i = 0; i < replayXs.length; i++) {
+			const sy = toY(pdfVals[i]);
+			i === 0 ? ctx.moveTo(toX(replayXs[i]), sy) : ctx.lineTo(toX(replayXs[i]), sy);
+		}
+		ctx.stroke();
+		ctx.lineTo(toX(replayXs[replayXs.length - 1]), baseY);
+		ctx.lineTo(toX(replayXs[0]), baseY);
+		ctx.closePath();
+		const pdfGradient = ctx.createLinearGradient(0, pad, 0, baseY);
+		pdfGradient.addColorStop(0, curveFillStart);
+		pdfGradient.addColorStop(1, curveFillEnd);
+		ctx.fillStyle = pdfGradient;
+		ctx.fill();
 	}
 
 	const prevLevel = $derived(levelId > 1 ? levelId - 1 : null);
@@ -380,12 +422,7 @@
 
 		<!-- Canvas -->
 		<div class="relative min-h-0 flex-1 px-2 sm:px-4">
-			<GameCanvas bind:this={gameCanvas} {level} {samples} onSampleAdd={handleCanvasSample} />
-			<div class="absolute right-4 top-3 flex flex-col gap-1 sm:right-6">
-				<button onclick={() => gameCanvas?.zoomIn()} class="flex h-7 w-7 items-center justify-center rounded-md transition hover:opacity-70" style="background: var(--glass); color: var(--text-tertiary);" aria-label="Zoom in"><ZoomIn size={14} /></button>
-				<button onclick={() => gameCanvas?.zoomOut()} class="flex h-7 w-7 items-center justify-center rounded-md transition hover:opacity-70" style="background: var(--glass); color: var(--text-tertiary);" aria-label="Zoom out"><ZoomOut size={14} /></button>
-				<button onclick={() => gameCanvas?.resetZoom()} class="flex h-7 w-7 items-center justify-center rounded-md transition hover:opacity-70" style="background: var(--glass); color: var(--text-tertiary);" aria-label="Reset view"><Fullscreen size={14} /></button>
-			</div>
+			<GameCanvas {level} {samples} onSampleAdd={handleCanvasSample} />
 		</div>
 
 		<!-- Bottom controls -->

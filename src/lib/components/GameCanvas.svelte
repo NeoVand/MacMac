@@ -20,12 +20,6 @@
 	let viewXMin = $state(0);
 	let viewXMax = $state(1);
 
-	let isPanning = $state(false);
-	let panStartX = $state(0);
-	let panStartViewMin = $state(0);
-	let panStartViewMax = $state(0);
-	let lastPinchDist = $state(0);
-
 	let mouseX = $state(-1);
 	let mouseY = $state(-1);
 	let lastTouchTime = 0;
@@ -79,11 +73,10 @@
 		return Math.round((clamped + Number.EPSILON) * SAMPLE_SCALE) / SAMPLE_SCALE;
 	}
 
-	function resetView() { viewXMin = level.xRange[0]; viewXMax = level.xRange[1]; }
-
 	$effect(() => {
 		level;
-		resetView();
+		viewXMin = level.xRange[0];
+		viewXMax = level.xRange[1];
 		const nPts = 400;
 		displayKde = new Array(nPts).fill(0);
 		targetKde = new Array(nPts).fill(0);
@@ -94,21 +87,7 @@
 	});
 
 	$effect(() => {
-		if (!container) return;
-		const ro = new ResizeObserver((entries) => {
-			const e = entries[0];
-			if (e) { width = e.contentRect.width; height = e.contentRect.height; }
-		});
-		ro.observe(container);
-		return () => ro.disconnect();
-	});
-
-	$effect(() => {
 		void samples; void viewXMin; void viewXMax;
-		updateTargetKde();
-	});
-
-	function updateTargetKde() {
 		if (pw <= 0) return;
 		const nPts = 400;
 		const xs = linspace(viewXMin, viewXMax, nPts);
@@ -120,16 +99,28 @@
 		if (displayKde.length !== targetKde.length) {
 			displayKde = new Array(targetKde.length).fill(0);
 		}
-	}
+	});
 
 	onMount(() => {
 		refreshColors();
+		const resizeObserver = new ResizeObserver((entries) => {
+			const entry = entries[0];
+			if (entry) {
+				width = entry.contentRect.width;
+				height = entry.contentRect.height;
+			}
+		});
+		if (container) {
+			width = container.clientWidth;
+			height = container.clientHeight;
+			resizeObserver.observe(container);
+		}
 
 		// Watch for theme class changes on <html>
-		const observer = new MutationObserver(() => {
+		const themeObserver = new MutationObserver(() => {
 			refreshColors();
 		});
-		observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+		themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
 		let running = true;
 		function frame() {
@@ -169,7 +160,12 @@
 			animHandle = requestAnimationFrame(frame);
 		}
 		frame();
-		return () => { running = false; cancelAnimationFrame(animHandle); observer.disconnect(); };
+		return () => {
+			running = false;
+			cancelAnimationFrame(animHandle);
+			themeObserver.disconnect();
+			resizeObserver.disconnect();
+		};
 	});
 
 	let lastDrawnWidth = 0;
@@ -366,7 +362,6 @@
 	}
 
 	function handleClick(e: MouseEvent) {
-		if (isPanning) return;
 		// Ignore synthetic click from touch (touchend already handled it)
 		if (Date.now() - lastTouchTime < 500) return;
 		const r = canvas!.getBoundingClientRect();
@@ -375,67 +370,15 @@
 		onSampleAdd(snapSampleX(toDX(cx)));
 	}
 
-	function handleWheel(e: WheelEvent) {
-		e.preventDefault();
-		const r = canvas!.getBoundingClientRect();
-		const mx = toDX(e.clientX - r.left);
-		const f = e.deltaY > 0 ? 1.1 : 0.9;
-		const nMin = mx - (mx - viewXMin) * f; const nMax = mx + (viewXMax - mx) * f;
-		const range = nMax - nMin;
-		if (range >= 0.5 && range <= (level.xRange[1] - level.xRange[0]) * 3) {
-			viewXMin = nMin; viewXMax = nMax;
-		}
-	}
-
-	function handleMouseDown(e: MouseEvent) {
-		if (e.button === 1 || e.button === 2 || e.shiftKey) {
-			e.preventDefault(); isPanning = true; panStartX = e.clientX;
-			panStartViewMin = viewXMin; panStartViewMax = viewXMax;
-		}
-	}
-
 	function handleMouseMove(e: MouseEvent) {
 		const r = canvas!.getBoundingClientRect();
 		mouseX = e.clientX - r.left; mouseY = e.clientY - r.top;
-		if (!isPanning) return;
-		const dx = e.clientX - panStartX;
-		viewXMin = panStartViewMin - dx * ((panStartViewMax - panStartViewMin) / pw);
-		viewXMax = panStartViewMax - dx * ((panStartViewMax - panStartViewMin) / pw);
 	}
 
-	function handleMouseLeave() { isPanning = false; mouseX = -1; mouseY = -1; }
-	function handleMouseUp() { isPanning = false; }
-
-	function handleTouchStart(e: TouchEvent) {
-		if (e.touches.length === 2) {
-			e.preventDefault();
-			const dx = e.touches[0].clientX - e.touches[1].clientX;
-			const dy = e.touches[0].clientY - e.touches[1].clientY;
-			lastPinchDist = Math.sqrt(dx * dx + dy * dy);
-			panStartViewMin = viewXMin; panStartViewMax = viewXMax;
-		}
-	}
-
-	function handleTouchMove(e: TouchEvent) {
-		if (e.touches.length !== 2) return;
-		e.preventDefault();
-		const dx = e.touches[0].clientX - e.touches[1].clientX;
-		const dy = e.touches[0].clientY - e.touches[1].clientY;
-		const dist = Math.sqrt(dx * dx + dy * dy);
-		const scale = lastPinchDist / dist;
-		const midSX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-		const r = canvas!.getBoundingClientRect();
-		const midX = toDX(midSX - r.left);
-		const newRange = (panStartViewMax - panStartViewMin) * scale;
-		if (newRange >= 0.5 && newRange <= (level.xRange[1] - level.xRange[0]) * 3) {
-			const ratio = (midX - panStartViewMin) / (panStartViewMax - panStartViewMin);
-			viewXMin = midX - ratio * newRange; viewXMax = midX + (1 - ratio) * newRange;
-		}
-	}
+	function handleMouseLeave() { mouseX = -1; mouseY = -1; }
 
 	function handleTouchEnd(e: TouchEvent) {
-		if (e.touches.length < 2) lastPinchDist = 0;
-		if (e.changedTouches.length === 1 && e.touches.length === 0 && lastPinchDist === 0) {
+		if (e.changedTouches.length === 1 && e.touches.length === 0) {
 			e.preventDefault();
 			const t = e.changedTouches[0]; const r = canvas!.getBoundingClientRect();
 			const cx = t.clientX - r.left;
@@ -445,10 +388,6 @@
 			}
 		}
 	}
-
-	export function zoomIn() { const mid = (viewXMin + viewXMax) / 2; const r = (viewXMax - viewXMin) * 0.8; viewXMin = mid - r / 2; viewXMax = mid + r / 2; }
-	export function zoomOut() { const mid = (viewXMin + viewXMax) / 2; const r = (viewXMax - viewXMin) * 1.25; if (r <= (level.xRange[1] - level.xRange[0]) * 3) { viewXMin = mid - r / 2; viewXMax = mid + r / 2; } }
-	export function resetZoom() { resetView(); }
 </script>
 
 <div bind:this={container} class="h-full w-full">
@@ -458,14 +397,8 @@
 		class="block"
 		aria-label="Click to place samples"
 		onclick={handleClick}
-		onwheel={handleWheel}
-		onmousedown={handleMouseDown}
 		onmousemove={handleMouseMove}
-		onmouseup={handleMouseUp}
 		onmouseleave={handleMouseLeave}
-		ontouchstart={handleTouchStart}
-		ontouchmove={handleTouchMove}
 		ontouchend={handleTouchEnd}
-		oncontextmenu={(e) => e.preventDefault()}
 	></canvas>
 </div>
