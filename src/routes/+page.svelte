@@ -170,15 +170,15 @@
 			</p>
 
 			<div class="flex gap-2.5">
-				<a href="/play/1" class="flex h-10 items-center gap-2 rounded-lg px-5 text-[13px] font-semibold backdrop-blur-sm transition hover:brightness-110" style="background: color-mix(in srgb, var(--accent-cyan) 10%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);">
+				<a href="/play/1" class="flex h-11 items-center gap-2 rounded-2xl px-6 text-[13px] font-semibold backdrop-blur-sm transition hover:brightness-110" style="background: color-mix(in srgb, var(--accent-cyan) 10%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);">
 					<svg viewBox="0 0 20 20" fill="currentColor" class="h-3.5 w-3.5"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg>
 					Play
 				</a>
-				<a href="/leaderboard" class="flex h-10 items-center gap-2 rounded-lg px-5 text-[13px] font-medium backdrop-blur-sm transition hover:brightness-110" style="background: color-mix(in srgb, #eab308 7%, transparent); border: 1px solid color-mix(in srgb, #eab308 20%, transparent); color: color-mix(in srgb, #eab308 70%, var(--text-primary));">
+				<a href="/leaderboard" class="flex h-11 items-center gap-2 rounded-2xl px-6 text-[13px] font-medium backdrop-blur-sm transition hover:brightness-110" style="background: color-mix(in srgb, #eab308 7%, transparent); border: 1px solid color-mix(in srgb, #eab308 20%, transparent); color: color-mix(in srgb, #eab308 70%, var(--text-primary));">
 					<svg viewBox="0 0 24 24" fill="#eab308" class="h-3.5 w-3.5"><path d="M2 4l3 12h14l3-12-5 4-5-6-5 6-5-4zm3 14h14v2H5v-2z" /></svg>
 					Leaderboard
 				</a>
-				<a href="/about" class="flex h-10 items-center gap-2 rounded-lg px-5 text-[13px] font-medium backdrop-blur-sm transition hover:brightness-110" style="background: color-mix(in srgb, var(--text-primary) 4%, transparent); border: 1px solid var(--border); color: var(--text-secondary);">
+				<a href="/about" class="flex h-11 items-center gap-2 rounded-2xl px-6 text-[13px] font-medium backdrop-blur-sm transition hover:brightness-110" style="background: color-mix(in srgb, var(--text-primary) 4%, transparent); border: 1px solid var(--border); color: var(--text-secondary);">
 					<svg viewBox="0 0 20 20" fill="currentColor" class="h-3.5 w-3.5"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd" /></svg>
 					About
 				</a>
@@ -203,17 +203,17 @@
 	</div>
 
 	<!-- Levels -->
-	<div class="mt-6 w-full max-w-3xl px-4 pb-16 sm:mt-8">
-		<h2 class="mb-4 text-[10px] font-medium tracking-[0.2em] uppercase" style="color: var(--text-tertiary);">Levels</h2>
-		<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+	<div class="mx-auto mt-6 w-full max-w-3xl px-6 pb-16 sm:mt-8 sm:px-4">
+		<h2 class="mb-3 text-[10px] font-medium tracking-[0.2em] uppercase" style="color: var(--text-tertiary);">Levels</h2>
+		<div class="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
 			{#each levels as level}
 				{@const family = levelSvgPaths(level, 160, 48)}
 				<a
 					href="/play/{level.id}"
-					class="group overflow-hidden rounded-xl p-3 transition hover:opacity-80"
+					class="group overflow-hidden rounded-2xl p-2.5 transition hover:opacity-80"
 					style="background: var(--surface);"
 				>
-					<svg viewBox="0 0 160 48" class="mb-1.5 w-full opacity-40 transition group-hover:opacity-70">
+					<svg viewBox="0 0 160 48" class="mb-1 w-full opacity-40 transition group-hover:opacity-70">
 						<defs>
 							<linearGradient id="lc{level.id}" x1="0" y1="0" x2="160" y2="0" gradientUnits="userSpaceOnUse">
 								<stop offset="0%" stop-color="var(--accent-cyan)" />
@@ -235,7 +235,7 @@
 					</svg>
 					<div class="flex items-center gap-1.5">
 						<span class="inline-block h-1.5 w-1.5 rounded-full" style="background-color: {getDifficultyColor(level.difficulty)}"></span>
-						<span class="text-[13px] font-medium" style="color: var(--text-secondary);">{level.name}</span>
+						<span class="text-[12px] font-medium" style="color: var(--text-secondary);">{level.name}</span>
 					</div>
 				</a>
 			{/each}
