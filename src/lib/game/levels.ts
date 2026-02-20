@@ -26,11 +26,11 @@ function kernelTargetPdf(hiddenClicks: number[]): (x: number) => number {
 export const levels: Level[] = [
 	{
 		id: 1,
-		name: 'The Bell Curve',
+		name: 'Bell-ish Curve',
 		subtitle: 'A gentle start',
 		difficulty: 'easy',
 		pdf: kernelTargetPdf([0, 0.68, -0.68]),
-		xRange: [-4, 4],
+		xRange: [-3, 3],
 		numBins: 40
 	},
 	{

@@ -21,7 +21,7 @@ There is no explicit click penalty; time naturally penalizes extra clicks. The b
 
 | # | Name | Difficulty | Description |
 |---|------|------------|-------------|
-| 1 | The Bell Curve | Easy | A gentle start |
+| 1 | Bell-ish Curve | Easy | A gentle start |
 | 2 | The Lean | Easy | A subtle tilt |
 | 3 | Twin Peaks | Easy | Two hills to find |
 | 4 | The Shelf | Medium | Broad meets narrow |
