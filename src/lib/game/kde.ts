@@ -36,8 +36,8 @@ function stableBandwidth(samples: number[]): number {
 	const scottH = std > 0 ? 1.06 * std * Math.pow(n, -0.2) : 0;
 
 	// Smooth floor that starts wide and narrows as n grows
-	// At n=1: floor=0.4, n=5: floor=0.25, n=15: floor=0.15, n=50: floor=0.1
-	const floor = 0.4 / Math.pow(n, 0.3);
+	// At n=1: floor=0.35, n=5: floor=0.2, n=20: floor=0.1, n=80: floor=0.05
+	const floor = 0.35 / Math.pow(n, 0.35);
 
 	return Math.max(floor, scottH);
 }

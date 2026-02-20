@@ -9,6 +9,22 @@ export function uniform(x: number, a: number, b: number): number {
 	return x >= a && x <= b ? 1 / (b - a) : 0;
 }
 
+/** Uniform with smooth sigmoid edges (width controls edge softness) */
+export function softUniform(x: number, a: number, b: number, edgeWidth: number = 0.15): number {
+	const sigmoid = (t: number) => 1 / (1 + Math.exp(-t));
+	const left = sigmoid((x - a) / edgeWidth);
+	const right = sigmoid((b - x) / edgeWidth);
+	return left * right / (b - a);
+}
+
+/** Exponential with a smooth onset instead of a point discontinuity */
+export function softExponential(x: number, lambda: number, onset: number = 0.15): number {
+	if (x < -3 * onset) return 0;
+	const sigmoid = (t: number) => 1 / (1 + Math.exp(-t));
+	const ramp = sigmoid(x / onset);
+	return ramp * lambda * Math.exp(-lambda * x);
+}
+
 export function exponential(x: number, lambda: number): number {
 	return x >= 0 ? lambda * Math.exp(-lambda * x) : 0;
 }
@@ -30,7 +46,6 @@ export function gammaFn(n: number): number {
 		for (let i = 2; i < n; i++) result *= i;
 		return result;
 	}
-	// Stirling's approximation for non-integer values
 	return Math.sqrt((2 * Math.PI) / n) * Math.pow(n / Math.E, n);
 }
 

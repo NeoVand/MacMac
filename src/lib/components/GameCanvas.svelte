@@ -29,6 +29,7 @@
 
 	let mouseX = $state(-1);
 	let mouseY = $state(-1);
+	let lastTouchTime = 0;
 
 	let displayKde: number[] = [];
 	let targetKde: number[] = [];
@@ -337,6 +338,8 @@
 
 	function handleClick(e: MouseEvent) {
 		if (isPanning) return;
+		// Ignore synthetic click from touch (touchend already handled it)
+		if (Date.now() - lastTouchTime < 500) return;
 		const r = canvas!.getBoundingClientRect();
 		const cx = e.clientX - r.left; const cy = e.clientY - r.top;
 		if (cx < PAD.left || cx > PAD.left + pw || cy < 0 || cy > height) return;
@@ -406,7 +409,10 @@
 		if (e.changedTouches.length === 1 && e.touches.length === 0 && lastPinchDist === 0) {
 			const t = e.changedTouches[0]; const r = canvas!.getBoundingClientRect();
 			const cx = t.clientX - r.left;
-			if (cx >= PAD.left && cx <= PAD.left + pw) onSampleAdd(toDX(cx));
+			if (cx >= PAD.left && cx <= PAD.left + pw) {
+				lastTouchTime = Date.now();
+				onSampleAdd(toDX(cx));
+			}
 		}
 	}
 

@@ -1,4 +1,4 @@
-import { gaussian, uniform, exponential, chiSquared, mixturePdf } from './math';
+import { gaussian, uniform, softUniform, softExponential, chiSquared, mixturePdf } from './math';
 
 export interface Level {
 	id: number;
@@ -25,7 +25,7 @@ export const levels: Level[] = [
 		name: 'Flat Land',
 		subtitle: 'Equally likely everywhere',
 		difficulty: 'easy',
-		pdf: (x) => uniform(x, -2, 2),
+		pdf: (x) => softUniform(x, -2, 2),
 		xRange: [-4, 4],
 		numBins: 40
 	},
@@ -34,7 +34,7 @@ export const levels: Level[] = [
 		name: 'The Slide',
 		subtitle: 'Fast decay to the right',
 		difficulty: 'easy',
-		pdf: (x) => exponential(x, 1.5),
+		pdf: (x) => softExponential(x, 1.5),
 		xRange: [-0.5, 5],
 		numBins: 40
 	},
