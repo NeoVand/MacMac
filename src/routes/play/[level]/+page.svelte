@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { getLevel, levels } from '$lib/game/levels';
-	import { getFullScore, getDifficultyColor, type ScoreResult } from '$lib/game/scoring';
+	import { getFullScore, getDifficultyColor, computeTimeBonus, type ScoreResult } from '$lib/game/scoring';
 	import { authClient } from '$lib/auth-client';
 	import { linspace } from '$lib/game/math';
 	import { computeKDE } from '$lib/game/kde';
@@ -76,21 +76,14 @@
 		} catch { /* ignore bad data */ }
 	});
 
-	let lastScoreRecalcSec = 0;
-
 	function startTimer() {
 		if (timerRunning) return;
 		startTime = Date.now();
 		timerRunning = true;
-		lastScoreRecalcSec = 0;
 		function tick() {
 			if (!timerRunning) return;
 			elapsedMs = Date.now() - startTime;
-			const sec = Math.floor(elapsedMs / 1000);
-			if (sec > lastScoreRecalcSec && samples.length > 0) {
-				lastScoreRecalcSec = sec;
-				recalcScore();
-			}
+			if (samples.length > 0) recalcScore(false);
 			timerHandle = requestAnimationFrame(tick);
 		}
 		tick();
@@ -101,11 +94,26 @@
 		cancelAnimationFrame(timerHandle);
 	}
 
-	function recalcScore() {
+	function recalcScore(updateShape: boolean = true) {
 		if (!level) return;
-		scoreResult = samples.length > 0
-			? { ...getFullScore(samples, level, elapsedMs), clicks: totalClicks }
-			: { ...emptyScore };
+		if (samples.length === 0) {
+			scoreResult = { ...emptyScore };
+			return;
+		}
+
+		if (updateShape) {
+			scoreResult = { ...getFullScore(samples, level, elapsedMs), clicks: totalClicks };
+			return;
+		}
+
+		const timeBonus = computeTimeBonus(elapsedMs);
+		if (timeBonus === scoreResult.timeBonus && totalClicks === scoreResult.clicks) return;
+		scoreResult = {
+			...scoreResult,
+			clicks: totalClicks,
+			timeBonus,
+			score: scoreResult.matchScore + timeBonus
+		};
 	}
 
 	function addSample(x: number) {
@@ -139,15 +147,10 @@
 		if (!timerRunning && samples.length > 0) {
 			startTime = Date.now() - pausedElapsed;
 			timerRunning = true;
-			lastScoreRecalcSec = Math.floor(pausedElapsed / 1000);
 			function tick() {
 				if (!timerRunning) return;
 				elapsedMs = Date.now() - startTime;
-				const sec = Math.floor(elapsedMs / 1000);
-				if (sec > lastScoreRecalcSec && samples.length > 0) {
-					lastScoreRecalcSec = sec;
-					recalcScore();
-				}
+				recalcScore(false);
 				timerHandle = requestAnimationFrame(tick);
 			}
 			tick();

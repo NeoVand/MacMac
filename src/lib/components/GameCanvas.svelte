@@ -39,6 +39,8 @@
 
 	const LERP_SPEED = 0.12;
 	const PAD = { top: 30, right: 30, bottom: 44, left: 30 };
+	const SAMPLE_DECIMALS = 2;
+	const SAMPLE_SCALE = 10 ** SAMPLE_DECIMALS;
 
 	const pw = $derived(width - PAD.left - PAD.right);
 	const ph = $derived(height - PAD.top - PAD.bottom);
@@ -72,6 +74,10 @@
 	function toSX(x: number) { return PAD.left + ((x - viewXMin) / (viewXMax - viewXMin)) * pw; }
 	function toDX(sx: number) { return viewXMin + ((sx - PAD.left) / pw) * (viewXMax - viewXMin); }
 	function toSY(y: number, yMax: number) { return PAD.top + ph - (y / yMax) * ph; }
+	function snapSampleX(x: number) {
+		const clamped = Math.max(level.xRange[0], Math.min(level.xRange[1], x));
+		return Math.round((clamped + Number.EPSILON) * SAMPLE_SCALE) / SAMPLE_SCALE;
+	}
 
 	function resetView() { viewXMin = level.xRange[0]; viewXMax = level.xRange[1]; }
 
@@ -333,21 +339,22 @@
 	}
 
 	function drawCrosshair(ctx: CanvasRenderingContext2D, yMax: number, baseY: number) {
-		const dataX = toDX(mouseX);
+		const dataX = snapSampleX(toDX(mouseX));
+		const snappedX = toSX(dataX);
 		ctx.strokeStyle = colors.axis;
 		ctx.lineWidth = 1; ctx.setLineDash([2, 4]);
-		ctx.beginPath(); ctx.moveTo(mouseX, baseY - 20); ctx.lineTo(mouseX, baseY); ctx.stroke();
+		ctx.beginPath(); ctx.moveTo(snappedX, baseY - 20); ctx.lineTo(snappedX, baseY); ctx.stroke();
 		ctx.setLineDash([]);
 
 		ctx.fillStyle = colors.crosshair;
-		ctx.beginPath(); ctx.arc(mouseX, baseY, 5, 0, Math.PI * 2); ctx.fill();
+		ctx.beginPath(); ctx.arc(snappedX, baseY, 5, 0, Math.PI * 2); ctx.fill();
 		ctx.fillStyle = colors.crosshairRing;
-		ctx.beginPath(); ctx.arc(mouseX, baseY, 10, 0, Math.PI * 2); ctx.fill();
+		ctx.beginPath(); ctx.arc(snappedX, baseY, 10, 0, Math.PI * 2); ctx.fill();
 
 		ctx.fillStyle = colors.text;
 		ctx.font = '9px ui-monospace, monospace';
 		ctx.textAlign = 'center';
-		ctx.fillText(dataX.toFixed(1), mouseX, baseY + 36);
+		ctx.fillText(dataX.toFixed(SAMPLE_DECIMALS), snappedX, baseY + 36);
 	}
 
 	function niceStep(range: number, maxTicks: number) {
@@ -365,7 +372,7 @@
 		const r = canvas!.getBoundingClientRect();
 		const cx = e.clientX - r.left; const cy = e.clientY - r.top;
 		if (cx < PAD.left || cx > PAD.left + pw || cy < 0 || cy > height) return;
-		onSampleAdd(toDX(cx));
+		onSampleAdd(snapSampleX(toDX(cx)));
 	}
 
 	function handleWheel(e: WheelEvent) {
@@ -434,7 +441,7 @@
 			const cx = t.clientX - r.left;
 			if (cx >= PAD.left && cx <= PAD.left + pw) {
 				lastTouchTime = Date.now();
-				onSampleAdd(toDX(cx));
+				onSampleAdd(snapSampleX(toDX(cx)));
 			}
 		}
 	}

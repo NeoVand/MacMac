@@ -7,7 +7,7 @@
 	let mathContainer: HTMLDivElement | undefined = $state();
 
 	const mseFormula = `$$\\text{MSE} = \\frac{1}{n} \\sum_{i=1}^{n} \\left( \\frac{p(x_i)}{\\max(p)} - \\frac{\\hat{q}(x_i)}{\\max(\\hat{q})} \\right)^2$$`;
-	const scoreFormula = `$$\\text{Score} = \\underbrace{\\left\\lfloor \\frac{8000}{1 + 100 \\cdot \\text{MSE}} \\right\\rfloor}_{\\text{shape match}} + \\underbrace{\\left\\lfloor 2000 \\cdot e^{-t/60} \\right\\rfloor}_{\\text{time bonus}}$$`;
+	const scoreFormula = `$$\\text{Score} = \\underbrace{\\left\\lfloor \\frac{8000}{1 + 100 \\cdot \\text{MSE}} \\right\\rfloor}_{\\text{shape match}} + \\underbrace{\\left\\lfloor 2000 \\cdot \\max\\left(0, 1 - \\frac{t}{60}\\right) \\right\\rfloor}_{\\text{time bonus}}$$`;
 
 	onMount(() => {
 		if (canvas) drawVisual();
@@ -171,7 +171,7 @@
 		</p>
 
 		<p>
-			<strong style="color: var(--text-primary); opacity: 0.55;">Time bonus</strong> rewards speed. A fast solution earns up to 2,000 extra points, decaying exponentially as you take longer.
+			<strong style="color: var(--text-primary); opacity: 0.55;">Time bonus</strong> rewards speed. A fast solution earns up to 2,000 extra points, dropping continuously to zero over 60 seconds.
 		</p>
 
 		<p>The final score:</p>

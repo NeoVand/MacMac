@@ -8,7 +8,7 @@ export function computeKDE(samples: number[], evalPoints: number[]): number[] {
 	const n = samples.length;
 	if (n === 0) return evalPoints.map(() => 0);
 
-	const bandwidth = stableBandwidth(samples);
+	const bandwidth = computeBandwidth(samples);
 	const invH = 1 / bandwidth;
 	const coeff = invH / (n * Math.sqrt(2 * Math.PI));
 
@@ -24,7 +24,7 @@ export function computeKDE(samples: number[], evalPoints: number[]): number[] {
 
 const BW_CEILING = 0.5;
 
-function stableBandwidth(samples: number[]): number {
+export function computeBandwidth(samples: number[]): number {
 	const n = samples.length;
 
 	const mean = samples.reduce((a, b) => a + b, 0) / n;

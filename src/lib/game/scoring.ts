@@ -16,7 +16,7 @@ const EVAL_POINTS = 200;
 const MATCH_MAX = 8000;
 const MATCH_SENSITIVITY = 100;
 const TIME_MAX = 2000;
-const TIME_DECAY = 60;
+const TIME_LIMIT_MS = 60_000;
 
 /**
  * Compute Mean Squared Error between peak-normalized PDF and KDE.
@@ -67,12 +67,13 @@ export function computeMatchScore(mse: number): number {
 }
 
 /**
- * Time Bonus: 2000 * exp(-timeSeconds / 60)
- * Instant → 2000, 30s → 1213, 60s → 736, 3min → 100
+ * Time Bonus: linear decay from 2000 to 0 over 60 seconds.
+ * Instant → 2000, 30s → 1000, 60s → 0
  */
 export function computeTimeBonus(elapsedMs: number): number {
-	const seconds = elapsedMs / 1000;
-	return Math.round(TIME_MAX * Math.exp(-seconds / TIME_DECAY));
+	const safeElapsedMs = Math.max(0, elapsedMs);
+	const remaining = Math.max(0, 1 - safeElapsedMs / TIME_LIMIT_MS);
+	return Math.round(TIME_MAX * remaining);
 }
 
 /**
