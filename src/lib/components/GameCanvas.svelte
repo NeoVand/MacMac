@@ -184,10 +184,11 @@
 		const nPts = 400;
 		const xs = linspace(viewXMin, viewXMax, nPts);
 		const rawPdf = xs.map((x) => level.pdf(x));
-		const pdfVals = rawPdf.map((v) => v * pdfReveal);
-		const pdfMax = Math.max(...rawPdf) * pdfReveal;
-		let yMax = pdfMax * 1.15;
+		const rawMax = Math.max(...rawPdf);
+		let yMax = rawMax * 1.15;
 		if (yMax <= 0) yMax = 1;
+		// Scale drawn PDF by pdfReveal (coordinate system stays stable)
+		const pdfVals = rawPdf.map((v) => v * pdfReveal);
 		const baseY = toSY(0, yMax);
 
 		// Axis

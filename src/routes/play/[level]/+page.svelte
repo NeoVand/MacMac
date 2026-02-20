@@ -190,7 +190,6 @@
 	}
 
 	// Smooth replay with continuous animation
-	let replayPdfReveal = 0;
 	let replayStepTimer = 0;
 	let replayXs: number[] = [];
 
@@ -200,27 +199,19 @@
 		replayXs = linspace(xMin, xMax, 200);
 		replayIdx = 0;
 		replayKde = new Array(200).fill(0);
-		replayPdfReveal = 0;
 		replayStepTimer = 0;
 
 		function frame() {
 			if (!showDialog) return;
 
-			// Animate PDF rising
-			if (replayPdfReveal < 0.999) {
-				replayPdfReveal += (1 - replayPdfReveal) * 0.05;
-				if (replayPdfReveal > 0.999) replayPdfReveal = 1;
-			}
-
 			// Advance sample step every ~12 frames (~200ms at 60fps)
 			replayStepTimer++;
-			if (replayStepTimer >= 12 && replayPdfReveal > 0.8) {
+			if (replayStepTimer >= 12) {
 				replayStepTimer = 0;
 				replayIdx++;
 				if (replayIdx > samples.length) {
 					replayIdx = 0;
 					replayKde = new Array(200).fill(0);
-					replayPdfReveal = 0;
 				}
 			}
 
@@ -260,9 +251,8 @@
 		const pad = 12;
 		const pw = w - pad * 2, ph = h - pad * 2;
 		const [xMin, xMax] = level.xRange;
-		const rawPdf = replayXs.map((x) => level.pdf(x));
-		const pdfVals = rawPdf.map((v) => v * replayPdfReveal);
-		const pdfMax = Math.max(...rawPdf) * 1.15;
+		const pdfVals = replayXs.map((x) => level.pdf(x));
+		const pdfMax = Math.max(...pdfVals) * 1.15;
 		let yMax = pdfMax > 0 ? pdfMax : 1;
 
 		const toX = (x: number) => pad + ((x - xMin) / (xMax - xMin)) * pw;
