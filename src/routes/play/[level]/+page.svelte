@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { getLevel, levels } from '$lib/game/levels';
-	import { getFullScore, getDifficultyColor, computeScore, computeKL, type ScoreResult } from '$lib/game/scoring';
+	import { getFullScore, getDifficultyColor, type ScoreResult } from '$lib/game/scoring';
 	import { authClient } from '$lib/auth-client';
 	import { linspace } from '$lib/game/math';
 	import { computeKDE } from '$lib/game/kde';
@@ -10,7 +10,7 @@
 	import ScorePanel from '$lib/components/ScorePanel.svelte';
 	import UserAvatar from '$lib/components/UserAvatar.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
-	import { ZoomIn, ZoomOut, Fullscreen, Github, Eraser } from 'lucide-svelte';
+	import { ZoomIn, ZoomOut, Fullscreen, Github, Eraser, ChevronLeft, ChevronRight, Trophy } from 'lucide-svelte';
 
 	let { data } = $props();
 
@@ -19,7 +19,6 @@
 	const topScore = $derived(data.topScore ?? 0);
 
 	const session = authClient.useSession();
-
 	let gameCanvas: ReturnType<typeof GameCanvas> | undefined = $state();
 
 	let samples: number[] = $state([]);
@@ -28,24 +27,19 @@
 	const emptyScore: ScoreResult = { kl: Infinity, clicks: 0, score: 0, accuracyPct: 0, histogramData: [] };
 	let scoreResult: ScoreResult = $state({ ...emptyScore });
 
-	// Timer
 	let startTime = $state(0);
 	let elapsedMs = $state(0);
 	let timerRunning = $state(false);
 	let timerHandle = 0;
 
 	let isSubmitting = $state(false);
-	let showSubmitDialog = $state(false);
-	let showSignIn = $state(false);
-	let submitMessage = $state('');
+	let showDialog = $state(false);
 
-	// Sample history for replay animation (includes erases)
-	let sampleHistory: number[][] = $state([]);
-
-	// Submit dialog animation
+	// Replay
 	let replayCanvas: HTMLCanvasElement | undefined = $state();
-	let replayFrame = 0;
+	let replayTimer: ReturnType<typeof setTimeout> | undefined;
 	let replayIdx = $state(0);
+	let replayKde: number[] = [];
 
 	$effect(() => {
 		void levelId;
@@ -53,13 +47,10 @@
 		totalClicks = 0;
 		eraserMode = false;
 		scoreResult = { ...emptyScore };
-		showSubmitDialog = false;
-		showSignIn = false;
-		submitMessage = '';
+		showDialog = false;
 		startTime = 0;
 		elapsedMs = 0;
 		timerRunning = false;
-		sampleHistory = [];
 	});
 
 	function startTimer() {
@@ -88,70 +79,58 @@
 
 	function addSample(x: number) {
 		if (!level) return;
-		if (eraserMode) return;
 		if (samples.length === 0) startTimer();
 		samples = [...samples, x];
 		totalClicks++;
-		sampleHistory = [...sampleHistory, [...samples]];
 		recalcScore();
 	}
 
-	function eraseSample(x: number) {
-		if (!level || samples.length === 0) return;
-		// Find nearest sample
-		let minDist = Infinity;
-		let minIdx = -1;
-		for (let i = 0; i < samples.length; i++) {
-			const d = Math.abs(samples[i] - x);
-			if (d < minDist) { minDist = d; minIdx = i; }
-		}
-		if (minIdx >= 0) {
-			samples = [...samples.slice(0, minIdx), ...samples.slice(minIdx + 1)];
-			totalClicks++;
-			sampleHistory = [...sampleHistory, [...samples]];
-			recalcScore();
-		}
-	}
-
 	function handleCanvasSample(x: number) {
-		if (eraserMode) eraseSample(x);
-		else addSample(x);
+		if (eraserMode) {
+			if (samples.length === 0) return;
+			let minDist = Infinity, minIdx = -1;
+			for (let i = 0; i < samples.length; i++) {
+				const d = Math.abs(samples[i] - x);
+				if (d < minDist) { minDist = d; minIdx = i; }
+			}
+			if (minIdx >= 0) {
+				samples = [...samples.slice(0, minIdx), ...samples.slice(minIdx + 1)];
+				totalClicks++;
+				recalcScore();
+			}
+			// Auto-disable eraser after one erase
+			eraserMode = false;
+		} else {
+			addSample(x);
+		}
 	}
 
 	function undoLast() {
 		if (samples.length === 0 || !level) return;
 		samples = samples.slice(0, -1);
-		// Undo does NOT count as a click
-		sampleHistory = [...sampleHistory, [...samples]];
 		recalcScore();
 	}
 
 	function resetSamples() {
 		samples = [];
 		totalClicks = 0;
+		eraserMode = false;
 		scoreResult = { ...emptyScore };
-		submitMessage = '';
 		startTime = 0;
 		elapsedMs = 0;
 		timerRunning = false;
-		sampleHistory = [];
 	}
 
 	function openSubmit() {
-		if (samples.length < 3) {
-			submitMessage = 'Place at least 3 samples';
-			return;
-		}
+		if (samples.length < 3) return;
 		stopTimer();
-		showSubmitDialog = true;
-		showSignIn = false;
+		showDialog = true;
 		startReplay();
 	}
 
 	function closeDialog() {
-		showSubmitDialog = false;
-		showSignIn = false;
-		cancelAnimationFrame(replayFrame);
+		showDialog = false;
+		if (replayTimer) clearTimeout(replayTimer);
 	}
 
 	async function signInWith(provider: 'github' | 'google') {
@@ -161,7 +140,6 @@
 	async function submitScore() {
 		if (!level || !$session.data) return;
 		isSubmitting = true;
-		submitMessage = '';
 		try {
 			const res = await fetch('/api/scores', {
 				method: 'POST',
@@ -170,32 +148,45 @@
 			});
 			const result = await res.json();
 			if (result.success) {
-				submitMessage = result.isNewBest ? 'New best!' : `Best: ${result.bestScore.toLocaleString()}`;
 				closeDialog();
-			} else {
-				submitMessage = result.error || 'Failed';
 			}
-		} catch {
-			submitMessage = 'Network error';
-		} finally {
-			isSubmitting = false;
-		}
+		} catch { /* silent */ }
+		finally { isSubmitting = false; }
 	}
 
-	// Replay animation for submit dialog
+	// Smooth replay with lerped KDE
 	function startReplay() {
+		if (!level) return;
+		const [xMin, xMax] = level.xRange;
+		const xs = linspace(xMin, xMax, 200);
 		replayIdx = 0;
+		replayKde = new Array(200).fill(0);
+
 		function step() {
-			if (!showSubmitDialog && !showSignIn) return;
+			if (!showDialog) return;
 			replayIdx++;
-			if (replayIdx > samples.length) replayIdx = 0;
-			drawReplay();
-			replayFrame = setTimeout(step, 120) as unknown as number;
+			if (replayIdx > samples.length) {
+				replayIdx = 0;
+				replayKde = new Array(200).fill(0);
+			}
+
+			// Compute target KDE for current step
+			const replaySamples = samples.slice(0, replayIdx);
+			const targetKde = replaySamples.length > 0 ? computeKDE(replaySamples, xs) : new Array(200).fill(0);
+
+			// Lerp toward target
+			for (let i = 0; i < 200; i++) {
+				replayKde[i] += (targetKde[i] - replayKde[i]) * 0.4;
+			}
+			replayKde = [...replayKde];
+			drawReplay(xs);
+
+			replayTimer = setTimeout(step, 180);
 		}
 		step();
 	}
 
-	function drawReplay() {
+	function drawReplay(xs: number[]) {
 		if (!replayCanvas || !level) return;
 		const ctx = replayCanvas.getContext('2d');
 		if (!ctx) return;
@@ -208,19 +199,16 @@
 		ctx.scale(dpr, dpr);
 
 		const s = getComputedStyle(document.documentElement);
-		const canvasBg = s.getPropertyValue('--canvas-bg').trim();
-		const accentCyan = s.getPropertyValue('--accent-cyan').trim();
-		const kdeStroke = s.getPropertyValue('--kde-stroke').trim();
-
-		ctx.fillStyle = canvasBg;
+		ctx.fillStyle = s.getPropertyValue('--canvas-bg').trim();
 		ctx.fillRect(0, 0, w, h);
 
-		const pad = 12;
-		const pw = w - pad * 2;
-		const ph = h - pad * 2;
+		const accentCyan = s.getPropertyValue('--accent-cyan').trim();
+		const kdeStroke = s.getPropertyValue('--kde-stroke').trim();
+		const kdeFill = s.getPropertyValue('--kde-fill-start').trim();
 
+		const pad = 12;
+		const pw = w - pad * 2, ph = h - pad * 2;
 		const [xMin, xMax] = level.xRange;
-		const xs = linspace(xMin, xMax, 200);
 		const pdfVals = xs.map((x) => level.pdf(x));
 		const pdfMax = Math.max(...pdfVals);
 		let yMax = pdfMax * 1.15;
@@ -228,37 +216,47 @@
 
 		const toX = (x: number) => pad + ((x - xMin) / (xMax - xMin)) * pw;
 		const toY = (y: number) => pad + ph - (y / yMax) * ph;
+		const baseY = toY(0);
 
-		// PDF
+		// PDF curve
 		ctx.beginPath();
 		ctx.strokeStyle = accentCyan;
 		ctx.lineWidth = 1.5;
 		for (let i = 0; i < xs.length; i++) {
-			const sx = toX(xs[i]); const sy = toY(pdfVals[i]);
-			i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
+			i === 0 ? ctx.moveTo(toX(xs[i]), toY(pdfVals[i])) : ctx.lineTo(toX(xs[i]), toY(pdfVals[i]));
 		}
 		ctx.stroke();
 
-		// KDE from current replay step
-		const replaySamples = samples.slice(0, replayIdx);
-		if (replaySamples.length > 0) {
-			const kdeVals = computeKDE(replaySamples, xs);
+		// KDE curve (lerped)
+		if (replayIdx > 0) {
+			// Fill
+			ctx.beginPath();
+			for (let i = 0; i < xs.length; i++) {
+				const sy = toY(Math.min(replayKde[i], yMax * 0.99));
+				i === 0 ? ctx.moveTo(toX(xs[i]), sy) : ctx.lineTo(toX(xs[i]), sy);
+			}
+			ctx.lineTo(toX(xs[xs.length - 1]), baseY);
+			ctx.lineTo(toX(xs[0]), baseY);
+			ctx.closePath();
+			ctx.fillStyle = kdeFill;
+			ctx.fill();
+
+			// Stroke
 			ctx.beginPath();
 			ctx.strokeStyle = kdeStroke;
 			ctx.lineWidth = 1.5;
 			for (let i = 0; i < xs.length; i++) {
-				const sx = toX(xs[i]);
-				const sy = toY(Math.min(kdeVals[i], yMax * 0.99));
-				i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
+				const sy = toY(Math.min(replayKde[i], yMax * 0.99));
+				i === 0 ? ctx.moveTo(toX(xs[i]), sy) : ctx.lineTo(toX(xs[i]), sy);
 			}
 			ctx.stroke();
 
 			// Sample dots
-			const baseY = toY(0);
+			const replaySamples = samples.slice(0, replayIdx);
 			for (const sp of replaySamples) {
 				ctx.fillStyle = kdeStroke;
 				ctx.beginPath();
-				ctx.arc(toX(sp), baseY, 2, 0, Math.PI * 2);
+				ctx.arc(toX(sp), baseY, 2.5, 0, Math.PI * 2);
 				ctx.fill();
 			}
 		}
@@ -267,11 +265,12 @@
 	const prevLevel = $derived(levelId > 1 ? levelId - 1 : null);
 	const nextLevel = $derived(levelId < levels.length ? levelId + 1 : null);
 
-	const dialogOpen = $derived(showSubmitDialog || showSignIn);
+	// Rank: compare score to topScore
+	const isNewBest = $derived(topScore > 0 && scoreResult.score > topScore);
 </script>
 
 <svelte:head>
-	<title>{level ? level.name : 'Not Found'} — MacMac</title>
+	<title>{level ? level.name : 'Not Found'} — macmac</title>
 </svelte:head>
 
 {#if !level}
@@ -282,26 +281,27 @@
 		</div>
 	</div>
 {:else}
-	<div class="flex h-dvh flex-col overflow-hidden" style="background: var(--bg);">
+	<!-- Desktop: constrain to centered max-width -->
+	<div class="mx-auto flex h-dvh max-w-4xl flex-col overflow-hidden" style="background: var(--bg);">
 		<!-- Row 1: utility bar -->
-		<div class="flex shrink-0 items-center justify-between px-4 py-1.5 sm:px-6">
+		<div class="flex shrink-0 items-center justify-between px-4 py-2 sm:px-6">
 			<a href="/" class="inline-block transition hover:opacity-80" style="font-family: 'Space Grotesk', sans-serif;">
-				<span class="text-sm" style="color: var(--text-secondary);">mac</span><span class="text-sm" style="color: var(--accent-cyan); opacity: 0.6;">mac</span>
+				<span class="text-base" style="color: var(--text-secondary);">mac</span><span class="text-base" style="color: var(--accent-cyan); opacity: 0.6;">mac</span>
 			</a>
 
-			<div class="flex items-center gap-1">
+			<div class="flex items-center gap-1.5">
 				{#if prevLevel}
-					<a href="/play/{prevLevel}" class="flex h-8 w-8 items-center justify-center rounded-full transition hover:opacity-70" style="color: var(--text-tertiary);" aria-label="Previous level">
-						<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd" /></svg>
+					<a href="/play/{prevLevel}" class="flex h-9 w-9 items-center justify-center rounded-full transition hover:opacity-70" style="background: var(--surface); color: var(--text-secondary);" aria-label="Previous level">
+						<ChevronLeft size={18} />
 					</a>
 				{/if}
 				{#if nextLevel}
-					<a href="/play/{nextLevel}" class="flex h-8 w-8 items-center justify-center rounded-full transition hover:opacity-70" style="color: var(--text-tertiary);" aria-label="Next level">
-						<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" /></svg>
+					<a href="/play/{nextLevel}" class="flex h-9 w-9 items-center justify-center rounded-full transition hover:opacity-70" style="background: var(--surface); color: var(--text-secondary);" aria-label="Next level">
+						<ChevronRight size={18} />
 					</a>
 				{/if}
-				<a href="/leaderboard" class="flex h-8 w-8 items-center justify-center rounded-full transition hover:opacity-70" style="color: var(--text-tertiary);" aria-label="Leaderboard">
-					<svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4"><path d="M2 4l3 12h14l3-12-5 4-5-6-5 6-5-4zm3 14h14v2H5v-2z" /></svg>
+				<a href="/leaderboard" class="flex h-9 w-9 items-center justify-center rounded-full transition hover:opacity-70" style="background: var(--surface); color: var(--text-secondary);" aria-label="Leaderboard">
+					<Trophy size={16} />
 				</a>
 				<ThemeToggle />
 				<UserAvatar size="sm" />
@@ -309,9 +309,12 @@
 		</div>
 
 		<!-- Row 2: level name -->
-		<div class="flex shrink-0 items-center gap-1.5 px-4 pb-1 sm:px-6">
-			<span class="inline-block h-2 w-2 rounded-full" style="background: {getDifficultyColor(level.difficulty)}"></span>
+		<div class="flex shrink-0 items-center gap-2 px-4 pb-1.5 sm:px-6">
+			<span class="inline-block h-2.5 w-2.5 rounded-full" style="background: {getDifficultyColor(level.difficulty)}"></span>
 			<span class="text-sm font-semibold" style="color: var(--text-primary); opacity: 0.7;">{level.id}. {level.name}</span>
+			{#if isNewBest}
+				<span class="ml-auto text-xs font-bold text-yellow-500">New #1</span>
+			{/if}
 		</div>
 
 		<!-- Score panel -->
@@ -352,35 +355,26 @@
 					</button>
 				</div>
 
-				<div class="flex items-center gap-3">
-					{#if submitMessage}
-						<span class="text-xs font-medium" style="color: var(--accent-cyan);">{submitMessage}</span>
-					{/if}
-					<button onclick={openSubmit} disabled={samples.length < 3} class="flex h-10 items-center gap-2 rounded-xl px-5 text-sm font-semibold transition active:scale-95 disabled:opacity-20" style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);">
-						<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M10 17a.75.75 0 01-.75-.75V5.612L5.29 9.77a.75.75 0 01-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z" clip-rule="evenodd" /></svg>
-						Submit
-					</button>
-				</div>
+				<button onclick={openSubmit} disabled={samples.length < 3} class="flex h-10 items-center gap-2 rounded-xl px-5 text-sm font-semibold transition active:scale-95 disabled:opacity-20" style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);">
+					<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M10 17a.75.75 0 01-.75-.75V5.612L5.29 9.77a.75.75 0 01-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z" clip-rule="evenodd" /></svg>
+					Submit
+				</button>
 			</div>
 		</div>
 	</div>
 
-	<!-- Submit / Sign-in dialog -->
-	{#if dialogOpen}
+	<!-- Submit dialog -->
+	{#if showDialog}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div class="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm" style="background: var(--overlay);"
 			onclick={(e) => { if (e.target === e.currentTarget) closeDialog(); }}
 			onkeydown={(e) => e.key === 'Escape' && closeDialog()}
 		>
 			<div class="mx-4 w-full max-w-sm rounded-2xl p-5 shadow-2xl" style="background: var(--bg); border: 1px solid var(--border);">
-				<!-- Replay animation -->
-				<canvas
-					bind:this={replayCanvas}
-					class="mb-4 h-28 w-full rounded-lg sm:h-36"
-					style="background: var(--canvas-bg);"
-				></canvas>
+				<!-- Replay -->
+				<canvas bind:this={replayCanvas} class="mb-4 h-28 w-full rounded-lg sm:h-36" style="background: var(--canvas-bg);"></canvas>
 
-				<!-- Stats summary -->
+				<!-- Stats -->
 				<div class="mb-4 flex justify-between text-center">
 					<div>
 						<div class="text-[9px] uppercase tracking-wider" style="color: var(--text-tertiary);">Score</div>
@@ -402,8 +396,11 @@
 					</div>
 				</div>
 
+				{#if isNewBest}
+					<div class="mb-3 text-center text-sm font-bold text-yellow-500">New #1 on this level!</div>
+				{/if}
+
 				{#if !$session.data}
-					<!-- Sign in -->
 					<p class="mb-3 text-xs" style="color: var(--text-secondary);">Sign in to submit your score to the leaderboard.</p>
 					<div class="flex flex-col gap-2">
 						<button onclick={() => signInWith('github')} class="flex h-10 items-center justify-center gap-2 rounded-lg text-sm font-medium transition hover:opacity-80" style="background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary);">
@@ -414,8 +411,8 @@
 							Continue with Google
 						</button>
 					</div>
+					<button onclick={closeDialog} class="mt-3 w-full rounded-lg py-2 text-sm font-medium transition hover:opacity-70" style="background: var(--surface); color: var(--text-tertiary);">Cancel</button>
 				{:else}
-					<!-- Signed in: confirm submit -->
 					<div class="mb-4 flex items-center gap-3 rounded-lg px-3 py-2" style="background: var(--surface); border: 1px solid var(--border);">
 						{#if $session.data.user.image}
 							<img src={$session.data.user.image} alt="" class="h-7 w-7 rounded-full" />
@@ -427,8 +424,6 @@
 						<button onclick={submitScore} disabled={isSubmitting} class="flex-1 rounded-lg py-2.5 text-sm font-semibold transition hover:opacity-80 disabled:opacity-25" style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);">{isSubmitting ? 'Saving…' : 'Submit'}</button>
 					</div>
 				{/if}
-
-				<button onclick={closeDialog} class="mt-3 w-full text-center text-xs transition hover:opacity-70" style="color: var(--text-tertiary);">Close</button>
 			</div>
 		</div>
 	{/if}
