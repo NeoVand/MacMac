@@ -489,7 +489,7 @@
 						<div class="text-sm font-medium" style="color: var(--text-primary); opacity: 0.7;">{$session.data.user.name}</div>
 					</div>
 					<div class="flex gap-2">
-						<button onclick={closeDialog} class="flex-1 rounded-lg py-2.5 text-sm font-medium transition hover:opacity-70" style="background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary);">Cancel</button>
+						<button onclick={closeDialog} class="flex-1 rounded-lg py-2.5 text-sm font-medium transition hover:opacity-80" style="border: 1px solid var(--border-hover); color: var(--text-primary); opacity: 0.6;">Cancel</button>
 						<button onclick={submitScore} disabled={isSubmitting} class="flex-1 rounded-lg py-2.5 text-sm font-semibold transition hover:opacity-80 disabled:opacity-25" style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);">{isSubmitting ? 'Saving…' : 'Submit'}</button>
 					</div>
 				{/if}
