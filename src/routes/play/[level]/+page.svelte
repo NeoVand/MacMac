@@ -10,7 +10,7 @@
 	import ScorePanel from '$lib/components/ScorePanel.svelte';
 	import UserAvatar from '$lib/components/UserAvatar.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
-	import { ZoomIn, ZoomOut, Fullscreen, Github, Eraser, ChevronLeft, ChevronRight, Trophy } from 'lucide-svelte';
+	import { ZoomIn, ZoomOut, Fullscreen, Github, Eraser, ChevronLeft, ChevronRight } from 'lucide-svelte';
 
 	let { data } = $props();
 
@@ -353,8 +353,8 @@
 						<ChevronRight size={18} />
 					</a>
 				{/if}
-				<a href="/leaderboard" class="flex h-9 w-9 items-center justify-center rounded-full transition hover:opacity-70" style="background: var(--surface); color: var(--text-secondary);" aria-label="Leaderboard">
-					<Trophy size={16} />
+				<a href="/leaderboard" class="flex h-9 w-9 items-center justify-center rounded-full transition hover:opacity-70" style="background: var(--surface);" aria-label="Leaderboard">
+					<svg viewBox="0 0 24 24" fill="#eab308" class="h-4 w-4"><path d="M2 4l3 12h14l3-12-5 4-5-6-5 6-5-4zm3 14h14v2H5v-2z" /></svg>
 				</a>
 				<ThemeToggle />
 				<UserAvatar size="sm" />
