@@ -28,6 +28,6 @@
 	<\/script>`}
 </svelte:head>
 
-<div class="min-h-dvh" style="background: var(--bg); color: var(--text-primary);">
+<div class="min-h-dvh" style="background: radial-gradient(ellipse at 50% 30%, var(--surface) 0%, var(--bg) 70%); color: var(--text-primary);">
 	{@render children()}
 </div>

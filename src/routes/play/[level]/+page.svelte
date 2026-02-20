@@ -9,7 +9,7 @@
 	import GameCanvas from '$lib/components/GameCanvas.svelte';
 	import ScorePanel from '$lib/components/ScorePanel.svelte';
 	import AppHeader from '$lib/components/AppHeader.svelte';
-	import { ZoomIn, ZoomOut, Fullscreen, Github, Eraser } from 'lucide-svelte';
+	import { ZoomIn, ZoomOut, Fullscreen, Github } from 'lucide-svelte';
 
 	let { data } = $props();
 
@@ -22,7 +22,6 @@
 
 	let samples: number[] = $state([]);
 	let totalClicks = $state(0);
-	let eraserMode = $state(false);
 	const emptyScore: ScoreResult = { mse: 1, clicks: 0, score: 0, matchPct: 0, matchScore: 0, timeBonus: 0, histogramData: [] };
 	let scoreResult: ScoreResult = $state({ ...emptyScore });
 
@@ -46,7 +45,6 @@
 		void levelId;
 		samples = [];
 		totalClicks = 0;
-		eraserMode = false;
 		scoreResult = { ...emptyScore };
 		showDialog = false;
 		submitted = false;
@@ -96,23 +94,7 @@
 	}
 
 	function handleCanvasSample(x: number) {
-		if (eraserMode) {
-			if (samples.length === 0) return;
-			let minDist = Infinity, minIdx = -1;
-			for (let i = 0; i < samples.length; i++) {
-				const d = Math.abs(samples[i] - x);
-				if (d < minDist) { minDist = d; minIdx = i; }
-			}
-			if (minIdx >= 0) {
-				samples = [...samples.slice(0, minIdx), ...samples.slice(minIdx + 1)];
-				totalClicks++;
-				recalcScore();
-			}
-			// Auto-disable eraser after one erase
-			eraserMode = false;
-		} else {
-			addSample(x);
-		}
+		addSample(x);
 	}
 
 	function undoLast() {
@@ -124,7 +106,6 @@
 	function resetSamples() {
 		samples = [];
 		totalClicks = 0;
-		eraserMode = false;
 		scoreResult = { ...emptyScore };
 		startTime = 0;
 		elapsedMs = 0;
@@ -352,7 +333,7 @@
 
 		<!-- Canvas -->
 		<div class="relative min-h-0 flex-1 px-2 sm:px-4">
-			<GameCanvas bind:this={gameCanvas} {level} {samples} onSampleAdd={handleCanvasSample} {eraserMode} />
+			<GameCanvas bind:this={gameCanvas} {level} {samples} onSampleAdd={handleCanvasSample} />
 			<div class="absolute right-4 top-3 flex flex-col gap-1 sm:right-6">
 				<button onclick={() => gameCanvas?.zoomIn()} class="flex h-7 w-7 items-center justify-center rounded-md transition hover:opacity-70" style="background: var(--glass); color: var(--text-tertiary);" aria-label="Zoom in"><ZoomIn size={14} /></button>
 				<button onclick={() => gameCanvas?.zoomOut()} class="flex h-7 w-7 items-center justify-center rounded-md transition hover:opacity-70" style="background: var(--glass); color: var(--text-tertiary);" aria-label="Zoom out"><ZoomOut size={14} /></button>
@@ -361,29 +342,23 @@
 		</div>
 
 		<!-- Bottom controls -->
-		<div class="shrink-0 px-4 py-2 sm:px-6">
+		<div class="shrink-0 px-4 pb-4 pt-2 sm:px-6 sm:pb-5">
 			<div class="flex items-center justify-between">
 				<div class="flex gap-2">
-					<button onclick={undoLast} disabled={samples.length === 0} class="flex h-10 items-center gap-2 rounded-xl px-3 text-sm font-medium transition hover:opacity-70 disabled:opacity-20" style="background: var(--surface); color: var(--text-secondary);">
+					<!-- Undo: purple tint -->
+					<button onclick={undoLast} disabled={samples.length === 0} class="flex h-11 items-center gap-2 rounded-2xl px-4 text-[13px] font-medium transition-all hover:scale-[1.03] hover:shadow-md active:scale-95 disabled:opacity-20 disabled:hover:scale-100 disabled:hover:shadow-none" style="background: color-mix(in srgb, var(--accent-purple) 8%, transparent); border: 1px solid color-mix(in srgb, var(--accent-purple) 18%, transparent); color: color-mix(in srgb, var(--accent-purple) 70%, var(--text-primary));">
 						<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M7.793 2.232a.75.75 0 01-.025 1.06L3.622 7.25h10.003a5.375 5.375 0 010 10.75H10.75a.75.75 0 010-1.5h2.875a3.875 3.875 0 000-7.75H3.622l4.146 3.957a.75.75 0 01-1.036 1.085l-5.5-5.25a.75.75 0 010-1.085l5.5-5.25a.75.75 0 011.06.025z" clip-rule="evenodd" /></svg>
 						Undo
 					</button>
-					<button
-						onclick={() => { eraserMode = !eraserMode; }}
-						disabled={samples.length === 0}
-						class="flex h-10 items-center gap-2 rounded-xl px-3 text-sm font-medium transition hover:opacity-70 disabled:opacity-20"
-						style="background: {eraserMode ? 'color-mix(in srgb, #ef4444 15%, var(--surface))' : 'var(--surface)'}; color: {eraserMode ? '#ef4444' : 'var(--text-secondary)'}; border: {eraserMode ? '1px solid color-mix(in srgb, #ef4444 30%, transparent)' : 'none'};"
-					>
-						<Eraser size={16} />
-						Erase
-					</button>
-					<button onclick={resetSamples} disabled={samples.length === 0} class="flex h-10 items-center gap-2 rounded-xl px-3 text-sm font-medium transition hover:opacity-70 disabled:opacity-20" style="background: var(--surface); color: var(--text-secondary);">
+					<!-- Reset: orange tint -->
+					<button onclick={resetSamples} disabled={samples.length === 0} class="flex h-11 items-center gap-2 rounded-2xl px-4 text-[13px] font-medium transition-all hover:scale-[1.03] hover:shadow-md active:scale-95 disabled:opacity-20 disabled:hover:scale-100 disabled:hover:shadow-none" style="background: color-mix(in srgb, var(--accent-orange) 8%, transparent); border: 1px solid color-mix(in srgb, var(--accent-orange) 18%, transparent); color: color-mix(in srgb, var(--accent-orange) 65%, var(--text-primary));">
 						<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.451a.75.75 0 000-1.5H4.5a.75.75 0 00-.75.75v3.75a.75.75 0 001.5 0v-2.033l.364.363a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39zm-10.624-2.85a5.5 5.5 0 019.201-2.466l.312.311H11.75a.75.75 0 000 1.5H15.5a.75.75 0 00.75-.75V3.42a.75.75 0 00-1.5 0v2.033l-.364-.363A7 7 0 002.674 8.228a.75.75 0 001.449.39z" clip-rule="evenodd" /></svg>
 						Reset
 					</button>
 				</div>
 
-				<button onclick={openSubmit} disabled={samples.length < 3} class="flex h-10 items-center gap-2 rounded-xl px-5 text-sm font-semibold transition active:scale-95 disabled:opacity-20" style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);">
+				<!-- Submit: cyan, more prominent -->
+				<button onclick={openSubmit} disabled={samples.length < 3} class="flex h-11 items-center gap-2 rounded-2xl px-6 text-[13px] font-bold transition-all hover:scale-[1.04] hover:shadow-lg active:scale-95 disabled:opacity-20 disabled:hover:scale-100 disabled:hover:shadow-none" style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 30%, transparent); color: var(--accent-cyan);">
 					<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M10 17a.75.75 0 01-.75-.75V5.612L5.29 9.77a.75.75 0 01-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z" clip-rule="evenodd" /></svg>
 					Submit
 				</button>

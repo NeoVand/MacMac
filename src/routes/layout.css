@@ -13,7 +13,7 @@
 :root {
 	--bg: #f8f6f0;
 	--surface: #efede6;
-	--canvas-bg: #f1efe8;
+	--canvas-bg: #f8f6f0;
 	--accent-cyan: #0891b2;
 	--accent-orange: #d97706;
 	--accent-purple: #7c3aed;
@@ -71,7 +71,7 @@
 }
 
 html {
-	background-color: var(--bg);
+	background: var(--bg);
 	color-scheme: light;
 	transition: background-color 0.3s ease, color 0.3s ease;
 }

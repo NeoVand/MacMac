@@ -8,10 +8,9 @@
 		level: Level;
 		samples: number[];
 		onSampleAdd: (x: number) => void;
-		eraserMode?: boolean;
 	}
 
-	let { level, samples, onSampleAdd, eraserMode = false }: Props = $props();
+	let { level, samples, onSampleAdd }: Props = $props();
 
 	let canvas: HTMLCanvasElement | undefined = $state();
 	let container: HTMLDivElement | undefined = $state();
@@ -433,7 +432,7 @@
 <div bind:this={container} class="h-full w-full">
 	<canvas
 		bind:this={canvas}
-		style="width: {width}px; height: {height}px; cursor: {eraserMode ? 'pointer' : 'crosshair'};"
+		style="width: {width}px; height: {height}px; cursor: crosshair;"
 		class="block"
 		aria-label="Click to place samples"
 		onclick={handleClick}
