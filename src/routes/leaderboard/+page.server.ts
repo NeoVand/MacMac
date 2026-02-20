@@ -7,7 +7,7 @@ import { levels } from '$lib/game/levels';
 export const load: PageServerLoad = async () => {
 	const leaderboardData: Record<
 		number,
-		{ playerName: string; score: number; clicks: number; kl: number; duration: number | null; createdAt: Date }[]
+		{ playerName: string; score: number; clicks: number; kl: number; duration: number | null; country: string | null; createdAt: Date }[]
 	> = {};
 
 	for (const level of levels) {
@@ -18,6 +18,7 @@ export const load: PageServerLoad = async () => {
 				clicks: scores.clicks,
 				kl: scores.klDivergence,
 				duration: scores.duration,
+				country: scores.country,
 				createdAt: scores.createdAt
 			})
 			.from(scores)

@@ -11,6 +11,7 @@ export const scores = sqliteTable('scores', {
 	klDivergence: real('kl_divergence').notNull(),
 	clicks: integer('clicks').notNull(),
 	duration: integer('duration'),
+	country: text('country'),
 	samples: text('samples').notNull(),
 	createdAt: integer('created_at', { mode: 'timestamp' })
 		.notNull()

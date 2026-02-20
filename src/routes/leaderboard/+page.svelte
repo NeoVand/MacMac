@@ -9,6 +9,11 @@
 	let selectedLevel = $state(1);
 	const currentLevel = $derived(levels.find((l) => l.id === selectedLevel)!);
 	const entries = $derived(data.leaderboardData[selectedLevel] || []);
+
+	function countryFlag(code: string | null): string {
+		if (!code || code.length !== 2) return '';
+		return String.fromCodePoint(...[...code.toUpperCase()].map(c => 0x1F1E6 + c.charCodeAt(0) - 65));
+	}
 </script>
 
 <svelte:head>
@@ -80,7 +85,7 @@
 					{#each entries as entry, i}
 						<tr style="color: {i === 0 ? 'var(--accent-cyan)' : i < 3 ? 'var(--text-secondary)' : 'var(--text-tertiary)'};">
 							<td class="py-2.5 pr-4 font-mono text-xs tabular-nums">{i + 1}</td>
-							<td class="py-2.5 pr-4 font-medium">{entry.playerName}</td>
+							<td class="py-2.5 pr-4 font-medium">{#if entry.country}<span class="mr-1.5">{countryFlag(entry.country)}</span>{/if}{entry.playerName}</td>
 							<td class="py-2.5 pr-4 text-right font-mono tabular-nums">{entry.score.toLocaleString()}</td>
 							<td class="py-2.5 pr-4 text-right font-mono text-xs tabular-nums">{entry.kl < 0.001 ? '<.001' : entry.kl.toFixed(3)}</td>
 							<td class="py-2.5 pr-4 text-right font-mono text-xs tabular-nums">{entry.clicks}</td>
