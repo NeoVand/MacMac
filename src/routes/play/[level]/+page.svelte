@@ -143,9 +143,7 @@
 	function closeDialog() {
 		showDialog = false;
 		if (replayTimer) cancelAnimationFrame(replayTimer as unknown as number);
-		if (!submitted) {
-			resumeTimer();
-		}
+		resumeTimer();
 	}
 
 	async function signInWith(provider: 'github' | 'google') {
