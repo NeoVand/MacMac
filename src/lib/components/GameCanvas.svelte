@@ -407,6 +407,7 @@
 	function handleTouchEnd(e: TouchEvent) {
 		if (e.touches.length < 2) lastPinchDist = 0;
 		if (e.changedTouches.length === 1 && e.touches.length === 0 && lastPinchDist === 0) {
+			e.preventDefault();
 			const t = e.changedTouches[0]; const r = canvas!.getBoundingClientRect();
 			const cx = t.clientX - r.left;
 			if (cx >= PAD.left && cx <= PAD.left + pw) {
