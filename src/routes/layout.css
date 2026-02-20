@@ -105,3 +105,14 @@ body {
 canvas, svg, img, video {
 	transition: none;
 }
+
+/* Lock scroll on play page — prevents mobile overscroll and tap-induced scrolling */
+html.play-active,
+html.play-active body {
+	overflow: hidden;
+	overscroll-behavior: none;
+	touch-action: none;
+	height: 100dvh;
+	width: 100%;
+	position: fixed;
+}

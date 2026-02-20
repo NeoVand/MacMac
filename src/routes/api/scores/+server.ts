@@ -15,7 +15,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		const body = await request.json();
 		const { levelId, samples, duration, clicks: clientClicks } = body;
 
-		if (!Array.isArray(samples) || samples.length < 3) {
+		if (!Array.isArray(samples) || samples.length < 1) {
 			return json({ success: false, error: 'Need at least 3 samples' }, { status: 400 });
 		}
 		if (samples.some((s: unknown) => typeof s !== 'number' || !isFinite(s))) {

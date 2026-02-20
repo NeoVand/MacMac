@@ -189,7 +189,7 @@
 	}
 
 	function openSubmit() {
-		if (samples.length < 3) return;
+		if (samples.length < 1) return;
 		stopTimer();
 		pausedElapsed = elapsedMs;
 		showDialog = true;
@@ -528,7 +528,7 @@
 				</div>
 
 				<!-- Submit: cyan, more prominent -->
-				<button onclick={openSubmit} disabled={samples.length < 3} class="flex h-11 items-center gap-2 rounded-2xl px-6 text-[13px] font-bold transition-all hover:scale-[1.04] hover:shadow-lg active:scale-95 disabled:opacity-20 disabled:hover:scale-100 disabled:hover:shadow-none" style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 30%, transparent); color: var(--accent-cyan);">
+				<button onclick={openSubmit} disabled={samples.length < 1} class="flex h-11 items-center gap-2 rounded-2xl px-6 text-[13px] font-bold transition-all hover:scale-[1.04] hover:shadow-lg active:scale-95 disabled:opacity-20 disabled:hover:scale-100 disabled:hover:shadow-none" style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 30%, transparent); color: var(--accent-cyan);">
 					<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M10 17a.75.75 0 01-.75-.75V5.612L5.29 9.77a.75.75 0 01-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z" clip-rule="evenodd" /></svg>
 					Submit
 				</button>
