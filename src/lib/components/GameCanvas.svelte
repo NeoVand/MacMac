@@ -41,7 +41,7 @@
 
 	// Cached color palette — refreshed on theme change, not per frame
 	let colors = {
-		canvasBg: '#0a0a1a', axis: 'rgba(255,255,255,0.07)', text: 'rgba(255,255,255,0.22)',
+		axis: 'rgba(255,255,255,0.07)', text: 'rgba(255,255,255,0.22)',
 		hint: 'rgba(255,255,255,0.25)', crosshair: 'rgba(255,255,255,0.7)',
 		crosshairRing: 'rgba(255,255,255,0.15)', curveGlow: 'rgba(0,200,255,0.12)',
 		curveFillStart: 'rgba(0,200,255,0.07)', curveFillEnd: 'rgba(0,200,255,0.0)',
@@ -54,7 +54,7 @@
 		const s = getComputedStyle(document.documentElement);
 		const v = (name: string) => s.getPropertyValue(name).trim();
 		colors = {
-			canvasBg: v('--canvas-bg'), axis: v('--canvas-axis'), text: v('--canvas-text'),
+			axis: v('--canvas-axis'), text: v('--canvas-text'),
 			hint: v('--canvas-hint'), crosshair: v('--canvas-crosshair'),
 			crosshairRing: v('--canvas-crosshair-ring'), curveGlow: v('--curve-glow'),
 			curveFillStart: v('--curve-fill-start'), curveFillEnd: v('--curve-fill-end'),
@@ -197,8 +197,7 @@
 		ctx.scale(dpr, dpr);
 		ctx.clearRect(0, 0, width, height);
 
-		ctx.fillStyle = colors.canvasBg;
-		ctx.fillRect(0, 0, width, height);
+		ctx.clearRect(0, 0, width, height);
 
 		const nPts = 400;
 		const xs = linspace(viewXMin, viewXMax, nPts);

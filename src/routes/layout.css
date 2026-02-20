@@ -13,6 +13,8 @@
 :root {
 	--bg: #f8f6f0;
 	--surface: #efede6;
+	--page-bg-center: #e2dcd2;
+	--page-bg-edge: #faf8f2;
 	--canvas-bg: #f8f6f0;
 	--accent-cyan: #0891b2;
 	--accent-orange: #d97706;
@@ -43,6 +45,8 @@
 .dark {
 	--bg: #0a0a1a;
 	--surface: #12122a;
+	--page-bg-center: var(--surface);
+	--page-bg-edge: var(--bg);
 	--canvas-bg: #0a0a1a;
 	--accent-cyan: #00d4ff;
 	--accent-orange: #ff9933;

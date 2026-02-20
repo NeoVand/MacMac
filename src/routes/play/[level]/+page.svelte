@@ -479,7 +479,7 @@
 		</div>
 	</div>
 {:else}
-	<div class="flex h-dvh flex-col overflow-hidden" style="background: var(--bg);">
+	<div class="flex h-dvh flex-col overflow-hidden" style="background: radial-gradient(ellipse at 50% 30%, var(--page-bg-center) 0%, var(--page-bg-edge) 70%);">
 		<AppHeader showNav prevHref={prevLevel ? `/play/${prevLevel}` : null} nextHref={nextLevel ? `/play/${nextLevel}` : null} />
 
 		<!-- Level name -->

@@ -56,7 +56,9 @@
 		ctx.scale(dpr, dpr);
 		ctx.clearRect(0, 0, w, h);
 
-		const padX = 48, padTop = 10, padBot = 6;
+		// Match levels padding: px-4 (16px) on mobile, ~48px on desktop
+		const padX = w < 640 ? 16 : 48;
+		const padTop = 10, padBot = 6;
 		const pw = w - padX * 2;
 		const ph = h - padTop - padBot;
 
@@ -165,7 +167,7 @@
 		></canvas>
 		<div class="relative z-10 flex flex-col items-center justify-center px-4">
 			<h1 class="mb-1 text-center sm:mb-2" style="font-family: 'Space Grotesk', sans-serif;">
-				<span class="text-5xl tracking-tight sm:text-8xl" style="color: var(--text-primary); opacity: 0.85;">mac</span><span class="bg-gradient-to-r from-game-cyan to-purple-400 bg-clip-text text-5xl tracking-tight text-transparent sm:text-8xl">mac</span>
+				<span class="text-7xl tracking-tight sm:text-8xl" style="color: var(--text-primary); opacity: 0.85;">mac</span><span class="bg-gradient-to-r from-game-cyan to-purple-400 bg-clip-text text-7xl tracking-tight text-transparent sm:text-8xl">mac</span>
 			</h1>
 			<p class="mb-0 text-center text-sm font-medium tracking-[0.2em] uppercase sm:text-base" style="color: var(--text-secondary);">
 				the sampling game
