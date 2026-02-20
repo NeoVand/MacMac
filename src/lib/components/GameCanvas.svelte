@@ -77,7 +77,7 @@
 		level;
 		viewXMin = level.xRange[0];
 		viewXMax = level.xRange[1];
-		const nPts = 400;
+		const nPts = 250;
 		displayKde = new Array(nPts).fill(0);
 		targetKde = new Array(nPts).fill(0);
 		pdfReveal = 0;
@@ -89,7 +89,7 @@
 	$effect(() => {
 		void samples; void viewXMin; void viewXMax;
 		if (pw <= 0) return;
-		const nPts = 400;
+		const nPts = 250;
 		const xs = linspace(viewXMin, viewXMax, nPts);
 		if (samples.length === 0) {
 			targetKde = new Array(nPts).fill(0);
@@ -199,7 +199,7 @@
 
 		ctx.clearRect(0, 0, width, height);
 
-		const nPts = 400;
+		const nPts = 250;
 		const xs = linspace(viewXMin, viewXMax, nPts);
 		const rawPdf = xs.map((x) => level.pdf(x));
 		const yMax = displayYMax > 0 ? displayYMax : 1;

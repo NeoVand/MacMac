@@ -4,6 +4,7 @@
 	import { getDifficultyColor } from '$lib/game/scoring';
 	import { gaussian, linspace } from '$lib/game/math';
 	import AppHeader from '$lib/components/AppHeader.svelte';
+	import { Github, Linkedin, Globe } from 'lucide-svelte';
 
 	let heroCanvas: HTMLCanvasElement | undefined = $state();
 	let animFrame = 0;
@@ -31,8 +32,9 @@
 		let t = 0;
 		function animate() {
 			if (!running || !heroCanvas) return;
-			t += 0.012;
-			drawHero(t);
+			const isMobile = heroCanvas.clientWidth < 640;
+			t += isMobile ? 0.02 : 0.012;
+			drawHero(t, isMobile);
 			animFrame = requestAnimationFrame(animate);
 		}
 		// Double rAF: wait for layout to complete (fixes mobile Safari canvas 0x0 on first paint)
@@ -42,7 +44,7 @@
 		return () => { running = false; cancelAnimationFrame(animFrame); observer.disconnect(); };
 	});
 
-	function drawHero(t: number) {
+	function drawHero(t: number, isMobile = false) {
 		if (!heroCanvas) return;
 		const ctx = heroCanvas.getContext('2d');
 		if (!ctx) return;
@@ -50,7 +52,7 @@
 		const w = heroCanvas.clientWidth;
 		const h = heroCanvas.clientHeight;
 		if (w <= 0 || h <= 0) return; // Skip until layout provides dimensions (mobile)
-		const dpr = window.devicePixelRatio || 1;
+		const dpr = isMobile ? Math.min(window.devicePixelRatio || 1, 2) : (window.devicePixelRatio || 1);
 		heroCanvas.width = w * dpr;
 		heroCanvas.height = h * dpr;
 		ctx.scale(dpr, dpr);
@@ -75,7 +77,8 @@
 			amplitude * (0.3 * gaussian(x, m1, s1) + 0.4 * gaussian(x, m2, s2) + 0.3 * gaussian(x, m3, s3));
 
 		const xMin = -5, xMax = 5;
-		const pts = linspace(xMin, xMax, 300);
+		const numPts = 150;
+		const pts = linspace(xMin, xMax, numPts);
 		const vals = pts.map(pdf);
 		const yMax = Math.max(...vals) * 1.0;
 
@@ -85,7 +88,8 @@
 		const accentCyan = heroColors.accentCyan;
 		const accentPurple = heroColors.accentPurple;
 
-		const scales = linspace(0.15, 1, 24);
+		const numScales = isMobile ? 8 : 12;
+		const scales = linspace(0.15, 1, numScales);
 		const strokeGrad = ctx.createLinearGradient(toX(xMin), 0, toX(xMax), 0);
 		strokeGrad.addColorStop(0, accentCyan);
 		strokeGrad.addColorStop(0.5, accentPurple);
@@ -112,7 +116,7 @@
 				ctx.beginPath();
 				scaledPts.forEach(([x, y], i) => i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y));
 				ctx.strokeStyle = heroColors.curveGlow;
-				ctx.lineWidth = 12;
+				ctx.lineWidth = isMobile ? 8 : 12;
 				ctx.stroke();
 			}
 
@@ -154,10 +158,12 @@
 </svelte:head>
 
 <div class="relative flex min-h-dvh flex-col items-center">
-	<div class="relative z-20 w-full">
+	<div class="relative z-20 w-full shrink-0">
 		<AppHeader />
 	</div>
 
+	<!-- Main content: centered vertically in remaining space -->
+	<div class="flex w-full flex-1 flex-col items-center justify-center">
 	<!-- Hero: animation + logo + subtext at one elevation -->
 	<div class="relative flex h-[200px] w-full flex-col items-center justify-center sm:h-[240px]">
 		<canvas
@@ -176,7 +182,7 @@
 	</div>
 
 	<!-- Buttons: Play + Leaderboard (About is in header) -->
-	<div class="flex w-full justify-center px-4 pt-6 sm:pt-8">
+	<div class="flex w-full justify-center px-4 py-6">
 		<div class="flex flex-nowrap items-center justify-center gap-2 sm:gap-3">
 			<a href="/play/1" class="flex flex-initial items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[13px] font-bold tracking-wide backdrop-blur-sm transition hover:scale-[1.02] active:scale-[0.98] sm:gap-2.5 sm:px-5 sm:py-3 sm:text-[14px] hover:brightness-[1.03] dark:hover:brightness-110" style="font-family: 'Space Grotesk', sans-serif; background: color-mix(in srgb, var(--accent-cyan) 14%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 35%, transparent); color: var(--accent-cyan); box-shadow: 0 2px 12px color-mix(in srgb, var(--accent-cyan) 15%, transparent);">
 				<svg viewBox="0 0 20 20" fill="currentColor" class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg>
@@ -190,8 +196,7 @@
 	</div>
 
 	<!-- Levels -->
-	<div class="mx-auto mt-6 w-full max-w-3xl px-4 pb-12 sm:mt-8 sm:pb-16">
-		<h2 class="mb-3 text-[10px] font-medium tracking-[0.2em] uppercase" style="color: var(--text-tertiary);">Levels</h2>
+	<div class="mx-auto mt-6 w-full max-w-3xl px-4">
 		<div class="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
 			{#each levels as level}
 				{@const family = levelSvgPaths(level, 160, 48)}
@@ -221,11 +226,32 @@
 						{/each}
 					</svg>
 					<div class="flex items-center gap-1.5">
-						<span class="inline-block h-1.5 w-1.5 rounded-full" style="background-color: {getDifficultyColor(level.difficulty)}"></span>
+						<span class="text-[11px] font-semibold tabular-nums" style="color: var(--text-tertiary);">{level.id}.</span>
+						<span class="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style="background-color: {getDifficultyColor(level.difficulty)}"></span>
 						<span class="text-[12px] font-medium" style="color: var(--text-secondary);">{level.name}</span>
 					</div>
 				</a>
 			{/each}
 		</div>
+	</div>
+
+	<!-- Footer -->
+	<div class="mt-8 flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 pb-6 text-[11px] sm:text-xs" style="color: var(--text-tertiary);">
+		<span>Created by</span>
+		<a href="https://www.linkedin.com/in/mohsenvand/" target="_blank" rel="noopener" class="inline-flex items-center gap-1 transition hover:opacity-80" style="color: var(--text-secondary);">
+			<Linkedin size={12} strokeWidth={2} />
+			Neo Mohsenvand
+		</a>
+		<span class="opacity-50">·</span>
+		<a href="https://github.com/NeoVand/MacMac" target="_blank" rel="noopener" class="inline-flex items-center gap-1 transition hover:opacity-80" style="color: var(--text-secondary);">
+			<Github size={12} strokeWidth={2} />
+			GitHub
+		</a>
+		<span class="opacity-50">·</span>
+		<a href="https://en.wikipedia.org/wiki/Markov_chain_Monte_Carlo" target="_blank" rel="noopener" class="inline-flex items-center gap-1 transition hover:opacity-80" style="color: var(--text-secondary);">
+			<Globe size={12} strokeWidth={2} />
+			MCMC on Wikipedia
+		</a>
+	</div>
 	</div>
 </div>
