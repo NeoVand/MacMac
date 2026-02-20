@@ -24,7 +24,7 @@
 	let samples: number[] = $state([]);
 	let totalClicks = $state(0);
 	let eraserMode = $state(false);
-	const emptyScore: ScoreResult = { kl: Infinity, clicks: 0, score: 0, accuracyPct: 0, histogramData: [] };
+	const emptyScore: ScoreResult = { mse: 1, clicks: 0, score: 0, matchPct: 0, matchScore: 0, timeBonus: 0, histogramData: [] };
 	let scoreResult: ScoreResult = $state({ ...emptyScore });
 
 	let startTime = $state(0);
@@ -73,7 +73,7 @@
 	function recalcScore() {
 		if (!level) return;
 		scoreResult = samples.length > 0
-			? { ...getFullScore(samples, level), clicks: totalClicks }
+			? { ...getFullScore(samples, level, elapsedMs), clicks: totalClicks }
 			: { ...emptyScore };
 	}
 
@@ -382,7 +382,7 @@
 					</div>
 					<div>
 						<div class="text-[9px] uppercase tracking-wider" style="color: var(--text-tertiary);">Accuracy</div>
-						<div class="text-lg font-bold tabular-nums" style="color: #4ade80;">{scoreResult.accuracyPct}%</div>
+						<div class="text-lg font-bold tabular-nums" style="color: #4ade80;">{scoreResult.matchPct}%</div>
 					</div>
 					<div>
 						<div class="text-[9px] uppercase tracking-wider" style="color: var(--text-tertiary);">Clicks</div>

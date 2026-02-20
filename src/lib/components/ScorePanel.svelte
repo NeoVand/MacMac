@@ -11,8 +11,8 @@
 	let { scoreResult, topScore, elapsedMs }: Props = $props();
 
 	let dScore = $state(0);
-	let dKl = $state(0);
-	let dAccuracy = $state(0);
+	let dMatch = $state(0);
+	let dTimeBonus = $state(0);
 	let dClicks = $state(0);
 	let mounted = $state(false);
 
@@ -25,20 +25,18 @@
 		return `${m}:${s.toString().padStart(2, '0')}`;
 	});
 
-	const klTarget = $derived(scoreResult.kl === Infinity ? 0 : scoreResult.kl);
-
 	onMount(() => {
 		mounted = true;
 		let running = true;
 		function tick() {
 			if (!running) return;
 			dScore += (scoreResult.score - dScore) * 0.15;
-			dKl += (klTarget - dKl) * 0.15;
-			dAccuracy += (scoreResult.accuracyPct - dAccuracy) * 0.15;
+			dMatch += (scoreResult.matchPct - dMatch) * 0.15;
+			dTimeBonus += (scoreResult.timeBonus - dTimeBonus) * 0.15;
 			dClicks += (scoreResult.clicks - dClicks) * 0.15;
 			if (Math.abs(dScore - scoreResult.score) < 1) dScore = scoreResult.score;
-			if (Math.abs(dKl - klTarget) < 0.0005) dKl = klTarget;
-			if (Math.abs(dAccuracy - scoreResult.accuracyPct) < 0.5) dAccuracy = scoreResult.accuracyPct;
+			if (Math.abs(dMatch - scoreResult.matchPct) < 0.5) dMatch = scoreResult.matchPct;
+			if (Math.abs(dTimeBonus - scoreResult.timeBonus) < 1) dTimeBonus = scoreResult.timeBonus;
 			if (Math.abs(dClicks - scoreResult.clicks) < 0.5) dClicks = scoreResult.clicks;
 			requestAnimationFrame(tick);
 		}
@@ -49,8 +47,8 @@
 	$effect(() => {
 		if (!mounted) {
 			dScore = scoreResult.score;
-			dKl = klTarget;
-			dAccuracy = scoreResult.accuracyPct;
+			dMatch = scoreResult.matchPct;
+			dTimeBonus = scoreResult.timeBonus;
 			dClicks = scoreResult.clicks;
 		}
 	});
@@ -70,19 +68,19 @@
 		</div>
 	</div>
 
-	<!-- KL -->
+	<!-- Match -->
 	<div>
-		<div class="text-[9px] font-medium tracking-[0.15em] uppercase" style="color: var(--text-tertiary);">KL</div>
-		<div class="text-xl font-bold tabular-nums leading-none sm:text-2xl" style="color: var(--accent-cyan);">
-			{scoreResult.kl === Infinity ? '---' : dKl < 0.001 ? '<.001' : dKl.toFixed(3)}
+		<div class="text-[9px] font-medium tracking-[0.15em] uppercase" style="color: var(--text-tertiary);">Match</div>
+		<div class="text-xl font-bold tabular-nums leading-none sm:text-2xl" style="color: #4ade80;">
+			{Math.round(dMatch)}%
 		</div>
 	</div>
 
-	<!-- Accuracy -->
+	<!-- Time Bonus -->
 	<div>
-		<div class="text-[9px] font-medium tracking-[0.15em] uppercase" style="color: var(--text-tertiary);">Accuracy</div>
-		<div class="text-xl font-bold tabular-nums leading-none sm:text-2xl" style="color: #4ade80;">
-			{Math.round(dAccuracy)}%
+		<div class="text-[9px] font-medium tracking-[0.15em] uppercase" style="color: var(--text-tertiary);">Bonus</div>
+		<div class="text-xl font-bold tabular-nums leading-none sm:text-2xl" style="color: var(--accent-purple);">
+			+{Math.round(dTimeBonus)}
 		</div>
 	</div>
 
@@ -97,7 +95,7 @@
 	<!-- Timer -->
 	<div>
 		<div class="text-[9px] font-medium tracking-[0.15em] uppercase" style="color: var(--text-tertiary);">Time</div>
-		<div class="text-xl font-bold tabular-nums leading-none sm:text-2xl" style="color: var(--accent-purple);">
+		<div class="text-xl font-bold tabular-nums leading-none sm:text-2xl" style="color: var(--accent-cyan);">
 			{timerDisplay()}
 		</div>
 	</div>

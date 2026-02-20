@@ -5,8 +5,8 @@
 	let canvas: HTMLCanvasElement | undefined = $state();
 	let mathContainer: HTMLDivElement | undefined = $state();
 
-	const klFormula = `$$D_{\\mathrm{KL}}(P \\,\\|\\, Q) = \\sum_{i=1}^{k} P(x_i) \\, \\ln \\frac{P(x_i)}{Q(x_i)}$$`;
-	const scoreFormula = `$$\\text{Score} = \\left\\lfloor \\frac{10000}{\\underbrace{(1 + 10 \\cdot D_{\\mathrm{KL}})}_{\\text{accuracy}} \\;\\cdot\\; \\underbrace{\\left(1 + \\dfrac{N}{100}\\right)}_{\\text{clicks}}} \\right\\rfloor$$`;
+	const mseFormula = `$$\\text{MSE} = \\frac{1}{n} \\sum_{i=1}^{n} \\left( \\frac{p(x_i)}{\\max(p)} - \\frac{\\hat{q}(x_i)}{\\max(\\hat{q})} \\right)^2$$`;
+	const scoreFormula = `$$\\text{Score} = \\underbrace{\\left\\lfloor \\frac{8000}{1 + 100 \\cdot \\text{MSE}} \\right\\rfloor}_{\\text{shape match}} + \\underbrace{\\left\\lfloor 2000 \\cdot e^{-t/60} \\right\\rfloor}_{\\text{time bonus}}$$`;
 
 	onMount(() => {
 		if (canvas) drawVisual();
@@ -159,31 +159,29 @@
 		<p>Your score is based on two factors: how accurately your samples match the target distribution, and how efficiently you placed them.</p>
 
 		<p>
-			<strong style="color: var(--text-primary); opacity: 0.55;">Accuracy</strong> is measured by the
-			<a href="https://en.wikipedia.org/wiki/Kullback%E2%80%93Leibler_divergence" target="_blank" rel="noopener" class="underline transition hover:opacity-80" style="color: var(--accent-cyan); opacity: 0.7;">Kullback–Leibler divergence</a>
-			from the true distribution \(P\) to the empirical distribution \(Q\):
+			<strong style="color: var(--text-primary); opacity: 0.55;">Shape match</strong> is measured by the mean squared error between the target PDF and your KDE, both normalized to the same peak height. This compares the visual shape directly:
 		</p>
 
 		<div class="overflow-x-auto rounded-lg px-4 py-3" style="background: var(--surface);">
-			{@html klFormula}
+			{@html mseFormula}
 		</div>
 
 		<p>
-			where the distributions are discretized into {@html '\\(k\\)'} bins, {@html '\\(P(x_i)\\)'} is the true density in bin {@html '\\(i\\)'}, and {@html '\\(Q(x_i)\\)'} is the empirical density with Laplace smoothing. Lower KL divergence means a better match.
+			where {@html '\\(p(x)\\)'} is the target density and {@html '\\(\\hat{q}(x)\\)'} is the KDE from your samples. Both are scaled so their peak equals 1, then compared point by point. If the curves look the same, MSE is near zero.
 		</p>
 
 		<p>
-			<strong style="color: var(--text-primary); opacity: 0.55;">Efficiency</strong> is captured by a diminishing-returns factor. Each additional click helps your accuracy but costs you efficiency.
+			<strong style="color: var(--text-primary); opacity: 0.55;">Time bonus</strong> rewards speed. A fast solution earns up to 2,000 extra points, decaying exponentially as you take longer.
 		</p>
 
-		<p>The final score combines both:</p>
+		<p>The final score:</p>
 
 		<div class="overflow-x-auto rounded-lg px-4 py-3" style="background: var(--surface);">
 			{@html scoreFormula}
 		</div>
 
 		<p>
-			Both penalties are multiplicative — bad accuracy can't be rescued by few clicks, and many clicks can't rescue a poor match. KL divergence dominates: a 10x improvement in KL matters far more than halving your clicks. The click penalty is mild ({@html '\\(N/100\\)'}) so that strategy, not speed, determines the score.
+			The shape match component (up to 8,000) measures how well your curve fits the target. The time bonus (up to 2,000) rewards efficiency — there is no explicit click penalty, but more clicks take more time. The tension: speed versus precision.
 		</p>
 
 		<h2 class="pt-2 text-sm font-semibold" style="color: var(--text-primary); opacity: 0.6;">Why it matters</h2>

@@ -3,50 +3,47 @@ import { linspace } from './math';
 import { computeKDE } from './kde';
 
 export interface ScoreResult {
-	kl: number;
+	mse: number;
 	clicks: number;
 	score: number;
-	accuracyPct: number;
+	matchPct: number;
+	matchScore: number;
+	timeBonus: number;
 	histogramData: { binCenter: number; empirical: number; theoretical: number }[];
 }
 
-const KL_BINS = 40;
-const KL_EPSILON = 1e-10;
+const EVAL_POINTS = 200;
+const MATCH_MAX = 8000;
+const MATCH_SENSITIVITY = 100;
+const TIME_MAX = 2000;
+const TIME_DECAY = 60;
 
 /**
- * Compute KL divergence KL(P_true || Q_kde) using the KDE as the empirical distribution.
- * This ensures the score matches the visual — if the KDE curve looks close
- * to the PDF, the KL will be low.
+ * Compute Mean Squared Error between peak-normalized PDF and KDE.
+ * Both curves are scaled so their maximum = 1, then compared point-by-point.
+ * This measures visual shape similarity — if the curves look the same, MSE is low.
  */
-export function computeKL(
+export function computeShapeMatch(
 	samples: number[],
 	level: Level
-): { kl: number; histogramData: ScoreResult['histogramData'] } {
+): { mse: number; histogramData: ScoreResult['histogramData'] } {
 	const [xMin, xMax] = level.xRange;
+	const xs = linspace(xMin, xMax, EVAL_POINTS);
 
-	const binCenters = linspace(xMin, xMax, KL_BINS + 1)
-		.slice(0, KL_BINS)
-		.map((x, i) => x + (xMax - xMin) / (2 * KL_BINS));
+	const pVals = xs.map((x) => level.pdf(x));
+	const qVals = computeKDE(samples, xs);
 
-	// Evaluate true PDF and KDE at bin centers
-	const pVals = binCenters.map((x) => level.pdf(x));
-	const qVals = computeKDE(samples, binCenters);
+	const pMax = Math.max(...pVals);
+	const qMax = Math.max(...qVals);
 
-	// Normalize both to sum to 1 (discrete probability distributions)
-	const pSum = pVals.reduce((a, b) => a + b, 0);
-	const qSum = qVals.reduce((a, b) => a + b, 0);
-
-	let kl = 0;
-	for (let i = 0; i < KL_BINS; i++) {
-		const p = pSum > 0 ? pVals[i] / pSum : 0;
-		const q = qSum > 0 ? qVals[i] / qSum : 1 / KL_BINS;
-		if (p > KL_EPSILON && q > KL_EPSILON) {
-			kl += p * Math.log(p / q);
-		}
+	let mse = 0;
+	for (let i = 0; i < EVAL_POINTS; i++) {
+		const p = pMax > 0 ? pVals[i] / pMax : 0;
+		const q = qMax > 0 ? qVals[i] / qMax : 0;
+		mse += (p - q) ** 2;
 	}
-	kl = Math.max(0, kl);
+	mse /= EVAL_POINTS;
 
-	// Histogram data for display
 	const displayBins = level.numBins;
 	const displayCenters = linspace(xMin, xMax, displayBins + 1)
 		.slice(0, displayBins)
@@ -58,27 +55,47 @@ export function computeKL(
 		theoretical: level.pdf(x)
 	}));
 
-	return { kl, histogramData };
+	return { mse, histogramData };
 }
 
 /**
- * Score = floor(10000 / ((1 + 10*KL) * (1 + clicks/100)))
+ * Shape Match score: 8000 / (1 + 100 * MSE)
+ * MSE=0 → 8000, MSE=0.01 → 4444, MSE=0.1 → 727
  */
-export function computeScore(kl: number, clicks: number): number {
-	return Math.floor(10000 / ((1 + 10 * kl) * (1 + clicks / 100)));
+export function computeMatchScore(mse: number): number {
+	return Math.round(MATCH_MAX / (1 + MATCH_SENSITIVITY * mse));
 }
 
-export function getFullScore(samples: number[], level: Level): ScoreResult {
+/**
+ * Time Bonus: 2000 * exp(-timeSeconds / 60)
+ * Instant → 2000, 30s → 1213, 60s → 736, 3min → 100
+ */
+export function computeTimeBonus(elapsedMs: number): number {
+	const seconds = elapsedMs / 1000;
+	return Math.round(TIME_MAX * Math.exp(-seconds / TIME_DECAY));
+}
+
+/**
+ * Total Score = Match Score + Time Bonus
+ * No explicit click penalty — time naturally penalizes more clicks.
+ */
+export function computeScore(mse: number, elapsedMs: number): number {
+	return computeMatchScore(mse) + computeTimeBonus(elapsedMs);
+}
+
+export function getFullScore(samples: number[], level: Level, elapsedMs: number = 0): ScoreResult {
 	if (samples.length === 0) {
-		return { kl: Infinity, clicks: 0, score: 0, accuracyPct: 0, histogramData: [] };
+		return { mse: 1, clicks: 0, score: 0, matchPct: 0, matchScore: 0, timeBonus: 0, histogramData: [] };
 	}
 
-	const { kl, histogramData } = computeKL(samples, level);
+	const { mse, histogramData } = computeShapeMatch(samples, level);
 	const clicks = samples.length;
-	const score = computeScore(kl, clicks);
-	const accuracyPct = Math.round((1 / (1 + 10 * kl)) * 100);
+	const matchScore = computeMatchScore(mse);
+	const timeBonus = computeTimeBonus(elapsedMs);
+	const score = matchScore + timeBonus;
+	const matchPct = Math.round((1 / (1 + MATCH_SENSITIVITY * mse)) * 100);
 
-	return { kl, clicks, score, accuracyPct, histogramData };
+	return { mse, clicks, score, matchPct, matchScore, timeBonus, histogramData };
 }
 
 export function getDifficultyColor(difficulty: Level['difficulty']): string {

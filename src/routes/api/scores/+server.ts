@@ -4,9 +4,9 @@ import { db } from '$lib/server/db';
 import { scores } from '$lib/server/db/schema';
 import { and, eq, desc } from 'drizzle-orm';
 import { getLevel } from '$lib/game/levels';
-import { computeKL, computeScore } from '$lib/game/scoring';
+import { computeShapeMatch, computeScore } from '$lib/game/scoring';
 
-export const POST: RequestHandler = async ({ request, locals, getClientAddress }) => {
+export const POST: RequestHandler = async ({ request, locals }) => {
 	try {
 		if (!locals.user) {
 			return json({ success: false, error: 'Sign in to submit scores' }, { status: 401 });
@@ -36,13 +36,12 @@ export const POST: RequestHandler = async ({ request, locals, getClientAddress }
 		const totalClicks = typeof clientClicks === 'number' && clientClicks > 0 ? clientClicks : samples.length;
 		const durationMs = typeof duration === 'number' && duration > 0 && duration < 3600000 ? Math.round(duration) : null;
 
-		// Country from Vercel's geo header, or CF header as fallback
 		const country = request.headers.get('x-vercel-ip-country')
 			|| request.headers.get('cf-ipcountry')
 			|| null;
 
-		const { kl } = computeKL(samples as number[], level);
-		const score = computeScore(kl, totalClicks);
+		const { mse } = computeShapeMatch(samples as number[], level);
+		const score = computeScore(mse, durationMs ?? 300000);
 
 		const existing = await db
 			.select()
@@ -63,7 +62,7 @@ export const POST: RequestHandler = async ({ request, locals, getClientAddress }
 				playerId,
 				levelId,
 				score,
-				klDivergence: kl,
+				klDivergence: mse,
 				clicks: totalClicks,
 				duration: durationMs,
 				country,
