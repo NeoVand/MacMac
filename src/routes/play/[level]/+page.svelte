@@ -53,13 +53,21 @@
 		timerRunning = false;
 	});
 
+	let lastScoreRecalcSec = 0;
+
 	function startTimer() {
 		if (timerRunning) return;
 		startTime = Date.now();
 		timerRunning = true;
+		lastScoreRecalcSec = 0;
 		function tick() {
 			if (!timerRunning) return;
 			elapsedMs = Date.now() - startTime;
+			const sec = Math.floor(elapsedMs / 1000);
+			if (sec > lastScoreRecalcSec && samples.length > 0) {
+				lastScoreRecalcSec = sec;
+				recalcScore();
+			}
 			timerHandle = requestAnimationFrame(tick);
 		}
 		tick();
