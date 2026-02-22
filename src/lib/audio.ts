@@ -98,7 +98,7 @@ function updateVisualizer() {
 
 	const width = 100;
 	const points = 32;
-	const ampScale = 1.25;
+	const ampScale = 0.88;
 	let path = 'M 0 50';
 
 	for (let i = 0; i <= points; i++) {
