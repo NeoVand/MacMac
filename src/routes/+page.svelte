@@ -4,6 +4,7 @@
 	import { getDifficultyColor } from '$lib/game/scoring';
 	import { gaussian, linspace } from '$lib/game/math';
 	import AppHeader from '$lib/components/AppHeader.svelte';
+	import SoundButton from '$lib/components/SoundButton.svelte';
 	import { Github, Linkedin, Globe, Hand } from 'lucide-svelte';
 
 	let heroCanvas: HTMLCanvasElement | undefined = $state();
@@ -192,6 +193,7 @@
 				<svg viewBox="0 0 24 24" fill="#eab308" class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4"><path d="M2 4l3 12h14l3-12-5 4-5-6-5 6-5-4zm3 14h14v2H5v-2z" /></svg>
 				<span class="whitespace-nowrap">Leaderboard</span>
 			</a>
+			<SoundButton size="lg" />
 		</div>
 	</div>
 
