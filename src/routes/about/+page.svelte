@@ -427,7 +427,7 @@
 </svelte:head>
 
 <div class="min-h-dvh">
-	<AppHeader breadcrumb="About" breadcrumbIcon="info" />
+	<AppHeader activePage="about" />
 
 	<div bind:this={mathContainer} class="mx-auto max-w-xl px-4 sm:px-6">
 	<canvas
@@ -500,6 +500,53 @@
 			to protein folding to language models.
 			The core question is always the same: how can we represent a complex distribution with a
 			finite set of samples? This game lets you experience that question firsthand.
+		</p>
+
+		<h2 class="pt-2 text-sm font-semibold" style="color: var(--text-primary); opacity: 0.6;">Generated levels</h2>
+
+		<p>
+			Every time you visit the home page, you see a fresh grid of procedurally generated levels.
+			Each level is created from a seed using a deterministic algorithm — the difficulty rating (1 to 10)
+			directly controls the number of peaks, how closely they overlap, how unequal they are, and how much
+			noise is added. Simple levels (1&#8211;2) have a single clean peak; hard levels (7+) have many overlapping
+			modes with noise.
+		</p>
+
+		<p>
+			The grid adapts to your skill. As you play more, levels center around your player rating so you
+			always face an appropriate challenge. You get 3 resets per level — after that, you can regenerate
+			a fresh level at the same difficulty.
+		</p>
+
+		<h2 class="pt-2 text-sm font-semibold" style="color: var(--text-primary); opacity: 0.6;">Weighted scoring</h2>
+
+		<p>
+			Your raw score (shape match + time bonus) is scaled by the level's difficulty:
+			{@html '\\(\\text{weighted} = \\text{raw} \\times \\frac{d}{3}\\)'}
+			where {@html '\\(d\\)'} is the difficulty rating. Medium levels ({@html '\\(d \\approx 3\\)'})
+			get a 1&#215; multiplier; harder levels reward proportionally more.
+		</p>
+
+		<p>
+			Your <strong style="color: var(--text-primary); opacity: 0.55;">player rating</strong> is an
+			exponential moving average of your performance across difficulties — it tracks what difficulty you
+			can handle well. The leaderboard ranks players by their best weighted score and by rating.
+		</p>
+
+		<h2 class="pt-2 text-sm font-semibold" style="color: var(--text-primary); opacity: 0.6;">Battle mode</h2>
+
+		<p>
+			Battle mode is real-time 1v1. Both players receive the same generated level and have
+			<strong style="color: var(--text-primary); opacity: 0.55;">20 seconds</strong> to match the target
+			distribution. You can see your opponent's KDE building as a shadow curve — but not their click positions.
+		</p>
+
+		<p>
+			If either player reaches <strong style="color: var(--text-primary); opacity: 0.55;">98% accuracy</strong>
+			before time runs out, they trigger a jackpot and win instantly. Otherwise, the higher score wins.
+			Battle results update your
+			<a href="https://en.wikipedia.org/wiki/Elo_rating_system" target="_blank" rel="noopener" class="underline transition hover:opacity-80" style="color: var(--accent-cyan); opacity: 0.7;">ELO rating</a>
+			(K=32, starting at 1200). Matchmaking pairs players with similar ELO.
 		</p>
 
 		<!-- Footer -->

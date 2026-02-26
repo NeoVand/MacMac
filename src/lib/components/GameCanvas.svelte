@@ -8,9 +8,10 @@
 		level: Level;
 		samples: number[];
 		onSampleAdd: (x: number) => void;
+		opponentKde?: number[];
 	}
 
-	let { level, samples, onSampleAdd }: Props = $props();
+	let { level, samples, onSampleAdd, opponentKde }: Props = $props();
 
 	let canvas: HTMLCanvasElement | undefined = $state();
 	let container: HTMLDivElement | undefined = $state();
@@ -146,8 +147,9 @@
 
 			// Smooth yMax transitions
 			const kdeMax = displayKde.length > 0 ? Math.max(...displayKde) : 0;
+			const oppMax = opponentKde && opponentKde.length > 0 ? Math.max(...opponentKde) : 0;
 			const rawPdfMax = pw > 0 ? Math.max(...linspace(viewXMin, viewXMax, 100).map((x) => level.pdf(x))) : 1;
-			const targetYMax = Math.max(rawPdfMax, kdeMax) * 1.15 || 1;
+			const targetYMax = Math.max(rawPdfMax, kdeMax, oppMax) * 1.15 || 1;
 			const yDiff = targetYMax - displayYMax;
 			if (Math.abs(yDiff) > 0.001) {
 				displayYMax += yDiff * 0.08;
@@ -215,6 +217,7 @@
 		ctx.stroke();
 
 		if (displayKde.length === nPts) drawKDE(ctx, xs, yMax, baseY);
+		if (opponentKde && opponentKde.length > 0) drawOpponentKDE(ctx, yMax, baseY);
 		drawPDF(ctx, xs, pdfVals, yMax, baseY);
 		drawSamples(ctx, baseY);
 		drawAxisLabels(ctx, baseY);
@@ -304,6 +307,44 @@
 		ctx.lineJoin = 'round';
 		for (let i = 0; i < xs.length; i++) {
 			const sx = toSX(xs[i]); const sy = toSY(clamped[i], yMax);
+			i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
+		}
+		ctx.stroke();
+		ctx.setLineDash([]);
+		ctx.lineCap = 'butt';
+		ctx.lineJoin = 'miter';
+	}
+
+	function drawOpponentKDE(ctx: CanvasRenderingContext2D, yMax: number, baseY: number) {
+		if (!opponentKde || opponentKde.length === 0) return;
+		const nOpp = opponentKde.length;
+		const oppXs = linspace(viewXMin, viewXMax, nOpp);
+		const clamped = opponentKde.map((v) => Math.min(v, yMax * 0.99));
+
+		// Semi-transparent fill
+		ctx.beginPath();
+		for (let i = 0; i < nOpp; i++) {
+			const sx = toSX(oppXs[i]); const sy = toSY(clamped[i], yMax);
+			i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
+		}
+		ctx.lineTo(toSX(oppXs[nOpp - 1]), baseY);
+		ctx.lineTo(toSX(oppXs[0]), baseY);
+		ctx.closePath();
+		const g = ctx.createLinearGradient(0, PAD.top, 0, baseY);
+		g.addColorStop(0, 'rgba(236,72,153,0.12)');
+		g.addColorStop(1, 'rgba(236,72,153,0.01)');
+		ctx.fillStyle = g;
+		ctx.fill();
+
+		// Dashed stroke
+		ctx.beginPath();
+		ctx.strokeStyle = 'rgba(236,72,153,0.6)';
+		ctx.lineWidth = 2;
+		ctx.setLineDash([6, 4]);
+		ctx.lineCap = 'round';
+		ctx.lineJoin = 'round';
+		for (let i = 0; i < nOpp; i++) {
+			const sx = toSX(oppXs[i]); const sy = toSY(clamped[i], yMax);
 			i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
 		}
 		ctx.stroke();

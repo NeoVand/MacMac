@@ -1,33 +1,36 @@
 import type { PageServerLoad } from './$types';
 import { db } from '$lib/server/db';
-import { scores } from '$lib/server/db/schema';
-import { desc, eq } from 'drizzle-orm';
-import { levels } from '$lib/game/levels';
+import { players } from '$lib/server/db/schema';
+import { desc, gt } from 'drizzle-orm';
 
 export const load: PageServerLoad = async () => {
-	const leaderboardData: Record<
-		number,
-		{ playerName: string; score: number; clicks: number; kl: number; duration: number | null; country: string | null; createdAt: Date }[]
-	> = {};
+	// Solo tab: only players who have played at least one solo game
+	const bySolo = await db
+		.select({
+			playerName: players.playerName,
+			country: players.country,
+			bestWeightedScore: players.bestWeightedScore,
+			bestScoreDifficulty: players.bestScoreDifficulty,
+			gamesPlayed: players.gamesPlayed
+		})
+		.from(players)
+		.where(gt(players.gamesPlayed, 0))
+		.orderBy(desc(players.bestWeightedScore))
+		.limit(50);
 
-	for (const level of levels) {
-		const rows = await db
-			.select({
-				playerName: scores.playerName,
-				score: scores.score,
-				clicks: scores.clicks,
-				kl: scores.klDivergence,
-				duration: scores.duration,
-				country: scores.country,
-				createdAt: scores.createdAt
-			})
-			.from(scores)
-			.where(eq(scores.levelId, level.id))
-			.orderBy(desc(scores.score))
-			.limit(20);
+	// Battle tab: only players who have battled at least once
+	const byBattle = await db
+		.select({
+			playerName: players.playerName,
+			country: players.country,
+			battleElo: players.battleElo,
+			battlesPlayed: players.battlesPlayed,
+			battleWins: players.battleWins
+		})
+		.from(players)
+		.where(gt(players.battlesPlayed, 0))
+		.orderBy(desc(players.battleElo))
+		.limit(50);
 
-		leaderboardData[level.id] = rows;
-	}
-
-	return { leaderboardData };
+	return { bySolo, byBattle };
 };

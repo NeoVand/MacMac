@@ -1,23 +1,138 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { levels } from '$lib/game/levels';
-	import { getDifficultyColor } from '$lib/game/scoring';
+	import { goto, replaceState } from '$app/navigation';
+	import { page } from '$app/state';
 	import { gaussian, linspace } from '$lib/game/math';
+	import { generateGrid, generateReplacement, gridConfigForRating } from '$lib/game/grid';
+	import type { GeneratedLevel } from '$lib/game/generator';
+	import { joinMatchmaking, type MatchmakerMessage } from '$lib/battle/client';
+	import { authClient } from '$lib/auth-client';
+	import LevelTile from '$lib/components/LevelTile.svelte';
 	import AppHeader from '$lib/components/AppHeader.svelte';
 	import SoundButton from '$lib/components/SoundButton.svelte';
-	import { Github, Linkedin, Globe, Hand } from 'lucide-svelte';
+	import { Github, Linkedin, Globe, Swords } from 'lucide-svelte';
+	import { resolvePlayerName } from '$lib/utils/player-name';
 
+	let { data } = $props();
+	const session = authClient.useSession();
+
+	// --- Battle queue state ---
+	let showQueue = $state(false);
+	let queueStatus = $state('');
+	let queueSocket: ReturnType<typeof joinMatchmaking> | null = null;
+
+	function startBattleQueue() {
+		showQueue = true;
+		queueStatus = 'Connecting...';
+
+		const playerId = $session.data?.user.id ?? `anon-${Date.now()}`;
+		const playerName = resolvePlayerName($session.data?.user.name ?? 'Anonymous');
+		const battleElo = data.battleElo ?? 1200;
+		const country = data.country ?? null;
+
+		queueSocket = joinMatchmaking(
+			playerId,
+			playerName,
+			battleElo,
+			country,
+			(msg: MatchmakerMessage) => {
+				if (msg.type === 'queue_status') {
+					queueStatus = `Searching... (${msg.waitingCount} in queue)`;
+				} else if (msg.type === 'match_found') {
+					queueStatus = `Match found! vs ${msg.opponentName}`;
+					showQueue = false;
+					goto(`/battle/${msg.battleId}`);
+				}
+			},
+			() => {
+				queueStatus = 'Connection error. Try again.';
+			}
+		);
+	}
+
+	function cancelQueue() {
+		queueSocket?.leave();
+		queueSocket = null;
+		showQueue = false;
+		queueStatus = '';
+	}
+
+	// --- Grid state ---
+	const GRID_KEY = 'macmac_grid_seed';
+	const COMPLETED_KEY = 'macmac_completed';
+
+	let gridLevels = $state<GeneratedLevel[]>([]);
+	let mounted = $state(false);
+
+	function getBaseSeed(): number {
+		return Date.now();
+	}
+
+	function getCompletedSeeds(): Set<number> {
+		if (typeof sessionStorage === 'undefined') return new Set();
+		const stored = sessionStorage.getItem(COMPLETED_KEY);
+		if (!stored) return new Set();
+		try {
+			return new Set(JSON.parse(stored) as number[]);
+		} catch {
+			return new Set();
+		}
+	}
+
+	function saveCompletedSeeds(seeds: Set<number>) {
+		if (typeof sessionStorage === 'undefined') return;
+		sessionStorage.setItem(COMPLETED_KEY, JSON.stringify([...seeds]));
+	}
+
+	function buildGrid() {
+		const baseSeed = getBaseSeed();
+		const config = gridConfigForRating(data.playerRating);
+		let levels = generateGrid(baseSeed, config);
+
+		// Replace any previously completed levels
+		const completed = getCompletedSeeds();
+		if (completed.size > 0) {
+			levels = levels.map((lvl, i) => {
+				if (completed.has(lvl.seed)) {
+					return generateReplacement(data.playerRating ?? 4.0, i);
+				}
+				return lvl;
+			});
+		}
+
+		return levels;
+	}
+
+	onMount(() => {
+		gridLevels = buildGrid();
+		mounted = true;
+
+		// Auto-start battle queue if navigated with ?battle
+		if (page.url.searchParams.has('battle')) {
+			replaceState('/', {});
+			startBattleQueue();
+		}
+	});
+
+	// --- Hero animation ---
 	let heroCanvas: HTMLCanvasElement | undefined = $state();
 	let animFrame = 0;
-
-	let heroColors = { accentCyan: '#00d4ff', accentPurple: '#a855f7', curveGlow: 'rgba(0,200,255,0.12)', curveFillStart: 'rgba(0,200,255,0.07)', curveFillEnd: 'rgba(0,200,255,0.0)' };
+	let heroColors = {
+		accentCyan: '#00d4ff',
+		accentPurple: '#a855f7',
+		curveGlow: 'rgba(0,200,255,0.12)',
+		curveFillStart: 'rgba(0,200,255,0.07)',
+		curveFillEnd: 'rgba(0,200,255,0.0)'
+	};
 
 	function refreshHeroColors() {
 		const s = getComputedStyle(document.documentElement);
 		const v = (n: string) => s.getPropertyValue(n).trim();
 		heroColors = {
-			accentCyan: v('--accent-cyan'), accentPurple: v('--accent-purple'),
-			curveGlow: v('--curve-glow'), curveFillStart: v('--curve-fill-start'),
+			accentCyan: v('--accent-cyan'),
+			accentPurple: v('--accent-purple'),
+			curveGlow: v('--curve-glow'),
+			curveFillStart: v('--curve-fill-start'),
 			curveFillEnd: v('--curve-fill-end')
 		};
 	}
@@ -38,11 +153,14 @@
 			drawHero(t, isMobile);
 			animFrame = requestAnimationFrame(animate);
 		}
-		// Double rAF: wait for layout to complete (fixes mobile Safari canvas 0x0 on first paint)
 		requestAnimationFrame(() => {
 			requestAnimationFrame(() => animate());
 		});
-		return () => { running = false; cancelAnimationFrame(animFrame); observer.disconnect(); };
+		return () => {
+			running = false;
+			cancelAnimationFrame(animFrame);
+			observer.disconnect();
+		};
 	});
 
 	function drawHero(t: number, isMobile = false) {
@@ -52,16 +170,16 @@
 
 		const w = heroCanvas.clientWidth;
 		const h = heroCanvas.clientHeight;
-		if (w <= 0 || h <= 0) return; // Skip until layout provides dimensions (mobile)
+		if (w <= 0 || h <= 0) return;
 		const dpr = isMobile ? Math.min(window.devicePixelRatio || 1, 2) : (window.devicePixelRatio || 1);
 		heroCanvas.width = w * dpr;
 		heroCanvas.height = h * dpr;
 		ctx.scale(dpr, dpr);
 		ctx.clearRect(0, 0, w, h);
 
-		// Match levels padding: px-4 (16px) on mobile, ~48px on desktop
 		const padX = w < 640 ? 16 : 48;
-		const padTop = 10, padBot = 6;
+		const padTop = 10,
+			padBot = 6;
 		const pw = w - padX * 2;
 		const ph = h - padTop - padBot;
 
@@ -72,12 +190,13 @@
 		const s2 = 0.8 + Math.cos(t * 0.6) * 0.15;
 		const s3 = 0.45 + Math.sin(t * 0.8 + 2) * 0.08;
 
-		// Amplitude oscillates so peaks sometimes get much smaller (0.25 to 1)
 		const amplitude = 0.25 + 0.75 * (0.5 + 0.5 * Math.sin(t * 0.18));
 		const pdf = (x: number) =>
-			amplitude * (0.3 * gaussian(x, m1, s1) + 0.4 * gaussian(x, m2, s2) + 0.3 * gaussian(x, m3, s3));
+			amplitude *
+			(0.3 * gaussian(x, m1, s1) + 0.4 * gaussian(x, m2, s2) + 0.3 * gaussian(x, m3, s3));
 
-		const xMin = -5, xMax = 5;
+		const xMin = -5,
+			xMax = 5;
 		const numPts = 150;
 		const pts = linspace(xMin, xMax, numPts);
 		const vals = pts.map(pdf);
@@ -98,13 +217,15 @@
 
 		for (let si = 0; si < scales.length; si++) {
 			const s = scales[si];
-			const alpha = si === scales.length - 1 ? 1.0 : 0.12 + (si / (scales.length - 1)) * 0.5;
-			const lineW = si === scales.length - 1 ? 2.5 : 0.8 + (si / (scales.length - 1)) * 0.6;
+			const alpha =
+				si === scales.length - 1 ? 1.0 : 0.12 + (si / (scales.length - 1)) * 0.5;
+			const lineW =
+				si === scales.length - 1 ? 2.5 : 0.8 + (si / (scales.length - 1)) * 0.6;
 			const scaledPts: [number, number][] = pts.map((x, i) => [toX(x), toY(vals[i] * s)]);
 
 			if (si === scales.length - 1) {
 				ctx.beginPath();
-				scaledPts.forEach(([x, y], i) => i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y));
+				scaledPts.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
 				ctx.lineTo(toX(xMax), toY(0));
 				ctx.lineTo(toX(xMin), toY(0));
 				ctx.closePath();
@@ -115,14 +236,14 @@
 				ctx.fill();
 
 				ctx.beginPath();
-				scaledPts.forEach(([x, y], i) => i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y));
+				scaledPts.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
 				ctx.strokeStyle = heroColors.curveGlow;
 				ctx.lineWidth = isMobile ? 8 : 12;
 				ctx.stroke();
 			}
 
 			ctx.beginPath();
-			scaledPts.forEach(([x, y], i) => i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y));
+			scaledPts.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
 			ctx.globalAlpha = alpha;
 			ctx.strokeStyle = strokeGrad;
 			ctx.lineWidth = lineW;
@@ -130,31 +251,19 @@
 			ctx.globalAlpha = 1;
 		}
 	}
-
-	const FAMILY_SCALES = [0.25, 0.4, 0.55, 0.7, 0.85, 1.0];
-
-	function levelSvgPaths(level: typeof levels[0], w: number, h: number): { path: string; scale: number }[] {
-		const pad = 4;
-		const xs = linspace(level.xRange[0], level.xRange[1], 60);
-		const vals = xs.map((x) => level.pdf(x));
-		const yMax = Math.max(...vals) * 1.1 || 1;
-
-		return FAMILY_SCALES.map((s) => {
-			const pts = xs.map((x, i) => {
-				const sx = pad + ((x - level.xRange[0]) / (level.xRange[1] - level.xRange[0])) * (w - pad * 2);
-				const sy = pad + (h - pad * 2) - ((vals[i] * s) / yMax) * (h - pad * 2);
-				return `${sx.toFixed(1)},${sy.toFixed(1)}`;
-			});
-			return { path: `M${pts.join('L')}`, scale: s };
-		});
-	}
 </script>
 
 <svelte:head>
 	<title>macmac — The Sampling Game</title>
-	<meta name="description" content="Match probability distributions with the fewest clicks. A game about sampling, intuition, and efficiency." />
+	<meta
+		name="description"
+		content="Match probability distributions with the fewest clicks. A game about sampling, intuition, and efficiency."
+	/>
 	<meta property="og:title" content="macmac — The Sampling Game" />
-	<meta property="og:description" content="Match probability distributions with the fewest clicks. A game about MCMC intuition." />
+	<meta
+		property="og:description"
+		content="Match probability distributions with the fewest clicks. A game about MCMC intuition."
+	/>
 	<meta property="og:url" content="https://macmac-gilt.vercel.app" />
 </svelte:head>
 
@@ -163,97 +272,157 @@
 		<AppHeader />
 	</div>
 
-	<!-- Main content: centered vertically in remaining space -->
+	<!-- Main content -->
 	<div class="flex w-full flex-1 flex-col items-center justify-center">
-	<!-- Hero: animation + logo + subtext at one elevation -->
-	<div class="relative flex h-[200px] w-full flex-col items-center justify-center sm:h-[240px]">
-		<canvas
-			bind:this={heroCanvas}
-			class="absolute inset-0 h-full w-full opacity-50"
-			style="pointer-events: none;"
-		></canvas>
-		<div class="relative z-10 flex flex-col items-center justify-center px-4">
-			<h1 class="mb-1 text-center sm:mb-2" style="font-family: 'Space Grotesk', sans-serif;">
-				<span class="text-7xl tracking-tight sm:text-8xl" style="color: var(--text-primary); opacity: 0.85;">mac</span><span class="bg-gradient-to-r from-game-cyan to-purple-400 bg-clip-text text-7xl tracking-tight text-transparent sm:text-8xl">mac</span>
-			</h1>
-			<p class="mb-0 text-center text-sm font-medium tracking-[0.2em] uppercase sm:text-base" style="color: var(--text-secondary);">
-				the sampling game
-			</p>
-		</div>
-	</div>
-
-	<!-- Buttons: Play + Leaderboard (About is in header) -->
-	<div class="flex w-full justify-center px-4 py-6">
-		<div class="flex flex-nowrap items-center justify-center gap-2 sm:gap-3">
-			<a href="/play/1" class="flex flex-initial items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[13px] font-bold tracking-wide backdrop-blur-sm transition hover:scale-[1.02] active:scale-[0.98] sm:gap-2.5 sm:px-5 sm:py-3 sm:text-[14px] hover:brightness-[1.03] dark:hover:brightness-110" style="font-family: 'Outfit', sans-serif; background: color-mix(in srgb, var(--accent-cyan) 14%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 35%, transparent); color: var(--accent-cyan); box-shadow: 0 2px 12px color-mix(in srgb, var(--accent-cyan) 15%, transparent);">
-				<Hand class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" strokeWidth={2} />
-				<span class="whitespace-nowrap">Play</span>
-			</a>
-			<a href="/leaderboard" class="flex flex-initial items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[13px] font-bold tracking-wide backdrop-blur-sm transition hover:scale-[1.02] active:scale-[0.98] sm:gap-2.5 sm:px-5 sm:py-3 sm:text-[14px] hover:brightness-[1.03] dark:hover:brightness-110" style="font-family: 'Outfit', sans-serif; background: color-mix(in srgb, #eab308 12%, transparent); border: 1px solid color-mix(in srgb, #eab308 50%, transparent); color: color-mix(in srgb, #eab308 80%, var(--text-primary)); box-shadow: 0 2px 12px color-mix(in srgb, #eab308 15%, transparent);">
-				<svg viewBox="0 0 24 24" fill="#eab308" class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4"><path d="M2 4l3 12h14l3-12-5 4-5-6-5 6-5-4zm3 14h14v2H5v-2z" /></svg>
-				<span class="whitespace-nowrap">Leaderboard</span>
-			</a>
-			<SoundButton size="lg" />
-		</div>
-	</div>
-
-	<!-- Levels -->
-	<div class="mx-auto mt-6 w-full max-w-3xl px-4">
-		<div class="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-			{#each levels as level}
-				{@const family = levelSvgPaths(level, 160, 48)}
-				<a
-					href="/play/{level.id}"
-					class="group overflow-hidden rounded-2xl p-2.5 transition hover:opacity-80"
-					style="background: var(--surface);"
+		<!-- Hero: animation + logo + subtext -->
+		<div
+			class="relative flex h-[200px] w-full flex-col items-center justify-center sm:h-[240px]"
+		>
+			<canvas
+				bind:this={heroCanvas}
+				class="absolute inset-0 h-full w-full opacity-50"
+				style="pointer-events: none;"
+			></canvas>
+			<div class="relative z-10 flex flex-col items-center justify-center px-4">
+				<h1
+					class="mb-1 text-center sm:mb-2"
+					style="font-family: 'Space Grotesk', sans-serif;"
 				>
-					<svg viewBox="0 0 160 48" class="mb-1 w-full opacity-40 transition group-hover:opacity-70">
-						<defs>
-							<linearGradient id="lc{level.id}" x1="0" y1="0" x2="160" y2="0" gradientUnits="userSpaceOnUse">
-								<stop offset="0%" stop-color="var(--accent-cyan)" />
-								<stop offset="100%" stop-color="var(--accent-purple)" />
-							</linearGradient>
-						</defs>
-						{#each family as { path, scale }, i}
-							{#if i === family.length - 1}
-								<path d="{path}L160,48L0,48Z" fill="url(#lc{level.id})" opacity="0.08" />
-							{/if}
-							<path
-								d={path}
-								fill="none"
-								stroke="url(#lc{level.id})"
-								stroke-width={i === family.length - 1 ? 1.5 : 0.7}
-								opacity={i === family.length - 1 ? 1 : 0.15 + scale * 0.4}
-							/>
-						{/each}
-					</svg>
-					<div class="flex items-center gap-1.5">
-						<span class="text-[11px] font-semibold tabular-nums" style="color: var(--text-tertiary);">{level.id}.</span>
-						<span class="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style="background-color: {getDifficultyColor(level.difficulty)}"></span>
-						<span class="text-[12px] font-medium" style="color: var(--text-secondary);">{level.name}</span>
-					</div>
-				</a>
-			{/each}
+					<span
+						class="text-7xl tracking-tight sm:text-8xl"
+						style="color: var(--text-primary); opacity: 0.85;">mac</span
+					><span
+						class="bg-gradient-to-r from-game-cyan to-purple-400 bg-clip-text text-7xl tracking-tight text-transparent sm:text-8xl"
+						>mac</span
+					>
+				</h1>
+				<p
+					class="mb-0 text-center text-sm font-medium uppercase tracking-[0.2em] sm:text-base"
+					style="color: var(--text-secondary);"
+				>
+					the sampling game
+				</p>
+			</div>
 		</div>
-	</div>
 
-	<!-- Footer -->
-	<div class="mt-8 flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 pb-6 text-[11px] sm:text-xs" style="color: var(--text-tertiary);">
-		<span>Created by</span>
-		<a href="https://www.linkedin.com/in/mohsenvand/" target="_blank" rel="noopener" class="inline-flex items-center gap-1 transition hover:opacity-80" style="color: var(--text-secondary);">
-			<Linkedin size={12} strokeWidth={2} />
-			Neo Mohsenvand
-		</a>
-		<span class="opacity-50">·</span>
-		<a href="https://github.com/NeoVand/MacMac" target="_blank" rel="noopener" class="inline-flex items-center gap-1 transition hover:opacity-80" style="color: var(--text-secondary);">
-			<Github size={12} strokeWidth={2} />
-			GitHub
-		</a>
-		<span class="opacity-50">·</span>
-		<a href="https://en.wikipedia.org/wiki/Markov_chain_Monte_Carlo" target="_blank" rel="noopener" class="inline-flex items-center gap-1 transition hover:opacity-80" style="color: var(--text-secondary);">
-			<Globe size={12} strokeWidth={2} />
-			MCMC on Wikipedia
-		</a>
-	</div>
+		<!-- Buttons: Battle + Leaderboard -->
+		<div class="flex w-full justify-center px-4 py-6">
+			<div class="flex flex-nowrap items-center justify-center gap-2 sm:gap-3">
+				<button
+					onclick={startBattleQueue}
+										class="flex flex-initial items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[13px] font-bold tracking-wide backdrop-blur-sm transition hover:scale-[1.02] active:scale-[0.98] sm:gap-2.5 sm:px-5 sm:py-3 sm:text-[14px] hover:brightness-[1.03] dark:hover:brightness-110"
+					style="font-family: 'Outfit', sans-serif; background: color-mix(in srgb, var(--accent-cyan) 14%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 35%, transparent); color: var(--accent-cyan); box-shadow: 0 2px 12px color-mix(in srgb, var(--accent-cyan) 15%, transparent);"
+					title="Find an opponent"
+				>
+					<Swords class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" strokeWidth={2} />
+					<span class="whitespace-nowrap">Battle</span>
+				</button>
+				<a
+					href="/leaderboard"
+					class="flex flex-initial items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[13px] font-bold tracking-wide backdrop-blur-sm transition hover:scale-[1.02] active:scale-[0.98] sm:gap-2.5 sm:px-5 sm:py-3 sm:text-[14px] hover:brightness-[1.03] dark:hover:brightness-110"
+					style="font-family: 'Outfit', sans-serif; background: color-mix(in srgb, #eab308 12%, transparent); border: 1px solid color-mix(in srgb, #eab308 50%, transparent); color: color-mix(in srgb, #eab308 80%, var(--text-primary)); box-shadow: 0 2px 12px color-mix(in srgb, #eab308 15%, transparent);"
+				>
+					<svg viewBox="0 0 24 24" fill="#eab308" class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4"
+						><path
+							d="M2 4l3 12h14l3-12-5 4-5-6-5 6-5-4zm3 14h14v2H5v-2z"
+						/></svg
+					>
+					<span class="whitespace-nowrap">Leaderboard</span>
+				</a>
+				<SoundButton size="lg" />
+			</div>
+		</div>
+
+		<!-- Generated level grid -->
+		<div class="mx-auto mt-2 w-full max-w-3xl px-4">
+			{#if mounted && gridLevels.length > 0}
+				<div class="grid grid-cols-3 gap-2 sm:grid-cols-4">
+					{#each gridLevels as level, i (level.seed)}
+						<LevelTile {level} delay={i * 80} />
+					{/each}
+				</div>
+			{:else}
+				<!-- Skeleton grid while loading -->
+				<div class="grid grid-cols-3 gap-2 sm:grid-cols-4">
+					{#each Array(12) as _}
+						<div class="h-[76px] animate-pulse rounded-2xl" style="background: var(--surface);"></div>
+					{/each}
+				</div>
+			{/if}
+		</div>
+
+		<!-- Footer -->
+		<div
+			class="mt-8 flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 pb-6 text-[11px] sm:text-xs"
+			style="color: var(--text-tertiary);"
+		>
+			<span>Created by</span>
+			<a
+				href="https://www.linkedin.com/in/mohsenvand/"
+				target="_blank"
+				rel="noopener"
+				class="inline-flex items-center gap-1 transition hover:opacity-80"
+				style="color: var(--text-secondary);"
+			>
+				<Linkedin size={12} strokeWidth={2} />
+				Neo Mohsenvand
+			</a>
+			<span class="opacity-50">·</span>
+			<a
+				href="https://github.com/NeoVand/MacMac"
+				target="_blank"
+				rel="noopener"
+				class="inline-flex items-center gap-1 transition hover:opacity-80"
+				style="color: var(--text-secondary);"
+			>
+				<Github size={12} strokeWidth={2} />
+				GitHub
+			</a>
+			<span class="opacity-50">·</span>
+			<a
+				href="https://en.wikipedia.org/wiki/Markov_chain_Monte_Carlo"
+				target="_blank"
+				rel="noopener"
+				class="inline-flex items-center gap-1 transition hover:opacity-80"
+				style="color: var(--text-secondary);"
+			>
+				<Globe size={12} strokeWidth={2} />
+				MCMC on Wikipedia
+			</a>
+		</div>
 	</div>
 </div>
+
+<!-- Queue overlay -->
+{#if showQueue}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm"
+		style="background: var(--overlay);"
+		onclick={(e) => { if (e.target === e.currentTarget) cancelQueue(); }}
+		onkeydown={(e) => e.key === 'Escape' && cancelQueue()}
+	>
+		<div class="mx-4 w-full max-w-xs rounded-2xl p-6 text-center shadow-2xl" style="background: var(--bg); border: 1px solid var(--border);">
+			<!-- Spinner -->
+			<div class="relative mx-auto mb-4 flex h-14 w-14 items-center justify-center">
+				<div class="absolute inset-0 animate-spin rounded-full" style="border: 2px solid transparent; border-top-color: var(--accent-cyan); animation-duration: 1.2s;"></div>
+				<Swords class="h-6 w-6" style="color: var(--accent-cyan);" strokeWidth={2} />
+			</div>
+
+			<div class="mb-1 text-sm font-semibold" style="color: var(--text-primary);">
+				Searching for opponent...
+			</div>
+			<div class="mb-4 text-xs" style="color: var(--text-tertiary);">
+				{queueStatus}
+			</div>
+
+			<button
+				onclick={cancelQueue}
+				class="w-full rounded-xl py-2.5 text-sm font-medium transition hover:opacity-80"
+				style="background: var(--surface); border: 1px solid var(--border); color: var(--text-tertiary);"
+			>
+				Cancel
+			</button>
+		</div>
+	</div>
+{/if}

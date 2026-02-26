@@ -1,8 +1,12 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
-	import { getLevel, levels } from '$lib/game/levels';
+	import { goto } from '$app/navigation';
+	import { getLevel, levels, type Level } from '$lib/game/levels';
+	import { parseGeneratedId, reconstructLevel, type GeneratedLevel } from '$lib/game/generator';
 	import { getFullScore, getDifficultyColor, computeTimeBonus, type ScoreResult } from '$lib/game/scoring';
+	import { difficultyColor } from '$lib/game/difficulty';
+	import { computeWeightedScore } from '$lib/game/rating';
 	import { authClient } from '$lib/auth-client';
 	import { linspace } from '$lib/game/math';
 	import { computeKDE } from '$lib/game/kde';
@@ -14,8 +18,22 @@
 	let { data } = $props();
 	type TopRank = 1 | 2 | 3 | null;
 
-	const levelId = $derived(Number(page.params.level));
-	const level = $derived(getLevel(levelId));
+	const levelParam = $derived(page.params.level ?? '');
+
+	// Resolve the level: either legacy (numeric) or generated (g-seed-diff)
+	const resolvedLevel = $derived.by<Level | null>(() => {
+		const parsed = parseGeneratedId(levelParam);
+		if (parsed) {
+			return reconstructLevel(parsed.seed, parsed.targetDifficulty);
+		}
+		const id = Number(levelParam);
+		return (id > 0 ? getLevel(id) : null) ?? null;
+	});
+
+	const isGenerated = $derived(levelParam.startsWith('g-'));
+	const generatedLevel = $derived(isGenerated ? (resolvedLevel as GeneratedLevel | null) : null);
+	const level = $derived(resolvedLevel);
+
 	const topScores = $derived((data.topScores as number[] | undefined) ?? []);
 	const topScore = $derived(data.topScore ?? 0);
 
@@ -39,6 +57,12 @@
 	let rankPreviewLoading = $state(false);
 	let pausedElapsed = $state(0);
 
+	// Reset limit (generated levels only)
+	const MAX_RESETS = 3;
+	let resetCount = $state(0);
+	const resetsLeft = $derived(MAX_RESETS - resetCount);
+	const canReset = $derived(!isGenerated || resetsLeft > 0);
+
 	// Replay
 	let replayCanvas: HTMLCanvasElement | undefined = $state();
 	let replayTimer: ReturnType<typeof setTimeout> | undefined;
@@ -46,7 +70,7 @@
 	let replayKde: number[] = [];
 
 	$effect(() => {
-		void levelId;
+		void levelParam;
 		samples = [];
 		totalClicks = 0;
 		scoreResult = { ...emptyScore };
@@ -58,15 +82,17 @@
 		startTime = 0;
 		elapsedMs = 0;
 		timerRunning = false;
+		resetCount = 0;
 	});
 
-	// Fetch rank preview when modal opens (for signed-out users and pre-submit preview)
+	// Fetch rank preview when modal opens (legacy levels only)
 	$effect(() => {
-		if (!showDialog || scoreResult.score <= 0) {
+		if (!showDialog || scoreResult.score <= 0 || isGenerated) {
 			rankPreview = null;
 			rankPreviewLoading = false;
 			return;
 		}
+		const levelId = Number(levelParam);
 		rankPreview = null;
 		rankPreviewLoading = true;
 		let cancelled = false;
@@ -92,19 +118,25 @@
 		sessionStorage.removeItem('macmac_game_state');
 		try {
 			const state = JSON.parse(saved);
-			if (state.levelId !== levelId) return;
+			if (state.levelParam !== levelParam) return;
 			samples = state.samples || [];
 			totalClicks = state.totalClicks || samples.length;
 			elapsedMs = state.elapsedMs || 0;
+			resetCount = state.resetCount || 0;
 			pausedElapsed = elapsedMs;
 			if (samples.length > 0 && level) {
 				recalcScore();
-				// Auto-open submit dialog since they were trying to submit
 				showDialog = true;
 				submitted = false;
 				startReplay();
 			}
 		} catch { /* ignore bad data */ }
+	});
+
+	// Weighted score for generated levels
+	const weightedScore = $derived.by(() => {
+		if (!generatedLevel || scoreResult.score <= 0) return 0;
+		return computeWeightedScore(scoreResult.score, generatedLevel.targetDifficulty);
 	});
 
 	function startTimer() {
@@ -172,6 +204,15 @@
 		startTime = 0;
 		elapsedMs = 0;
 		timerRunning = false;
+		resetCount++;
+	}
+
+	function regenerateLevel() {
+		// Navigate to a new random generated level
+		const newSeed = Date.now();
+		const diff = generatedLevel?.targetDifficulty ?? 4.0;
+		const diffEncoded = Math.round(diff * 10);
+		goto(`/play/g-${newSeed.toString(36)}-${diffEncoded}`);
 	}
 
 	function resumeTimer() {
@@ -203,14 +244,29 @@
 		resumeTimer();
 	}
 
+	/** Mark this level as completed in sessionStorage so the home grid replaces it */
+	function markCompleted() {
+		if (!isGenerated || typeof sessionStorage === 'undefined') return;
+		const parsed = parseGeneratedId(levelParam);
+		if (!parsed) return;
+		const key = 'macmac_completed';
+		const stored = sessionStorage.getItem(key);
+		let seeds: number[] = [];
+		try { seeds = stored ? JSON.parse(stored) : []; } catch { /* */ }
+		if (!seeds.includes(parsed.seed)) {
+			seeds.push(parsed.seed);
+			sessionStorage.setItem(key, JSON.stringify(seeds));
+		}
+	}
+
 	async function signInWith(provider: 'github' | 'google') {
-		// Save game state before OAuth redirect so we can restore it on return
 		if (typeof sessionStorage !== 'undefined') {
 			sessionStorage.setItem('macmac_game_state', JSON.stringify({
-				levelId: levelId,
+				levelParam,
 				samples,
 				totalClicks,
-				elapsedMs
+				elapsedMs,
+				resetCount
 			}));
 		}
 		await authClient.signIn.social({ provider, callbackURL: window.location.href });
@@ -220,15 +276,20 @@
 		if (!level || !$session.data) return;
 		isSubmitting = true;
 		try {
+			const body = isGenerated
+				? { levelId: levelParam, seed: generatedLevel!.seed, targetDifficulty: generatedLevel!.targetDifficulty, samples, duration: elapsedMs, clicks: totalClicks }
+				: { levelId: Number(levelParam), samples, duration: elapsedMs, clicks: totalClicks };
+
 			const res = await fetch('/api/scores', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ levelId: level.id, samples, duration: elapsedMs, clicks: totalClicks })
+				body: JSON.stringify(body)
 			});
 			const result = await res.json();
 			if (result.success) {
 				submitted = true;
 				submittedRank = typeof result.rank === 'number' ? result.rank : null;
+				markCompleted();
 			}
 		} catch { /* silent */ }
 		finally { isSubmitting = false; }
@@ -410,7 +471,7 @@
 		}
 		if (replayFadeFactor < 1) ctx.globalAlpha = 1;
 
-		// PDF curve — family of curves (uniform scale spacing)
+		// PDF curve — family of curves
 		const pdfFamilyScales = linspace(0.08, 1, 28);
 		const dimFactor = 0.55;
 
@@ -458,12 +519,15 @@
 		}
 	}
 
-	const prevLevel = $derived(levelId > 1 ? levelId - 1 : null);
-	const nextLevel = $derived(levelId < levels.length ? levelId + 1 : null);
+	// Navigation: only for legacy levels
+	const legacyId = $derived(isGenerated ? null : Number(levelParam));
+	const prevLevel = $derived(legacyId && legacyId > 1 ? legacyId - 1 : null);
+	const nextLevel = $derived(legacyId && legacyId < levels.length ? legacyId + 1 : null);
 
-	// Rank: compare score to topScore
-	const isNewBest = $derived(topScore > 0 && scoreResult.score > topScore);
+	// Rank: compare score to topScore (legacy only)
+	const isNewBest = $derived(!isGenerated && topScore > 0 && scoreResult.score > topScore);
 	const scoreRank = $derived.by<TopRank>(() => {
+		if (isGenerated) return null;
 		const score = scoreResult.score;
 		if (score <= 0) return null;
 
@@ -475,10 +539,18 @@
 		const rank = betterScores + 1;
 		return rank <= 3 ? rank as Exclude<TopRank, null> : null;
 	});
+
+	// Display info
+	const levelName = $derived(level ? (isGenerated ? generatedLevel?.name ?? 'Generated' : `${legacyId}. ${level.name}`) : 'Not Found');
+	const levelDiffColor = $derived(
+		isGenerated && generatedLevel
+			? difficultyColor(generatedLevel.targetDifficulty)
+			: level ? getDifficultyColor(level.difficulty) : '#888'
+	);
 </script>
 
 <svelte:head>
-	<title>{level ? level.name : 'Not Found'} — macmac</title>
+	<title>{levelName} — macmac</title>
 </svelte:head>
 
 {#if !level}
@@ -490,12 +562,17 @@
 	</div>
 {:else}
 	<div class="flex h-dvh flex-col overflow-hidden" style="background: radial-gradient(ellipse at 50% 30%, var(--page-bg-center) 0%, var(--page-bg-edge) 70%);">
-		<AppHeader showNav prevHref={prevLevel ? `/play/${prevLevel}` : null} nextHref={nextLevel ? `/play/${nextLevel}` : null} />
+		<AppHeader showNav={!isGenerated} prevHref={prevLevel ? `/play/${prevLevel}` : null} nextHref={nextLevel ? `/play/${nextLevel}` : null} />
 
-		<!-- Level name -->
+		<!-- Level name + difficulty -->
 		<div class="flex shrink-0 items-center gap-2 px-4 pb-1.5 sm:px-6">
-			<span class="inline-block h-2.5 w-2.5 rounded-full" style="background: {getDifficultyColor(level.difficulty)}"></span>
-			<span class="text-sm font-semibold" style="color: var(--text-primary); opacity: 0.7;">{level.id}. {level.name}</span>
+			<span class="inline-block h-2.5 w-2.5 rounded-full" style="background: {levelDiffColor}"></span>
+			<span class="text-sm font-semibold" style="color: var(--text-primary); opacity: 0.7;">{levelName}</span>
+			{#if isGenerated && generatedLevel}
+				<span class="text-[11px] font-semibold tabular-nums" style="color: {levelDiffColor}; opacity: 0.7;">
+					{generatedLevel.targetDifficulty.toFixed(1)}
+				</span>
+			{/if}
 			{#if isNewBest}
 				<span class="ml-auto text-xs font-bold text-yellow-500">New #1</span>
 			{/if}
@@ -512,22 +589,30 @@
 		</div>
 
 		<!-- Bottom controls -->
-		<div class="shrink-0 px-4 pb-4 pt-2 sm:px-6 sm:pb-5">
+		<div class="shrink-0 px-4 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 sm:pb-5">
 			<div class="flex items-center justify-between">
 				<div class="flex gap-2">
-					<!-- Undo: purple tint -->
+					<!-- Undo -->
 					<button onclick={undoLast} disabled={samples.length === 0} class="flex h-11 items-center gap-2 rounded-2xl px-4 text-[13px] font-medium transition-all hover:scale-[1.03] hover:shadow-md active:scale-95 disabled:opacity-20 disabled:hover:scale-100 disabled:hover:shadow-none" style="background: color-mix(in srgb, var(--accent-purple) 8%, transparent); border: 1px solid color-mix(in srgb, var(--accent-purple) 18%, transparent); color: color-mix(in srgb, var(--accent-purple) 70%, var(--text-primary));">
 						<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M7.793 2.232a.75.75 0 01-.025 1.06L3.622 7.25h10.003a5.375 5.375 0 010 10.75H10.75a.75.75 0 010-1.5h2.875a3.875 3.875 0 000-7.75H3.622l4.146 3.957a.75.75 0 01-1.036 1.085l-5.5-5.25a.75.75 0 010-1.085l5.5-5.25a.75.75 0 011.06.025z" clip-rule="evenodd" /></svg>
 						Undo
 					</button>
-					<!-- Reset: orange tint -->
-					<button onclick={resetSamples} disabled={samples.length === 0} class="flex h-11 items-center gap-2 rounded-2xl px-4 text-[13px] font-medium transition-all hover:scale-[1.03] hover:shadow-md active:scale-95 disabled:opacity-20 disabled:hover:scale-100 disabled:hover:shadow-none" style="background: color-mix(in srgb, var(--accent-orange) 8%, transparent); border: 1px solid color-mix(in srgb, var(--accent-orange) 18%, transparent); color: color-mix(in srgb, var(--accent-orange) 65%, var(--text-primary));">
-						<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.451a.75.75 0 000-1.5H4.5a.75.75 0 00-.75.75v3.75a.75.75 0 001.5 0v-2.033l.364.363a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39zm-10.624-2.85a5.5 5.5 0 019.201-2.466l.312.311H11.75a.75.75 0 000 1.5H15.5a.75.75 0 00.75-.75V3.42a.75.75 0 00-1.5 0v2.033l-.364-.363A7 7 0 002.674 8.228a.75.75 0 001.449.39z" clip-rule="evenodd" /></svg>
-						Reset
-					</button>
+
+					<!-- Reset / Regenerate -->
+					{#if canReset}
+						<button onclick={resetSamples} disabled={samples.length === 0} class="flex h-11 items-center gap-2 rounded-2xl px-4 text-[13px] font-medium transition-all hover:scale-[1.03] hover:shadow-md active:scale-95 disabled:opacity-20 disabled:hover:scale-100 disabled:hover:shadow-none" style="background: color-mix(in srgb, var(--accent-orange) 8%, transparent); border: 1px solid color-mix(in srgb, var(--accent-orange) 18%, transparent); color: color-mix(in srgb, var(--accent-orange) 65%, var(--text-primary));">
+							<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.451a.75.75 0 000-1.5H4.5a.75.75 0 00-.75.75v3.75a.75.75 0 001.5 0v-2.033l.364.363a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39zm-10.624-2.85a5.5 5.5 0 019.201-2.466l.312.311H11.75a.75.75 0 000 1.5H15.5a.75.75 0 00.75-.75V3.42a.75.75 0 00-1.5 0v2.033l-.364-.363A7 7 0 002.674 8.228a.75.75 0 001.449.39z" clip-rule="evenodd" /></svg>
+							Reset{#if isGenerated}&nbsp;({resetsLeft}){/if}
+						</button>
+					{:else}
+						<button onclick={regenerateLevel} class="flex h-11 items-center gap-2 rounded-2xl px-4 text-[13px] font-medium transition-all hover:scale-[1.03] hover:shadow-md active:scale-95" style="background: color-mix(in srgb, var(--accent-orange) 8%, transparent); border: 1px solid color-mix(in srgb, var(--accent-orange) 18%, transparent); color: color-mix(in srgb, var(--accent-orange) 65%, var(--text-primary));">
+							<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.451a.75.75 0 000-1.5H4.5a.75.75 0 00-.75.75v3.75a.75.75 0 001.5 0v-2.033l.364.363a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39zm-10.624-2.85a5.5 5.5 0 019.201-2.466l.312.311H11.75a.75.75 0 000 1.5H15.5a.75.75 0 00.75-.75V3.42a.75.75 0 00-1.5 0v2.033l-.364-.363A7 7 0 002.674 8.228a.75.75 0 001.449.39z" clip-rule="evenodd" /></svg>
+							Regenerate
+						</button>
+					{/if}
 				</div>
 
-				<!-- Submit: cyan, more prominent -->
+				<!-- Submit -->
 				<button onclick={openSubmit} disabled={samples.length < 1} class="flex h-11 items-center gap-2 rounded-2xl px-6 text-[13px] font-bold transition-all hover:scale-[1.04] hover:shadow-lg active:scale-95 disabled:opacity-20 disabled:hover:scale-100 disabled:hover:shadow-none" style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 30%, transparent); color: var(--accent-cyan);">
 					<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M10 17a.75.75 0 01-.75-.75V5.612L5.29 9.77a.75.75 0 01-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z" clip-rule="evenodd" /></svg>
 					Submit
@@ -553,6 +638,12 @@
 						<div class="text-[9px] uppercase tracking-wider" style="color: var(--text-tertiary);">Score</div>
 						<div class="text-lg font-bold tabular-nums" style="color: var(--text-primary);">{scoreResult.score.toLocaleString()}</div>
 					</div>
+					{#if isGenerated && weightedScore > 0}
+						<div>
+							<div class="text-[9px] uppercase tracking-wider" style="color: var(--text-tertiary);">Weighted</div>
+							<div class="text-lg font-bold tabular-nums" style="color: {levelDiffColor};">{weightedScore.toLocaleString()}</div>
+						</div>
+					{/if}
 					<div>
 						<div class="text-[9px] uppercase tracking-wider" style="color: var(--text-tertiary);">Accuracy</div>
 						<div class="text-lg font-bold tabular-nums" style="color: #4ade80;">{scoreResult.matchPct}%</div>
@@ -574,11 +665,11 @@
 				{/if}
 
 				{#if !$session.data}
-					{#if rankPreviewLoading}
+					{#if !isGenerated && rankPreviewLoading}
 						<div class="mb-3 flex justify-center">
 							<div class="h-4 w-32 animate-pulse rounded" style="background: color-mix(in srgb, var(--accent-cyan) 25%, var(--surface));"></div>
 						</div>
-					{:else if rankPreview !== null}
+					{:else if !isGenerated && rankPreview !== null}
 						<div class="mb-3 text-center text-sm font-bold" style="color: var(--accent-cyan);">
 							Your rank on this level: #{rankPreview}
 						</div>
@@ -599,28 +690,26 @@
 					<div class="mb-3 text-center text-sm font-semibold" style="color: #4ade80;">Score submitted!</div>
 					{#if submittedRank !== null}
 						<div class="mb-3 text-center text-sm font-bold" style="color: var(--accent-cyan);">
-							Your rank on this level: #{submittedRank}
+							Leaderboard rank: #{submittedRank}
 						</div>
 					{/if}
 					<div class="flex gap-2">
-						<button onclick={closeDialog} class="flex-1 rounded-lg py-2.5 text-sm font-medium transition hover:opacity-70" style="background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary);">Keep Playing</button>
-						{#if nextLevel}
-							<a href="/play/{nextLevel}" class="flex flex-1 items-center justify-center rounded-lg py-2.5 text-sm font-semibold transition hover:opacity-80" style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);">
-								Next Level
-							</a>
+						{#if isGenerated}
+							<a href="/" class="flex flex-1 items-center justify-center rounded-lg py-2.5 text-sm font-medium transition hover:opacity-70" style="background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary);">Home</a>
 						{:else}
-							<a href="/leaderboard" class="flex flex-1 items-center justify-center rounded-lg py-2.5 text-sm font-semibold transition hover:opacity-80" style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);">
-								Leaderboard
-							</a>
+							<button onclick={closeDialog} class="flex-1 rounded-lg py-2.5 text-sm font-medium transition hover:opacity-70" style="background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary);">Keep Playing</button>
 						{/if}
+						<a href="/leaderboard" class="flex flex-1 items-center justify-center rounded-lg py-2.5 text-sm font-semibold transition hover:opacity-80" style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);">
+							Leaderboard
+						</a>
 					</div>
 				{:else}
 					<!-- Pre-submit: confirm -->
-					{#if rankPreviewLoading}
+					{#if !isGenerated && rankPreviewLoading}
 						<div class="mb-3 flex justify-center">
 							<div class="h-4 w-32 animate-pulse rounded" style="background: color-mix(in srgb, var(--accent-cyan) 25%, var(--surface));"></div>
 						</div>
-					{:else if rankPreview !== null}
+					{:else if !isGenerated && rankPreview !== null}
 						<div class="mb-3 text-center text-sm font-bold" style="color: var(--accent-cyan);">
 							Your rank on this level: #{rankPreview}
 						</div>

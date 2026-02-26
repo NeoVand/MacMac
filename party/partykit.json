@@ -1,0 +1,9 @@
+{
+  "$schema": "https://www.partykit.io/schema.json",
+  "name": "macmac-battle",
+  "main": "src/battle.ts",
+  "parties": {
+    "matchmaker": "src/matchmaker.ts"
+  },
+  "compatibilityDate": "2024-09-01"
+}
