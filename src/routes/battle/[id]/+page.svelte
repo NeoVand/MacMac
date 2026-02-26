@@ -16,7 +16,7 @@
 	const battleId = $derived(page.params.id ?? '');
 
 	// Battle state
-	type Phase = 'connecting' | 'waiting' | 'countdown' | 'playing' | 'ended';
+	type Phase = 'connecting' | 'waiting' | 'countdown' | 'playing' | 'ended' | 'expired';
 	let phase = $state<Phase>('connecting');
 	let countdownNum = $state(3);
 	let level = $state<Level | null>(null);
@@ -122,6 +122,9 @@
 
 			case 'error':
 				console.error('Battle error:', msg.message);
+				if (msg.message === 'Battle has ended') {
+					phase = 'expired';
+				}
 				break;
 		}
 	}
@@ -178,8 +181,16 @@
 			);
 		}, 100);
 
+		// Safety timeout: if stuck on connecting for too long, show expired
+		const connTimeout = setTimeout(() => {
+			if (phase === 'connecting') {
+				phase = 'expired';
+			}
+		}, 8000);
+
 		return () => {
 			clearTimeout(timeout);
+			clearTimeout(connTimeout);
 			stopCountdownTimer();
 			socket?.close();
 		};
@@ -421,13 +432,43 @@
 						Home
 					</a>
 					<a
-						href="/leaderboard"
+						href="/?battle"
 						class="flex flex-1 items-center justify-center rounded-xl py-2.5 text-sm font-semibold transition hover:opacity-80"
 						style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);"
 					>
-						Leaderboard
+						Rematch
 					</a>
 				</div>
+			</div>
+		</div>
+	</div>
+
+{:else if phase === 'expired'}
+	<!-- Battle expired / no longer available -->
+	<div class="flex h-dvh flex-col" style="background: radial-gradient(ellipse at 50% 30%, var(--page-bg-center) 0%, var(--page-bg-edge) 70%);">
+		<AppHeader  />
+		<div class="flex flex-1 flex-col items-center justify-center gap-4 px-4">
+			<div class="text-lg font-semibold" style="color: var(--text-secondary);">
+				This battle has ended
+			</div>
+			<div class="text-sm" style="color: var(--text-tertiary);">
+				The battle is no longer available. Start a new one!
+			</div>
+			<div class="mt-2 flex gap-3">
+				<a
+					href="/"
+					class="rounded-xl px-5 py-2.5 text-sm font-medium transition hover:opacity-80"
+					style="background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary);"
+				>
+					Home
+				</a>
+				<a
+					href="/?battle"
+					class="rounded-xl px-5 py-2.5 text-sm font-semibold transition hover:opacity-80"
+					style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);"
+				>
+					New Battle
+				</a>
 			</div>
 		</div>
 	</div>

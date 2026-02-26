@@ -262,7 +262,14 @@ export default class BattleServer implements Party.Server {
 					opponentCountry: opponent?.info.country,
 					durationMs: Math.max(0, BATTLE_DURATION_MS - (Date.now() - this.startTime))
 				} satisfies StartMessage));
+			} else if (this.phase === 'ended') {
+				conn.send(JSON.stringify({ type: 'error', message: 'Battle has ended' }));
 			}
+			return;
+		}
+
+		if (this.phase === 'ended') {
+			conn.send(JSON.stringify({ type: 'error', message: 'Battle has ended' }));
 			return;
 		}
 
