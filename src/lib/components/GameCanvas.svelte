@@ -27,6 +27,8 @@
 
 	let displayKde: number[] = [];
 	let targetKde: number[] = [];
+	let displayOppKde: number[] = [];
+	let targetOppKde: number[] = [];
 	let animHandle = 0;
 	let themeVersion = $state(0);
 	let pdfReveal = 0;
@@ -81,6 +83,8 @@
 		const nPts = 250;
 		displayKde = new Array(nPts).fill(0);
 		targetKde = new Array(nPts).fill(0);
+		displayOppKde = [];
+		targetOppKde = [];
 		pdfReveal = 0;
 		// Initialize yMax from the PDF so it's ready before animation starts
 		const xs = linspace(level.xRange[0], level.xRange[1], 100);
@@ -99,6 +103,19 @@
 		}
 		if (displayKde.length !== targetKde.length) {
 			displayKde = new Array(targetKde.length).fill(0);
+		}
+	});
+
+	// Sync opponent KDE prop into animation target
+	$effect(() => {
+		if (opponentKde && opponentKde.length > 0) {
+			targetOppKde = opponentKde;
+			if (displayOppKde.length !== targetOppKde.length) {
+				displayOppKde = new Array(targetOppKde.length).fill(0);
+			}
+		} else {
+			targetOppKde = [];
+			displayOppKde = [];
 		}
 	});
 
@@ -145,11 +162,21 @@
 				}
 			}
 
-			// Smooth yMax transitions
+			// Animate opponent KDE
+			for (let i = 0; i < displayOppKde.length; i++) {
+				const diff = targetOppKde[i] - displayOppKde[i];
+				if (Math.abs(diff) > 0.0001) {
+					displayOppKde[i] += diff * LERP_SPEED;
+					needsUpdate = true;
+				} else {
+					displayOppKde[i] = targetOppKde[i];
+				}
+			}
+
+			// Smooth yMax transitions — only user's own KDE and PDF affect scaling
 			const kdeMax = displayKde.length > 0 ? Math.max(...displayKde) : 0;
-			const oppMax = opponentKde && opponentKde.length > 0 ? Math.max(...opponentKde) : 0;
 			const rawPdfMax = pw > 0 ? Math.max(...linspace(viewXMin, viewXMax, 100).map((x) => level.pdf(x))) : 1;
-			const targetYMax = Math.max(rawPdfMax, kdeMax, oppMax) * 1.15 || 1;
+			const targetYMax = Math.max(rawPdfMax, kdeMax) * 1.15 || 1;
 			const yDiff = targetYMax - displayYMax;
 			if (Math.abs(yDiff) > 0.001) {
 				displayYMax += yDiff * 0.08;
@@ -217,7 +244,7 @@
 		ctx.stroke();
 
 		if (displayKde.length === nPts) drawKDE(ctx, xs, yMax, baseY);
-		if (opponentKde && opponentKde.length > 0) drawOpponentKDE(ctx, yMax, baseY);
+		if (displayOppKde.length > 0) drawOpponentKDE(ctx, yMax, baseY);
 		drawPDF(ctx, xs, pdfVals, yMax, baseY);
 		drawSamples(ctx, baseY);
 		drawAxisLabels(ctx, baseY);
@@ -316,10 +343,12 @@
 	}
 
 	function drawOpponentKDE(ctx: CanvasRenderingContext2D, yMax: number, baseY: number) {
-		if (!opponentKde || opponentKde.length === 0) return;
-		const nOpp = opponentKde.length;
+		if (displayOppKde.length === 0) return;
+		const nOpp = displayOppKde.length;
 		const oppXs = linspace(viewXMin, viewXMax, nOpp);
-		const clamped = opponentKde.map((v) => Math.min(v, yMax * 0.99));
+		const clamped = displayOppKde.map((v) => Math.min(v, yMax * 0.99));
+
+		ctx.globalAlpha = 0.5;
 
 		// Semi-transparent fill
 		ctx.beginPath();
@@ -351,6 +380,8 @@
 		ctx.setLineDash([]);
 		ctx.lineCap = 'butt';
 		ctx.lineJoin = 'miter';
+
+		ctx.globalAlpha = 1;
 	}
 
 	function drawSamples(ctx: CanvasRenderingContext2D, baseY: number) {
