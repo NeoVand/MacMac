@@ -1,6 +1,7 @@
 import type * as Party from 'partykit/server';
 import type { ClientMessage, ServerMessage, StartMessage, OpponentKdeMessage, BattleEndMessage, JackpotMessage } from './shared/protocol';
-import type { PlayerInfo, BattleResult } from './shared/types';
+import type { PlayerInfo } from './shared/types';
+import { signBattleResult } from './shared/crypto';
 
 const BATTLE_DURATION_MS = 20_000;
 const KDE_BROADCAST_INTERVAL_MS = 200;
@@ -8,6 +9,8 @@ const JACKPOT_THRESHOLD = 98; // match % for instant win
 const DISCONNECT_GRACE_MS = 10_000;
 const COUNTDOWN_SECONDS = 3;
 const KDE_EVAL_POINTS = 200;
+const MAX_SAMPLES = 200;
+const MAX_SAMPLE_RATE_MS = 50; // min ms between samples
 
 // --- Inline math (can't import from SvelteKit) ---
 
@@ -174,6 +177,7 @@ interface PlayerState {
 	matchPct: number;
 	connected: boolean;
 	disconnectedAt: number | null;
+	lastSampleTime: number;
 }
 
 type BattlePhase = 'waiting' | 'countdown' | 'playing' | 'ended';
@@ -285,7 +289,8 @@ export default class BattleServer implements Party.Server {
 			lastKde: new Array(KDE_EVAL_POINTS).fill(0),
 			matchPct: 0,
 			connected: true,
-			disconnectedAt: null
+			disconnectedAt: null,
+			lastSampleTime: 0
 		});
 
 		if (this.players.size === 1) {
@@ -368,6 +373,16 @@ export default class BattleServer implements Party.Server {
 		const player = [...this.players.values()].find(p => p.connectionId === conn.id);
 		if (!player) return;
 
+		// Validate sample value
+		if (typeof msg.x !== 'number' || !Number.isFinite(msg.x)) return;
+		if (msg.x < this.xRange[0] || msg.x > this.xRange[1]) return;
+
+		// Rate limit and cap
+		if (player.samples.length >= MAX_SAMPLES) return;
+		const now = Date.now();
+		if (now - player.lastSampleTime < MAX_SAMPLE_RATE_MS) return;
+		player.lastSampleTime = now;
+
 		player.samples.push(msg.x);
 
 		// Recompute KDE and match %
@@ -399,13 +414,12 @@ export default class BattleServer implements Party.Server {
 			winnerMatchPct: winner.matchPct
 		} satisfies JackpotMessage);
 
-		// Report results
+		// Send results (client reports ELO via signed token)
 		const loser = [...this.players.values()].find(p => p.info.playerId !== winner.info.playerId);
 		if (loser) {
 			const loserMse = this.computeMse(loser.samples);
 			const loserScore = computeScore(loserMse, elapsed);
 
-			this.reportResult(winner, score, loser, loserScore);
 			this.sendEndMessages(winner, score, winner.matchPct, loser, loserScore, loser.matchPct);
 		}
 	}
@@ -450,11 +464,10 @@ export default class BattleServer implements Party.Server {
 		const winnerScore = Math.max(p1Score, p2Score);
 		const loserScore = Math.min(p1Score, p2Score);
 
-		this.reportResult(winner, winnerScore, loser, loserScore);
 		this.sendEndMessages(winner, winnerScore, winner.matchPct, loser, loserScore, loser.matchPct);
 	}
 
-	private sendEndMessages(
+	private async sendEndMessages(
 		winner: PlayerState, winnerScore: number, winnerMatchPct: number,
 		loser: PlayerState, loserScore: number, loserMatchPct: number
 	) {
@@ -463,10 +476,29 @@ export default class BattleServer implements Party.Server {
 		const winnerDelta = Math.round(32 * (1 - expectedWin));
 		const loserDelta = -Math.round(32 * expectedWin);
 
+		const secret = this.room.env.PARTYKIT_SECRET as string | undefined;
+
 		for (const player of this.players.values()) {
 			const isWinner = player.info.playerId === winner.info.playerId;
+			const eloDelta = isWinner ? winnerDelta : loserDelta;
 			const conn = this.getConnection(player.connectionId);
 			if (conn) {
+				// Sign a result token for this player (if secret is configured)
+				let resultToken: string | undefined;
+				if (secret) {
+					try {
+						resultToken = await signBattleResult({
+							battleId: this.room.id,
+							playerId: player.info.playerId,
+							won: isWinner,
+							eloDelta,
+							ts: Date.now()
+						}, secret);
+					} catch {
+						// Non-critical — player can still see results
+					}
+				}
+
 				conn.send(JSON.stringify({
 					type: 'battle_end',
 					winnerId: winner.info.playerId,
@@ -475,7 +507,8 @@ export default class BattleServer implements Party.Server {
 					winnerMatchPct,
 					loserScore,
 					loserMatchPct,
-					yourEloDelta: isWinner ? winnerDelta : loserDelta
+					yourEloDelta: eloDelta,
+					resultToken
 				} satisfies BattleEndMessage));
 			}
 		}
@@ -496,7 +529,6 @@ export default class BattleServer implements Party.Server {
 			const winnerScore = computeScore(winnerMse, elapsed);
 			const loserScore = computeScore(loserMse, elapsed);
 
-			this.reportResult(winner, winnerScore, loser, loserScore);
 			this.sendEndMessages(winner, winnerScore, winner.matchPct, loser, loserScore, loser.matchPct);
 		}
 	}
@@ -516,39 +548,6 @@ export default class BattleServer implements Party.Server {
 			mse += (p - q) ** 2;
 		}
 		return mse / xs.length;
-	}
-
-	private async reportResult(
-		winner: PlayerState, winnerScore: number,
-		loser: PlayerState, loserScore: number
-	) {
-		const apiUrl = this.room.env.SVELTEKIT_URL as string | undefined;
-		const secret = this.room.env.PARTYKIT_SECRET as string | undefined;
-		if (!apiUrl || !secret) return;
-
-		const result: BattleResult = {
-			battleId: this.room.id,
-			winnerId: winner.info.playerId,
-			loserId: loser.info.playerId,
-			winnerScore,
-			loserScore,
-			seed: this.seed,
-			targetDifficulty: this.targetDifficulty
-		};
-
-		try {
-			const res = await fetch(`${apiUrl}/api/battles`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${secret}` },
-				body: JSON.stringify(result)
-			});
-			if (!res.ok) {
-				const text = await res.text().catch(() => '');
-				console.error(`Battle API returned ${res.status}: ${text}`);
-			}
-		} catch (err) {
-			console.error('Failed to report battle result:', err);
-		}
 	}
 
 	private broadcast(msg: ServerMessage) {

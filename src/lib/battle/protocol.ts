@@ -47,6 +47,7 @@ export interface BattleEndMessage {
 	loserScore: number;
 	loserMatchPct: number;
 	yourEloDelta: number;
+	resultToken?: string;
 }
 
 export interface ErrorMessage {

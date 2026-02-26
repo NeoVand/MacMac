@@ -117,7 +117,9 @@
 				loserMatchPct = msg.loserMatchPct;
 				yourEloDelta = msg.yourEloDelta;
 				stopCountdownTimer();
-				reportBattleResult(msg.winnerId === myPlayerId, msg.yourEloDelta);
+				if (msg.resultToken) {
+					reportBattleResult(msg.resultToken);
+				}
 				break;
 
 			case 'error':
@@ -144,13 +146,13 @@
 		cancelAnimationFrame(timerHandle);
 	}
 
-	async function reportBattleResult(won: boolean, eloDelta: number) {
+	async function reportBattleResult(resultToken: string) {
 		if (isAnonymous) return;
 		try {
 			await fetch('/api/battles/report', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ won, eloDelta })
+				body: JSON.stringify({ resultToken })
 			});
 		} catch {
 			// Non-critical — don't disrupt the results screen

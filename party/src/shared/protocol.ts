@@ -76,6 +76,7 @@ export interface BattleEndMessage {
 	loserScore: number;
 	loserMatchPct: number;
 	yourEloDelta: number;
+	resultToken?: string; // HMAC-signed token for secure ELO reporting
 }
 
 export interface ErrorMessage {
