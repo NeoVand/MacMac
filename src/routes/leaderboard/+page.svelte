@@ -81,7 +81,14 @@
 				</div>
 			{:else}
 				<div class="overflow-x-auto">
-					<table class="w-full">
+					<table class="w-full table-fixed">
+						<colgroup>
+							<col class="w-8" />
+							<col />
+							<col class="w-20" />
+							<col class="hidden w-20 sm:table-column" />
+							<col class="w-16" />
+						</colgroup>
 						<thead>
 							<tr
 								class="text-[10px] font-medium uppercase tracking-wider"
@@ -102,16 +109,16 @@
 										? 'var(--accent-cyan)'
 										: 'var(--text-primary)'}; opacity: {i === 0 ? 1 : i < 3 ? 0.75 : 0.5};"
 								>
-									<td class="py-3 pr-3 font-mono text-xs font-bold tabular-nums">{i + 1}</td>
-									<td class="py-3 pr-3 font-medium">
+									<td class="py-3 font-mono text-xs font-bold tabular-nums">{i + 1}</td>
+									<td class="truncate py-3 pr-2 font-medium">
 										{#if entry.country}<span class="mr-1">{countryFlag(entry.country)}</span
 										>{/if}{entry.playerName}
 									</td>
-									<td class="py-3 pr-3 text-right font-mono font-bold tabular-nums"
+									<td class="py-3 text-right font-mono font-bold tabular-nums"
 										>{entry.bestWeightedScore.toLocaleString()}</td
 									>
 									<td
-										class="hidden py-3 pr-3 text-right font-mono text-xs tabular-nums sm:table-cell"
+										class="hidden py-3 text-right font-mono text-xs tabular-nums sm:table-cell"
 										style="color: {difficultyColor(entry.bestScoreDifficulty)};"
 									>
 										{entry.bestScoreDifficulty.toFixed(1)}
@@ -144,7 +151,15 @@
 				</div>
 			{:else}
 				<div class="overflow-x-auto">
-					<table class="w-full">
+					<table class="w-full table-fixed">
+						<colgroup>
+							<col class="w-8" />
+							<col />
+							<col class="w-16" />
+							<col class="w-10" />
+							<col class="w-10" />
+							<col class="hidden w-14 sm:table-column" />
+						</colgroup>
 						<thead>
 							<tr
 								class="text-[10px] font-medium uppercase tracking-wider"
@@ -168,26 +183,26 @@
 										? 'var(--accent-cyan)'
 										: 'var(--text-primary)'}; opacity: {i === 0 ? 1 : i < 3 ? 0.75 : 0.5};"
 								>
-									<td class="py-3 pr-3 font-mono text-xs font-bold tabular-nums">{i + 1}</td>
-									<td class="py-3 pr-3 font-medium">
+									<td class="py-3 font-mono text-xs font-bold tabular-nums">{i + 1}</td>
+									<td class="truncate py-3 pr-2 font-medium">
 										{#if entry.country}<span class="mr-1">{countryFlag(entry.country)}</span
 										>{/if}{entry.playerName}
 									</td>
 									<td
-										class="py-3 pr-3 text-right font-mono font-bold tabular-nums"
+										class="py-3 text-right font-mono font-bold tabular-nums"
 										style="color: var(--accent-cyan);"
 									>
 										{entry.battleElo}
 									</td>
 									<td
-										class="py-3 pr-3 text-right font-mono text-xs tabular-nums"
-										style="color: #4ade80;"
+										class="py-3 text-right font-mono text-xs tabular-nums"
+										style="color: var(--win-green);"
 									>
 										{entry.battleWins}
 									</td>
 									<td
-										class="py-3 pr-3 text-right font-mono text-xs tabular-nums"
-										style="color: #ef4444;"
+										class="py-3 text-right font-mono text-xs tabular-nums"
+										style="color: var(--loss-red);"
 									>
 										{losses}
 									</td>

@@ -102,12 +102,12 @@ export function getFullScore(samples: number[], level: Level, elapsedMs: number 
 export function getDifficultyColor(difficulty: Level['difficulty']): string {
 	switch (difficulty) {
 		case 'easy':
-			return '#4ade80';
+			return 'var(--diff-easy)';
 		case 'medium':
-			return '#facc15';
+			return 'var(--diff-medium)';
 		case 'hard':
-			return '#f97316';
+			return 'var(--diff-hard)';
 		case 'expert':
-			return '#ef4444';
+			return 'var(--diff-expert)';
 	}
 }

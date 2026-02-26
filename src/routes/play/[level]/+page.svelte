@@ -569,7 +569,7 @@
 			<span class="inline-block h-2.5 w-2.5 rounded-full" style="background: {levelDiffColor}"></span>
 			<span class="text-sm font-semibold" style="color: var(--text-primary); opacity: 0.7;">{levelName}</span>
 			{#if isGenerated && generatedLevel}
-				<span class="text-[11px] font-semibold tabular-nums" style="color: {levelDiffColor}; opacity: 0.7;">
+				<span class="text-[11px] font-semibold tabular-nums" style="color: {levelDiffColor};">
 					{generatedLevel.targetDifficulty.toFixed(1)}
 				</span>
 			{/if}

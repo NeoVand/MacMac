@@ -40,6 +40,12 @@
 	--kde-stroke: rgba(217, 119, 6, 0.7);
 	--sample-glow: rgba(217, 119, 6, 0.08);
 	--sample-dot: rgba(217, 119, 6, 0.6);
+	--diff-easy: #16a34a;
+	--diff-medium: #ca8a04;
+	--diff-hard: #ea580c;
+	--diff-expert: #dc2626;
+	--win-green: #16a34a;
+	--loss-red: #dc2626;
 }
 
 .dark {
@@ -72,6 +78,12 @@
 	--kde-stroke: rgba(255, 150, 50, 0.75);
 	--sample-glow: rgba(255, 150, 50, 0.1);
 	--sample-dot: rgba(255, 153, 51, 0.65);
+	--diff-easy: #4ade80;
+	--diff-medium: #facc15;
+	--diff-hard: #f97316;
+	--diff-expert: #ef4444;
+	--win-green: #4ade80;
+	--loss-red: #ef4444;
 }
 
 html {

@@ -18,11 +18,12 @@ export function difficultyToLabel(d: number): DifficultyLabel {
 }
 
 /**
- * Difficulty-to-color mapping (same colors as existing getDifficultyColor).
+ * Difficulty-to-color mapping using theme-aware CSS variables.
+ * Returns a CSS var() reference that adapts to light/dark mode.
  */
 export function difficultyColor(d: number): string {
-	if (d < 3) return '#4ade80';
-	if (d < 5.5) return '#facc15';
-	if (d < 7.5) return '#f97316';
-	return '#ef4444';
+	if (d < 3) return 'var(--diff-easy)';
+	if (d < 5.5) return 'var(--diff-medium)';
+	if (d < 7.5) return 'var(--diff-hard)';
+	return 'var(--diff-expert)';
 }

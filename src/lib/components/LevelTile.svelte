@@ -94,7 +94,7 @@
 			class="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
 			style="background-color: {dColor};"
 		></span>
-		<span class="text-[11px] font-semibold tabular-nums" style="color: {dColor}; opacity: 0.8;">
+		<span class="text-[11px] font-semibold tabular-nums" style="color: {dColor};">
 			{level.targetDifficulty.toFixed(1)}
 		</span>
 	</div>
