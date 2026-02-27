@@ -12,6 +12,7 @@
 	import AppHeader from '$lib/components/AppHeader.svelte';
 	import SoundButton from '$lib/components/SoundButton.svelte';
 	import { computeSkillLevel, getSkillTier } from '$lib/game/rating';
+	import { getBattleTier } from '$lib/game/elo';
 	import { Github, Linkedin, Globe, Sword, Swords } from 'lucide-svelte';
 	import { resolvePlayerName } from '$lib/utils/player-name';
 
@@ -313,14 +314,24 @@
 			</div>
 		</div>
 
-		<!-- Rank badge for signed-in players -->
-		{#if data.gamesPlayed > 0 && data.playerRating !== null}
-			{@const skillLevel = computeSkillLevel(data.playerRating)}
-			{@const tier = getSkillTier(skillLevel)}
-			<div class="flex items-center justify-center gap-2 pb-1">
-				<RankBadge {skillLevel} size="md" />
-				<span class="text-sm font-bold tabular-nums" style="color: {tier.color};">{skillLevel.toLocaleString()}</span>
-				<span class="text-[10px] font-medium uppercase tracking-wider" style="color: {tier.color}; opacity: 0.7;">{tier.name}</span>
+		<!-- Rank badges for signed-in players -->
+		{#if (data.gamesPlayed > 0 && data.playerRating !== null) || (data.battlesPlayed > 0 && data.battleElo !== null)}
+			<div class="flex items-center justify-center gap-4 pb-1">
+				{#if data.gamesPlayed > 0 && data.playerRating !== null}
+					{@const skillLevel = computeSkillLevel(data.playerRating)}
+					{@const tier = getSkillTier(skillLevel)}
+					<div class="flex items-center gap-1.5" title="Solo Rank">
+						<RankBadge mode="solo" value={skillLevel} size="md" />
+						<span class="text-sm font-bold tabular-nums" style="color: {tier.color};">{skillLevel.toLocaleString()}</span>
+					</div>
+				{/if}
+				{#if data.battlesPlayed > 0 && data.battleElo !== null}
+					{@const bTier = getBattleTier(data.battleElo)}
+					<div class="flex items-center gap-1.5" title="Battle Rank">
+						<RankBadge mode="battle" value={data.battleElo} size="md" />
+						<span class="text-sm font-bold tabular-nums" style="color: {bTier.color};">{data.battleElo}</span>
+					</div>
+				{/if}
 			</div>
 		{/if}
 

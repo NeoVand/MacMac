@@ -9,10 +9,11 @@ export const load: PageServerLoad = async ({ locals, request }) => {
 	let battleElo: number | null = null;
 	let country: string | null = null;
 	let gamesPlayed = 0;
+	let battlesPlayed = 0;
 
 	if (locals.user) {
 		const result = await db
-			.select({ rating: players.rating, battleElo: players.battleElo, country: players.country, gamesPlayed: players.gamesPlayed })
+			.select({ rating: players.rating, battleElo: players.battleElo, country: players.country, gamesPlayed: players.gamesPlayed, battlesPlayed: players.battlesPlayed })
 			.from(players)
 			.where(eq(players.userId, locals.user.id))
 			.limit(1);
@@ -22,6 +23,7 @@ export const load: PageServerLoad = async ({ locals, request }) => {
 			battleElo = result[0].battleElo;
 			country = result[0].country;
 			gamesPlayed = result[0].gamesPlayed;
+			battlesPlayed = result[0].battlesPlayed;
 
 			// Backfill country if missing (for players created before geo-detection)
 			if (!country) {
@@ -59,5 +61,5 @@ export const load: PageServerLoad = async ({ locals, request }) => {
 		}
 	}
 
-	return { playerRating, battleElo, country, gamesPlayed };
+	return { playerRating, battleElo, country, gamesPlayed, battlesPlayed };
 };

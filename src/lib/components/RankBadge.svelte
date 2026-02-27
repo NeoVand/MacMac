@@ -1,12 +1,30 @@
 <script lang="ts">
-	import { getSkillTier, SKILL_TIERS } from '$lib/game/rating';
+	import { getSkillTier, SKILL_TIERS, type SkillTier } from '$lib/game/rating';
+	import { getBattleTier, BATTLE_TIERS, type BattleTier } from '$lib/game/elo';
 
 	type BadgeSize = 'sm' | 'md' | 'lg';
+	type BadgeMode = 'solo' | 'battle';
 
-	let { skillLevel, size = 'md' }: { skillLevel: number; size?: BadgeSize } = $props();
+	let {
+		skillLevel = 0,
+		value,
+		mode = 'solo',
+		size = 'md'
+	}: {
+		skillLevel?: number;
+		value?: number;
+		mode?: BadgeMode;
+		size?: BadgeSize;
+	} = $props();
 
-	const tier = $derived(getSkillTier(skillLevel));
-	const tierIdx = $derived(SKILL_TIERS.indexOf(tier));
+	/** Resolve the tier based on mode */
+	const tier = $derived.by<SkillTier | BattleTier>(() => {
+		if (mode === 'battle') return getBattleTier(value ?? 1200);
+		return getSkillTier(value ?? skillLevel);
+	});
+
+	const tiers = $derived(mode === 'battle' ? BATTLE_TIERS : SKILL_TIERS);
+	const tierIdx = $derived(tiers.indexOf(tier as any));
 
 	const sizeMap: Record<BadgeSize, number> = { sm: 16, md: 22, lg: 30 };
 	const px = $derived(sizeMap[size]);
@@ -23,16 +41,24 @@
 	};
 
 	const pts = $derived(SHAPES[tierIdx] ?? SHAPES[0]);
+
+	const isBattle = $derived(mode === 'battle');
+
+	/** Tooltip label */
+	const label = $derived.by(() => {
+		if (mode === 'battle') return `${tier.name} — ELO ${value ?? 1200}`;
+		return `${tier.name} — Skill ${value ?? skillLevel}`;
+	});
 </script>
 
 <span
 	class="inline-flex shrink-0 items-center justify-center"
 	style="width: {px}px; height: {px}px;"
-	title="{tier.name} — Skill {skillLevel}"
+	title={label}
 >
 	<svg viewBox="0 0 24 24" width={px} height={px} xmlns="http://www.w3.org/2000/svg">
 		<defs>
-			<linearGradient id="b3d{tierIdx}" x1="0" y1="0" x2="0" y2="1">
+			<linearGradient id="b3d{mode}{tierIdx}" x1="0" y1="0" x2="0" y2="1">
 				<stop offset="0%" stop-color="white" stop-opacity="0.4" />
 				<stop offset="45%" stop-color="white" stop-opacity="0.0" />
 				<stop offset="100%" stop-color="black" stop-opacity="0.3" />
@@ -41,6 +67,10 @@
 		<!-- Base fill -->
 		<polygon points={pts} fill={tier.color} stroke-linejoin="round" />
 		<!-- 3D gradient overlay: bright top → dark bottom -->
-		<polygon points={pts} fill="url(#b3d{tierIdx})" stroke-linejoin="round" />
+		<polygon points={pts} fill="url(#b3d{mode}{tierIdx})" stroke-linejoin="round" />
+		<!-- Battle mode: center dot -->
+		{#if isBattle}
+			<circle cx="12" cy="13" r="2.5" fill="white" opacity="0.85" />
+		{/if}
 	</svg>
 </span>

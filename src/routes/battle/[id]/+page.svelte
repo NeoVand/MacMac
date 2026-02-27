@@ -9,6 +9,8 @@
 	import type { Level } from '$lib/game/levels';
 	import GameCanvas from '$lib/components/GameCanvas.svelte';
 	import AppHeader from '$lib/components/AppHeader.svelte';
+	import RankBadge from '$lib/components/RankBadge.svelte';
+	import { getBattleTier } from '$lib/game/elo';
 	import { authClient } from '$lib/auth-client';
 	import { resolvePlayerName } from '$lib/utils/player-name';
 
@@ -40,6 +42,10 @@
 	let loserMatchPct = $state(0);
 	let yourEloDelta = $state(0);
 	let isJackpot = $state(false);
+	let battleTierName = $state<string | null>(null);
+	let battleTierColor = $state<string | null>(null);
+	let battleRankUp = $state(false);
+	let reportedNewElo = $state<number | null>(null);
 
 	// Score tracking
 	const emptyScore: ScoreResult = { mse: 1, clicks: 0, score: 0, matchPct: 0, matchScore: 0, timeBonus: 0, histogramData: [] };
@@ -149,11 +155,18 @@
 	async function reportBattleResult(resultToken: string) {
 		if (isAnonymous) return;
 		try {
-			await fetch('/api/battles/report', {
+			const res = await fetch('/api/battles/report', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ resultToken })
 			});
+			if (res.ok) {
+				const data = await res.json();
+				if (data.tierName) battleTierName = data.tierName;
+				if (data.tierColor) battleTierColor = data.tierColor;
+				if (data.rankUp) battleRankUp = true;
+				if (typeof data.newElo === 'number') reportedNewElo = data.newElo;
+			}
 		} catch {
 			// Non-critical — don't disrupt the results screen
 		}
@@ -401,8 +414,21 @@
 					</div>
 				</div>
 
-				<!-- ELO change -->
+				<!-- ELO change + Battle rank -->
 				<div class="mb-5 text-center">
+					{#if battleRankUp && battleTierName}
+						<div class="rank-up-anim mb-1 text-center text-xs font-bold uppercase tracking-wider" style="color: {battleTierColor};">
+							Rank Up! — {battleTierName}
+						</div>
+					{/if}
+					{#if reportedNewElo !== null}
+						<div class="mb-1 flex items-center justify-center gap-2">
+							<RankBadge mode="battle" value={reportedNewElo} size="lg" />
+							<span class="text-lg font-bold tabular-nums" style="color: {battleTierColor ?? 'var(--accent-cyan)'};">
+								{reportedNewElo}
+							</span>
+						</div>
+					{/if}
 					<div class="text-[9px] font-medium uppercase tracking-wider" style="color: var(--text-tertiary);">ELO Change</div>
 					<div
 						class="text-2xl font-bold tabular-nums"

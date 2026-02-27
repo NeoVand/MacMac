@@ -2,6 +2,7 @@
 	import AppHeader from '$lib/components/AppHeader.svelte';
 	import RankBadge from '$lib/components/RankBadge.svelte';
 	import { computeSkillLevel, getSkillTier } from '$lib/game/rating';
+	import { getBattleTier } from '$lib/game/elo';
 	import { Sword, Swords } from 'lucide-svelte';
 
 	let { data } = $props();
@@ -32,7 +33,7 @@
 		<div class="mb-5 flex gap-1.5">
 			<button
 				onclick={() => (activeTab = 'solo')}
-				class="flex items-center gap-1.5 rounded-2xl px-4 py-2 text-[12px] font-medium transition"
+				class="flex cursor-pointer items-center gap-1.5 rounded-2xl px-4 py-2 text-[12px] font-medium transition"
 				style={activeTab === 'solo'
 					? 'background: var(--surface); border: 1px solid var(--border-hover); color: var(--text-primary);'
 					: 'border: 1px solid transparent; color: var(--text-tertiary);'}
@@ -42,7 +43,7 @@
 			</button>
 			<button
 				onclick={() => (activeTab = 'battle')}
-				class="flex items-center gap-1.5 rounded-2xl px-4 py-2 text-[12px] font-medium transition"
+				class="flex cursor-pointer items-center gap-1.5 rounded-2xl px-4 py-2 text-[12px] font-medium transition"
 				style={activeTab === 'battle'
 					? 'background: var(--surface); border: 1px solid var(--border-hover); color: var(--text-primary);'
 					: 'border: 1px solid transparent; color: var(--text-tertiary);'}
@@ -109,7 +110,7 @@
 									<td class="py-3 font-mono text-xs font-bold tabular-nums">{i + 1}</td>
 									<td class="truncate py-3 pr-2 font-medium">
 										<span class="inline-flex items-center gap-1.5">
-											<RankBadge {skillLevel} size="sm" />
+											<RankBadge mode="solo" value={skillLevel} size="sm" />
 											{#if entry.country}<span>{countryFlag(entry.country)}</span>{/if}
 											<span class="truncate">{entry.playerName}</span>
 										</span>
@@ -180,6 +181,7 @@
 							{#each battleEntries as entry, i}
 								{@const losses = entry.battlesPlayed - entry.battleWins}
 								{@const winPct = entry.battlesPlayed > 0 ? Math.round((entry.battleWins / entry.battlesPlayed) * 100) : 0}
+								{@const bTier = getBattleTier(entry.battleElo)}
 								<tr
 									class="border-t text-sm"
 									style="border-color: var(--border); color: {i === 0
@@ -188,12 +190,15 @@
 								>
 									<td class="py-3 font-mono text-xs font-bold tabular-nums">{i + 1}</td>
 									<td class="truncate py-3 pr-2 font-medium">
-										{#if entry.country}<span class="mr-1">{countryFlag(entry.country)}</span
-										>{/if}{entry.playerName}
+										<span class="inline-flex items-center gap-1.5">
+											<RankBadge mode="battle" value={entry.battleElo} size="sm" />
+											{#if entry.country}<span>{countryFlag(entry.country)}</span>{/if}
+											<span class="truncate">{entry.playerName}</span>
+										</span>
 									</td>
 									<td
 										class="py-3 text-right font-mono font-bold tabular-nums"
-										style="color: var(--accent-cyan);"
+										style="color: {bTier.color};"
 									>
 										{entry.battleElo}
 									</td>

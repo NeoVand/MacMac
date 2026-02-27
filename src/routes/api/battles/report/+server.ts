@@ -5,6 +5,9 @@ import { players } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { env } from '$env/dynamic/private';
 import { verifyBattleResult } from '$lib/server/battle-crypto';
+import { getBattleTier, BATTLE_TIERS } from '$lib/game/elo';
+
+const BATTLE_TIERS_ORDER = BATTLE_TIERS.map((t) => t.name);
 
 /**
  * POST /api/battles/report — client-side battle result reporting.
@@ -56,18 +59,30 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 
 		const player = rows[0];
+		const oldElo = player.battleElo;
+		const newElo = oldElo + payload.eloDelta;
+		const oldTier = getBattleTier(oldElo);
+		const newTier = getBattleTier(newElo);
+		const rankUp = BATTLE_TIERS_ORDER.indexOf(newTier.name) > BATTLE_TIERS_ORDER.indexOf(oldTier.name);
 
 		await db
 			.update(players)
 			.set({
-				battleElo: player.battleElo + payload.eloDelta,
+				battleElo: newElo,
 				battlesPlayed: player.battlesPlayed + 1,
 				battleWins: payload.won ? player.battleWins + 1 : player.battleWins,
 				updatedAt: new Date()
 			})
 			.where(eq(players.userId, userId));
 
-		return json({ success: true, newElo: player.battleElo + payload.eloDelta });
+		return json({
+			success: true,
+			newElo,
+			tierName: newTier.name,
+			tierColor: newTier.color,
+			oldTierName: oldTier.name,
+			rankUp
+		});
 	} catch (err) {
 		console.error('Battle report error:', err);
 		return json({ error: 'Server error' }, { status: 500 });
