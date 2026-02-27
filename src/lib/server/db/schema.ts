@@ -9,7 +9,7 @@ export const players = sqliteTable('players', {
 	playerName: text('player_name').notNull(),
 	country: text('country'),
 	// Casual stats
-	rating: real('rating').notNull().default(3.0),
+	rating: real('rating').notNull().default(0),
 	gamesPlayed: integer('games_played').notNull().default(0),
 	bestWeightedScore: integer('best_weighted_score').notNull().default(0),
 	bestScoreDifficulty: real('best_score_difficulty').notNull().default(0),

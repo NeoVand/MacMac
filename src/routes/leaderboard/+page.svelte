@@ -1,7 +1,8 @@
 <script lang="ts">
 	import AppHeader from '$lib/components/AppHeader.svelte';
-	import { difficultyColor } from '$lib/game/difficulty';
-	import { Swords } from 'lucide-svelte';
+	import RankBadge from '$lib/components/RankBadge.svelte';
+	import { computeSkillLevel, getSkillTier } from '$lib/game/rating';
+	import { Sword, Swords } from 'lucide-svelte';
 
 	let { data } = $props();
 
@@ -36,13 +37,7 @@
 					? 'background: var(--surface); border: 1px solid var(--border-hover); color: var(--text-primary);'
 					: 'border: 1px solid transparent; color: var(--text-tertiary);'}
 			>
-				<svg viewBox="0 0 20 20" fill="currentColor" class="h-3.5 w-3.5"
-					><path
-						fill-rule="evenodd"
-						d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z"
-						clip-rule="evenodd"
-					/></svg
-				>
+				<Sword class="h-3.5 w-3.5" strokeWidth={2} />
 				Solo
 			</button>
 			<button
@@ -96,13 +91,15 @@
 							>
 								<th class="pb-2 text-left">#</th>
 								<th class="pb-2 text-left">Player</th>
-								<th class="pb-2 text-right">Score</th>
-								<th class="hidden pb-2 text-right sm:table-cell">Difficulty</th>
+								<th class="pb-2 text-right">Skill</th>
+								<th class="hidden pb-2 text-right sm:table-cell">Best</th>
 								<th class="pb-2 text-right">Games</th>
 							</tr>
 						</thead>
 						<tbody>
 							{#each soloEntries as entry, i}
+								{@const skillLevel = computeSkillLevel(entry.rating)}
+								{@const tier = getSkillTier(skillLevel)}
 								<tr
 									class="border-t text-sm"
 									style="border-color: var(--border); color: {i === 0
@@ -111,17 +108,23 @@
 								>
 									<td class="py-3 font-mono text-xs font-bold tabular-nums">{i + 1}</td>
 									<td class="truncate py-3 pr-2 font-medium">
-										{#if entry.country}<span class="mr-1">{countryFlag(entry.country)}</span
-										>{/if}{entry.playerName}
+										<span class="inline-flex items-center gap-1.5">
+											<RankBadge {skillLevel} size="sm" />
+											{#if entry.country}<span>{countryFlag(entry.country)}</span>{/if}
+											<span class="truncate">{entry.playerName}</span>
+										</span>
 									</td>
-									<td class="py-3 text-right font-mono font-bold tabular-nums"
-										>{entry.bestWeightedScore.toLocaleString()}</td
+									<td
+										class="py-3 text-right font-mono font-bold tabular-nums"
+										style="color: {tier.color};"
 									>
+										{skillLevel.toLocaleString()}
+									</td>
 									<td
 										class="hidden py-3 text-right font-mono text-xs tabular-nums sm:table-cell"
-										style="color: {difficultyColor(entry.bestScoreDifficulty)};"
+										style="color: var(--text-tertiary);"
 									>
-										{entry.bestScoreDifficulty.toFixed(1)}
+										{entry.bestWeightedScore.toLocaleString()}
 									</td>
 									<td
 										class="py-3 text-right font-mono text-xs tabular-nums"

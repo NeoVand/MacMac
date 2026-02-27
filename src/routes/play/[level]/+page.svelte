@@ -14,6 +14,8 @@
 	import ScorePanel from '$lib/components/ScorePanel.svelte';
 	import AppHeader from '$lib/components/AppHeader.svelte';
 	import { Github } from 'lucide-svelte';
+	import RankBadge from '$lib/components/RankBadge.svelte';
+	import { computeSkillLevel, getSkillTier } from '$lib/game/rating';
 
 	let { data } = $props();
 	type TopRank = 1 | 2 | 3 | null;
@@ -53,6 +55,11 @@
 	let showDialog = $state(false);
 	let submitted = $state(false);
 	let submittedRank = $state<number | null>(null);
+	let submittedSkillLevel = $state<number | null>(null);
+	let submittedOldSkillLevel = $state<number | null>(null);
+	let submittedTierName = $state<string | null>(null);
+	let submittedTierColor = $state<string | null>(null);
+	let submittedRankUp = $state(false);
 	let rankPreview = $state<number | null>(null);
 	let rankPreviewLoading = $state(false);
 	let pausedElapsed = $state(0);
@@ -77,6 +84,11 @@
 		showDialog = false;
 		submitted = false;
 		submittedRank = null;
+		submittedSkillLevel = null;
+		submittedOldSkillLevel = null;
+		submittedTierName = null;
+		submittedTierColor = null;
+		submittedRankUp = false;
 		rankPreview = null;
 		rankPreviewLoading = false;
 		startTime = 0;
@@ -289,6 +301,11 @@
 			if (result.success) {
 				submitted = true;
 				submittedRank = typeof result.rank === 'number' ? result.rank : null;
+				submittedSkillLevel = typeof result.skillLevel === 'number' ? result.skillLevel : null;
+				submittedOldSkillLevel = typeof result.oldSkillLevel === 'number' ? result.oldSkillLevel : null;
+				submittedTierName = result.tierName ?? null;
+				submittedTierColor = result.tierColor ?? null;
+				submittedRankUp = !!result.rankUp;
 				markCompleted();
 			}
 		} catch { /* silent */ }
@@ -688,6 +705,32 @@
 				{:else if submitted}
 					<!-- Post-submit: success -->
 					<div class="mb-3 text-center text-sm font-semibold" style="color: #4ade80;">Score submitted!</div>
+
+					<!-- Skill level + rank badge -->
+					{#if submittedSkillLevel !== null}
+						<div class="mb-3 flex flex-col items-center gap-1.5">
+							{#if submittedRankUp && submittedTierName}
+								<div class="rank-up-anim mb-1 text-center text-xs font-bold uppercase tracking-wider" style="color: {submittedTierColor};">
+									Rank Up! — {submittedTierName}
+								</div>
+							{/if}
+							<div class="flex items-center gap-2">
+								<RankBadge skillLevel={submittedSkillLevel} size="lg" />
+								<div class="flex flex-col">
+									<span class="text-lg font-bold tabular-nums" style="color: {submittedTierColor};">
+										{submittedSkillLevel.toLocaleString()}
+									</span>
+									{#if submittedOldSkillLevel !== null}
+										{@const delta = submittedSkillLevel - submittedOldSkillLevel}
+										<span class="text-[10px] font-semibold tabular-nums" style="color: {delta >= 0 ? 'var(--win-green)' : 'var(--loss-red)'};">
+											{delta >= 0 ? '+' : ''}{delta}
+										</span>
+									{/if}
+								</div>
+							</div>
+						</div>
+					{/if}
+
 					{#if submittedRank !== null}
 						<div class="mb-3 text-center text-sm font-bold" style="color: var(--accent-cyan);">
 							Leaderboard rank: #{submittedRank}

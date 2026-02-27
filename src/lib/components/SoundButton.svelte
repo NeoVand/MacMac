@@ -27,7 +27,7 @@
 
 <button
 	onclick={toggleAudio}
-	class="relative z-10 flex {sizeClasses} items-center justify-center overflow-visible rounded-full transition hover:scale-[1.02] hover:opacity-90 active:scale-[0.98] sm:hover:brightness-[1.03] dark:hover:brightness-110 {size === 'lg' ? 'sound-btn-lg' : ''}"
+	class="cursor-pointer relative z-10 flex {sizeClasses} items-center justify-center overflow-visible rounded-full transition hover:scale-[1.02] hover:opacity-90 active:scale-[0.98] sm:hover:brightness-[1.03] dark:hover:brightness-110 {size === 'lg' ? 'sound-btn-lg' : ''}"
 	style={buttonStyle}
 	aria-label={isMuted ? 'Turn sound on' : 'Turn sound off'}
 >

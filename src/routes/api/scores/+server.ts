@@ -6,7 +6,7 @@ import { and, eq, desc, gt, count } from 'drizzle-orm';
 import { getLevel } from '$lib/game/levels';
 import { reconstructLevel, parseGeneratedId } from '$lib/game/generator';
 import { computeShapeMatch, computeScore } from '$lib/game/scoring';
-import { computeWeightedScore, computeNewRating } from '$lib/game/rating';
+import { computeWeightedScore, computeNewRating, computeSkillLevel, getSkillTier } from '$lib/game/rating';
 import { resolvePlayerName } from '$lib/utils/player-name';
 
 function resolveCountry(request: Request): string | null {
@@ -64,7 +64,10 @@ async function handleGeneratedSubmission(
 
 	if (existing.length === 0) {
 		// Create new player
-		const newRating = computeNewRating(3.0, level.targetDifficulty, matchPct, 0);
+		const newRating = computeNewRating(0, weightedScore, 0);
+		const newSkillLevel = computeSkillLevel(newRating);
+		const newTier = getSkillTier(newSkillLevel);
+
 		await db.insert(players).values({
 			userId,
 			playerName: playerName.slice(0, 24),
@@ -82,12 +85,23 @@ async function handleGeneratedSubmission(
 			difficulty: level.targetDifficulty,
 			matchPct,
 			isNewBest: true,
-			rank: 1
+			rank: 1,
+			skillLevel: newSkillLevel,
+			oldSkillLevel: 0,
+			tierName: newTier.name,
+			tierColor: newTier.color,
+			rankUp: newTier.name !== 'Iron'
 		});
 	}
 
 	const player = existing[0];
-	const newRating = computeNewRating(player.rating, level.targetDifficulty, matchPct, player.gamesPlayed);
+	const oldSkillLevel = computeSkillLevel(player.rating);
+	const oldTier = getSkillTier(oldSkillLevel);
+
+	const newRating = computeNewRating(player.rating, weightedScore, player.gamesPlayed);
+	const newSkillLevel = computeSkillLevel(newRating);
+	const newTier = getSkillTier(newSkillLevel);
+
 	const isNewBest = weightedScore > player.bestWeightedScore;
 
 	await db
@@ -103,11 +117,11 @@ async function handleGeneratedSubmission(
 		})
 		.where(eq(players.userId, userId));
 
-	// Compute rank: count of players with better best score
+	// Compute rank: count of players with higher rating
 	const [{ value: betterCount }] = await db
 		.select({ value: count() })
 		.from(players)
-		.where(gt(players.bestWeightedScore, isNewBest ? weightedScore : player.bestWeightedScore));
+		.where(gt(players.rating, newRating));
 	const rank = betterCount + 1;
 
 	return json({
@@ -117,9 +131,17 @@ async function handleGeneratedSubmission(
 		difficulty: level.targetDifficulty,
 		matchPct,
 		isNewBest,
-		rank
+		rank,
+		skillLevel: newSkillLevel,
+		oldSkillLevel,
+		tierName: newTier.name,
+		tierColor: newTier.color,
+		rankUp: newTier.name !== oldTier.name && SKILL_TIERS_ORDER.indexOf(newTier.name) > SKILL_TIERS_ORDER.indexOf(oldTier.name)
 	});
 }
+
+// Tier ordering for rank-up detection
+const SKILL_TIERS_ORDER = ['Iron', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Genius'];
 
 /**
  * Handle legacy level submission.

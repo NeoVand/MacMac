@@ -8,6 +8,7 @@
 import { SeededRandom } from './random';
 import { generateLevel, type GeneratedLevel } from './generator';
 import { linspace, clamp } from './math';
+import { computeSkillLevel } from './rating';
 
 export interface GridConfig {
 	total: number;
@@ -65,7 +66,8 @@ export function generateReplacement(
 ): GeneratedLevel {
 	const seed = Math.floor(Date.now() / 1000) * 100 + slotIndex;
 	const rng = new SeededRandom(seed);
-	const difficulty = Math.round(clamp(playerRating + rng.range(-2, 2), 1, 10) * 10) / 10;
+	const center = ratingToDifficultyCenter(playerRating);
+	const difficulty = Math.round(clamp(center + rng.range(-2, 2), 1, 10) * 10) / 10;
 	return generateLevel(seed, difficulty);
 }
 
@@ -80,6 +82,22 @@ function deriveSeed(baseSeed: number, index: number): number {
 }
 
 /**
+ * Convert a raw EMA rating to a difficulty center for grid generation.
+ *
+ * Skill 0     → diff ~3 (beginner)
+ * Skill 2000  → diff ~5
+ * Skill 4000+ → diff ~8
+ *
+ * Uses a smooth linear interpolation from the skill level.
+ */
+function ratingToDifficultyCenter(rawEMA: number): number {
+	const skill = computeSkillLevel(rawEMA);
+	// Map skill 0→3, 2000→5, 4000→8
+	const diff = 3 + (skill / 4000) * 5;
+	return clamp(diff, 2, 8);
+}
+
+/**
  * Get the grid config centered on a player's rating.
  */
 export function gridConfigForRating(rating: number | null): Partial<GridConfig> {
@@ -88,7 +106,7 @@ export function gridConfigForRating(rating: number | null): Partial<GridConfig> 
 	}
 	return {
 		total: 12,
-		difficultyCenter: clamp(rating, 2, 8),
+		difficultyCenter: ratingToDifficultyCenter(rating),
 		difficultySpread: 2.5
 	};
 }

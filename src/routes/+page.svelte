@@ -8,9 +8,11 @@
 	import { joinMatchmaking, type MatchmakerMessage } from '$lib/battle/client';
 	import { authClient } from '$lib/auth-client';
 	import LevelTile from '$lib/components/LevelTile.svelte';
+	import RankBadge from '$lib/components/RankBadge.svelte';
 	import AppHeader from '$lib/components/AppHeader.svelte';
 	import SoundButton from '$lib/components/SoundButton.svelte';
-	import { Github, Linkedin, Globe, Swords } from 'lucide-svelte';
+	import { computeSkillLevel, getSkillTier } from '$lib/game/rating';
+	import { Github, Linkedin, Globe, Sword, Swords } from 'lucide-svelte';
 	import { resolvePlayerName } from '$lib/utils/player-name';
 
 	let { data } = $props();
@@ -94,13 +96,19 @@
 		if (completed.size > 0) {
 			levels = levels.map((lvl, i) => {
 				if (completed.has(lvl.seed)) {
-					return generateReplacement(data.playerRating ?? 4.0, i);
+					return generateReplacement(data.playerRating ?? 0, i);
 				}
 				return lvl;
 			});
 		}
 
 		return levels;
+	}
+
+	function playSolo() {
+		if (gridLevels.length === 0) return;
+		const pick = gridLevels[Math.floor(Math.random() * gridLevels.length)];
+		goto(`/play/${pick.id}`);
 	}
 
 	onMount(() => {
@@ -305,29 +313,33 @@
 			</div>
 		</div>
 
-		<!-- Buttons: Battle + Leaderboard -->
+		<!-- Rank badge for signed-in players -->
+		{#if data.gamesPlayed > 0 && data.playerRating !== null}
+			{@const skillLevel = computeSkillLevel(data.playerRating)}
+			{@const tier = getSkillTier(skillLevel)}
+			<div class="flex items-center justify-center gap-2 pb-1">
+				<RankBadge {skillLevel} size="md" />
+				<span class="text-sm font-bold tabular-nums" style="color: {tier.color};">{skillLevel.toLocaleString()}</span>
+				<span class="text-[10px] font-medium uppercase tracking-wider" style="color: {tier.color}; opacity: 0.7;">{tier.name}</span>
+			</div>
+		{/if}
+
+		<!-- Buttons: Solo + Battle + Leaderboard (uses .btn-action from layout.css) -->
 		<div class="flex w-full justify-center px-4 py-6">
-			<div class="flex flex-nowrap items-center justify-center gap-2 sm:gap-3">
-				<button
-					onclick={startBattleQueue}
-										class="flex flex-initial items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[13px] font-bold tracking-wide backdrop-blur-sm transition hover:scale-[1.02] active:scale-[0.98] sm:gap-2.5 sm:px-5 sm:py-3 sm:text-[14px] hover:brightness-[1.03] dark:hover:brightness-110"
-					style="font-family: 'Outfit', sans-serif; background: color-mix(in srgb, var(--accent-cyan) 14%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 35%, transparent); color: var(--accent-cyan); box-shadow: 0 2px 12px color-mix(in srgb, var(--accent-cyan) 15%, transparent);"
-					title="Find an opponent"
-				>
-					<Swords class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" strokeWidth={2} />
-					<span class="whitespace-nowrap">Battle</span>
+			<div class="flex flex-nowrap items-center justify-center gap-1.5 sm:gap-3">
+				<button onclick={playSolo} class="btn-action" style="--btn-color: var(--accent-purple);" title="Play a random level">
+					<Sword class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" strokeWidth={2} />
+					Solo
 				</button>
-				<a
-					href="/leaderboard"
-					class="flex flex-initial items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[13px] font-bold tracking-wide backdrop-blur-sm transition hover:scale-[1.02] active:scale-[0.98] sm:gap-2.5 sm:px-5 sm:py-3 sm:text-[14px] hover:brightness-[1.03] dark:hover:brightness-110"
-					style="font-family: 'Outfit', sans-serif; background: color-mix(in srgb, #eab308 12%, transparent); border: 1px solid color-mix(in srgb, #eab308 50%, transparent); color: color-mix(in srgb, #eab308 80%, var(--text-primary)); box-shadow: 0 2px 12px color-mix(in srgb, #eab308 15%, transparent);"
-				>
-					<svg viewBox="0 0 24 24" fill="#eab308" class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4"
-						><path
-							d="M2 4l3 12h14l3-12-5 4-5-6-5 6-5-4zm3 14h14v2H5v-2z"
-						/></svg
+				<button onclick={startBattleQueue} class="btn-action" style="--btn-color: var(--accent-cyan);" title="Find an opponent">
+					<Swords class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" strokeWidth={2} />
+					Battle
+				</button>
+				<a href="/leaderboard" class="btn-action" style="--btn-color: #eab308;">
+					<svg viewBox="0 0 24 24" fill="currentColor" class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4"
+						><path d="M2 4l3 12h14l3-12-5 4-5-6-5 6-5-4zm3 14h14v2H5v-2z" /></svg
 					>
-					<span class="whitespace-nowrap">Leaderboard</span>
+					Leaderboard
 				</a>
 				<SoundButton size="lg" />
 			</div>

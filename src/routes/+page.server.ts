@@ -8,10 +8,11 @@ export const load: PageServerLoad = async ({ locals, request }) => {
 	let playerRating: number | null = null;
 	let battleElo: number | null = null;
 	let country: string | null = null;
+	let gamesPlayed = 0;
 
 	if (locals.user) {
 		const result = await db
-			.select({ rating: players.rating, battleElo: players.battleElo, country: players.country })
+			.select({ rating: players.rating, battleElo: players.battleElo, country: players.country, gamesPlayed: players.gamesPlayed })
 			.from(players)
 			.where(eq(players.userId, locals.user.id))
 			.limit(1);
@@ -20,6 +21,7 @@ export const load: PageServerLoad = async ({ locals, request }) => {
 			playerRating = result[0].rating;
 			battleElo = result[0].battleElo;
 			country = result[0].country;
+			gamesPlayed = result[0].gamesPlayed;
 
 			// Backfill country if missing (for players created before geo-detection)
 			if (!country) {
@@ -52,10 +54,10 @@ export const load: PageServerLoad = async ({ locals, request }) => {
 				// Unique constraint race — row already created by concurrent request
 			}
 
-			playerRating = 3.0;
+			playerRating = 0;
 			battleElo = 1200;
 		}
 	}
 
-	return { playerRating, battleElo, country };
+	return { playerRating, battleElo, country, gamesPlayed };
 };
