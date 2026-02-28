@@ -1,36 +1,20 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import type { ScoreResult } from '$lib/game/scoring';
-	type TopRank = 1 | 2 | 3 | null;
 
 	interface Props {
 		scoreResult: ScoreResult;
-		scoreRank: TopRank;
 		elapsedMs: number;
 		difficultyMultiplier?: number;
 	}
 
-	let { scoreResult, scoreRank, elapsedMs, difficultyMultiplier = 1 }: Props = $props();
+	let { scoreResult, elapsedMs, difficultyMultiplier = 1 }: Props = $props();
 
 	let dScore = $state(0);
 	let dMatch = $state(0);
 	let dClicks = $state(0);
 
 	const displayScore = $derived(Math.round(scoreResult.score * difficultyMultiplier));
-
-	const isTopThree = $derived(scoreRank !== null);
-	const rankColor = $derived.by(() => {
-		switch (scoreRank) {
-			case 1:
-				return '#eab308'; // gold
-			case 2:
-				return '#a8b4c4'; // silver
-			case 3:
-				return '#a56a43'; // bronze
-			default:
-				return 'var(--text-primary)';
-		}
-	});
 
 	const timerDisplay = $derived.by(() => {
 		const totalSec = Math.floor(elapsedMs / 1000);
@@ -63,13 +47,8 @@
 <div class="flex items-end gap-4">
 	<!-- Score (prominent) -->
 	<div class="min-w-0 shrink-0">
-		<div class="flex items-center gap-1.5">
-			<span class="text-[9px] font-medium tracking-[0.15em] uppercase" style="color: var(--text-tertiary);">Score</span>
-			{#if isTopThree}
-				<svg viewBox="0 0 24 24" fill="currentColor" class="h-3 w-3" style="color: {rankColor};"><path d="M2 4l3 12h14l3-12-5 4-5-6-5 6-5-4zm3 14h14v2H5v-2z" /></svg>
-			{/if}
-		</div>
-		<div class="text-3xl font-extrabold tabular-nums leading-none sm:text-4xl" style="color: {rankColor};">
+		<div class="text-[9px] font-medium tracking-[0.15em] uppercase" style="color: var(--text-tertiary);">Score</div>
+		<div class="text-3xl font-extrabold tabular-nums leading-none sm:text-4xl" style="color: var(--text-primary);">
 			{Math.round(dScore).toLocaleString()}
 		</div>
 	</div>

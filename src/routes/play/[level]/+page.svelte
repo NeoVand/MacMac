@@ -2,11 +2,11 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { getLevel, levels, type Level } from '$lib/game/levels';
+	import type { Level } from '$lib/game/levels';
 	import { parseGeneratedId, reconstructLevel, type GeneratedLevel } from '$lib/game/generator';
-	import { getFullScore, getDifficultyColor, computeTimeBonus, type ScoreResult } from '$lib/game/scoring';
+	import { getFullScore, computeTimeBonus, TIME_LIMIT_MS, type ScoreResult } from '$lib/game/scoring';
 	import { difficultyColor } from '$lib/game/difficulty';
-	import { computeWeightedScore } from '$lib/game/rating';
+	import { computeWeightedScore, computeNewRating } from '$lib/game/rating';
 	import { authClient } from '$lib/auth-client';
 	import { linspace } from '$lib/game/math';
 	import { computeKDE } from '$lib/game/kde';
@@ -15,29 +15,23 @@
 	import AppHeader from '$lib/components/AppHeader.svelte';
 	import { Github } from 'lucide-svelte';
 	import RankBadge from '$lib/components/RankBadge.svelte';
-	import { computeSkillLevel, getSkillTier } from '$lib/game/rating';
+	import { computeSkillLevel, getSkillTier, getTierProgress } from '$lib/game/rating';
 
 	let { data } = $props();
-	type TopRank = 1 | 2 | 3 | null;
 
 	const levelParam = $derived(page.params.level ?? '');
 
-	// Resolve the level: either legacy (numeric) or generated (g-seed-diff)
+	// Resolve the level from generated ID (g-seed-diff)
 	const resolvedLevel = $derived.by<Level | null>(() => {
 		const parsed = parseGeneratedId(levelParam);
 		if (parsed) {
 			return reconstructLevel(parsed.seed, parsed.targetDifficulty);
 		}
-		const id = Number(levelParam);
-		return (id > 0 ? getLevel(id) : null) ?? null;
+		return null;
 	});
 
-	const isGenerated = $derived(levelParam.startsWith('g-'));
-	const generatedLevel = $derived(isGenerated ? (resolvedLevel as GeneratedLevel | null) : null);
+	const generatedLevel = $derived(resolvedLevel as GeneratedLevel | null);
 	const level = $derived(resolvedLevel);
-
-	const topScores = $derived((data.topScores as number[] | undefined) ?? []);
-	const topScore = $derived(data.topScore ?? 0);
 
 	const session = authClient.useSession();
 
@@ -60,15 +54,23 @@
 	let submittedTierName = $state<string | null>(null);
 	let submittedTierColor = $state<string | null>(null);
 	let submittedRankUp = $state(false);
-	let rankPreview = $state<number | null>(null);
-	let rankPreviewLoading = $state(false);
 	let pausedElapsed = $state(0);
+	let expired = $state(false);
+	let skipped = $state(false);
+
+	// Countdown
+	const timeLeftMs = $derived(Math.max(0, TIME_LIMIT_MS - elapsedMs));
+	const timerDisplay = $derived.by(() => {
+		const sec = Math.max(0, Math.ceil(timeLeftMs / 1000));
+		return `${sec}s`;
+	});
+	const timerPct = $derived(timeLeftMs / TIME_LIMIT_MS);
 
 	// Reset limit (generated levels only)
 	const MAX_RESETS = 3;
 	let resetCount = $state(0);
 	const resetsLeft = $derived(MAX_RESETS - resetCount);
-	const canReset = $derived(!isGenerated || resetsLeft > 0);
+	const canReset = $derived(resetsLeft > 0);
 
 	// Replay
 	let replayCanvas: HTMLCanvasElement | undefined = $state();
@@ -89,37 +91,12 @@
 		submittedTierName = null;
 		submittedTierColor = null;
 		submittedRankUp = false;
-		rankPreview = null;
-		rankPreviewLoading = false;
 		startTime = 0;
 		elapsedMs = 0;
 		timerRunning = false;
 		resetCount = 0;
-	});
-
-	// Fetch rank preview when modal opens (legacy levels only)
-	$effect(() => {
-		if (!showDialog || scoreResult.score <= 0 || isGenerated) {
-			rankPreview = null;
-			rankPreviewLoading = false;
-			return;
-		}
-		const levelId = Number(levelParam);
-		rankPreview = null;
-		rankPreviewLoading = true;
-		let cancelled = false;
-		fetch(`/api/scores/rank?levelId=${levelId}&score=${Math.round(scoreResult.score)}`)
-			.then((r) => r.json())
-			.then((data) => {
-				if (!cancelled) {
-					rankPreview = typeof data.rank === 'number' ? data.rank : null;
-					rankPreviewLoading = false;
-				}
-			})
-			.catch(() => {
-				if (!cancelled) rankPreviewLoading = false;
-			});
-		return () => { cancelled = true; };
+		expired = false;
+		skipped = false;
 	});
 
 	// Restore game state after OAuth redirect
@@ -136,6 +113,7 @@
 			elapsedMs = state.elapsedMs || 0;
 			resetCount = state.resetCount || 0;
 			pausedElapsed = elapsedMs;
+			if (elapsedMs >= TIME_LIMIT_MS) expired = true;
 			if (samples.length > 0 && level) {
 				recalcScore();
 				showDialog = true;
@@ -151,6 +129,23 @@
 		return computeWeightedScore(scoreResult.score, generatedLevel.targetDifficulty);
 	});
 
+	// Skill level preview (authenticated users)
+	const currentSkillLevel = $derived(
+		data.playerRating !== null ? computeSkillLevel(data.playerRating) : null
+	);
+	const previewSkillLevel = $derived.by(() => {
+		if (data.playerRating === null || !generatedLevel || weightedScore <= 0) return null;
+		const newRating = computeNewRating(data.playerRating, weightedScore, data.playerGamesPlayed);
+		return computeSkillLevel(newRating);
+	});
+
+	// Skill level preview for unauthenticated users (as if new player)
+	const anonPreviewSkillLevel = $derived.by(() => {
+		if (!generatedLevel || weightedScore <= 0) return null;
+		const newRating = computeNewRating(0, weightedScore, 0);
+		return computeSkillLevel(newRating);
+	});
+
 	function startTimer() {
 		if (timerRunning) return;
 		startTime = Date.now();
@@ -158,6 +153,14 @@
 		function tick() {
 			if (!timerRunning) return;
 			elapsedMs = Date.now() - startTime;
+			if (elapsedMs >= TIME_LIMIT_MS) {
+				elapsedMs = TIME_LIMIT_MS;
+				expired = true;
+				stopTimer();
+				recalcScore(false);
+				openSubmit();
+				return;
+			}
 			if (samples.length > 0) recalcScore(false);
 			timerHandle = requestAnimationFrame(tick);
 		}
@@ -192,7 +195,7 @@
 	}
 
 	function addSample(x: number) {
-		if (!level) return;
+		if (!level || expired) return;
 		if (samples.length === 0) startTimer();
 		samples = [...samples, x];
 		totalClicks++;
@@ -216,7 +219,19 @@
 		startTime = 0;
 		elapsedMs = 0;
 		timerRunning = false;
+		expired = false;
+		skipped = false;
 		resetCount++;
+	}
+
+	function playAgain() {
+		showDialog = false;
+		if (replayTimer) cancelAnimationFrame(replayTimer as unknown as number);
+		// Navigate to a new curve with the same difficulty
+		const newSeed = Date.now();
+		const diff = generatedLevel?.targetDifficulty ?? 4.0;
+		const diffEncoded = Math.round(diff * 10);
+		goto(`/play/g-${newSeed.toString(36)}-${diffEncoded}`);
 	}
 
 	function regenerateLevel() {
@@ -227,38 +242,20 @@
 		goto(`/play/g-${newSeed.toString(36)}-${diffEncoded}`);
 	}
 
-	function resumeTimer() {
-		if (!timerRunning && samples.length > 0) {
-			startTime = Date.now() - pausedElapsed;
-			timerRunning = true;
-			function tick() {
-				if (!timerRunning) return;
-				elapsedMs = Date.now() - startTime;
-				recalcScore(false);
-				timerHandle = requestAnimationFrame(tick);
-			}
-			tick();
-		}
-	}
-
 	function openSubmit() {
 		if (samples.length < 1) return;
 		stopTimer();
 		pausedElapsed = elapsedMs;
 		showDialog = true;
 		submitted = false;
+		skipped = false;
+		markCompleted();
 		startReplay();
-	}
-
-	function closeDialog() {
-		showDialog = false;
-		if (replayTimer) cancelAnimationFrame(replayTimer as unknown as number);
-		resumeTimer();
 	}
 
 	/** Mark this level as completed in sessionStorage so the home grid replaces it */
 	function markCompleted() {
-		if (!isGenerated || typeof sessionStorage === 'undefined') return;
+		if (typeof sessionStorage === 'undefined') return;
 		const parsed = parseGeneratedId(levelParam);
 		if (!parsed) return;
 		const key = 'macmac_completed';
@@ -288,9 +285,14 @@
 		if (!level || !$session.data) return;
 		isSubmitting = true;
 		try {
-			const body = isGenerated
-				? { levelId: levelParam, seed: generatedLevel!.seed, targetDifficulty: generatedLevel!.targetDifficulty, samples, duration: elapsedMs, clicks: totalClicks }
-				: { levelId: Number(levelParam), samples, duration: elapsedMs, clicks: totalClicks };
+			const body = {
+				levelId: levelParam,
+				seed: generatedLevel!.seed,
+				targetDifficulty: generatedLevel!.targetDifficulty,
+				samples,
+				duration: elapsedMs,
+				clicks: totalClicks
+			};
 
 			const res = await fetch('/api/scores', {
 				method: 'POST',
@@ -536,33 +538,10 @@
 		}
 	}
 
-	// Navigation: only for legacy levels
-	const legacyId = $derived(isGenerated ? null : Number(levelParam));
-	const prevLevel = $derived(legacyId && legacyId > 1 ? legacyId - 1 : null);
-	const nextLevel = $derived(legacyId && legacyId < levels.length ? legacyId + 1 : null);
-
-	// Rank: compare score to topScore (legacy only)
-	const isNewBest = $derived(!isGenerated && topScore > 0 && scoreResult.score > topScore);
-	const scoreRank = $derived.by<TopRank>(() => {
-		if (isGenerated) return null;
-		const score = scoreResult.score;
-		if (score <= 0) return null;
-
-		let betterScores = 0;
-		for (const s of topScores) {
-			if (s > score) betterScores++;
-		}
-
-		const rank = betterScores + 1;
-		return rank <= 3 ? rank as Exclude<TopRank, null> : null;
-	});
-
 	// Display info
-	const levelName = $derived(level ? (isGenerated ? generatedLevel?.name ?? 'Generated' : `${legacyId}. ${level.name}`) : 'Not Found');
+	const levelName = $derived(level ? (generatedLevel?.name ?? 'Generated') : 'Not Found');
 	const levelDiffColor = $derived(
-		isGenerated && generatedLevel
-			? difficultyColor(generatedLevel.targetDifficulty)
-			: level ? getDifficultyColor(level.difficulty) : '#888'
+		generatedLevel ? difficultyColor(generatedLevel.targetDifficulty) : '#888'
 	);
 </script>
 
@@ -579,11 +558,23 @@
 	</div>
 {:else}
 	<div class="flex h-dvh flex-col overflow-hidden" style="background: radial-gradient(ellipse at 50% 30%, var(--page-bg-center) 0%, var(--page-bg-edge) 70%);">
-		<AppHeader showNav={!isGenerated} prevHref={prevLevel ? `/play/${prevLevel}` : null} nextHref={nextLevel ? `/play/${nextLevel}` : null} />
+		<AppHeader />
+
+		<!-- Countdown timer -->
+		{#if timerRunning || showDialog || expired}
+			<div class="shrink-0 px-4 pt-1 sm:px-6">
+				<div class="flex items-center gap-2">
+					<div class="relative h-1.5 flex-1 overflow-hidden rounded-full" style="background: color-mix(in srgb, var(--accent-red) 15%, var(--surface));">
+						<div class="absolute inset-y-0 left-0 rounded-full transition-all duration-100" style="width: {timerPct * 100}%; background: var(--accent-red);"></div>
+					</div>
+					<span class="w-8 text-right text-xs font-bold tabular-nums" style="color: {timeLeftMs <= 5000 ? 'var(--accent-red)' : 'var(--text-tertiary)'};">{timerDisplay}</span>
+				</div>
+			</div>
+		{/if}
 
 		<!-- Score panel -->
 		<div class="shrink-0 px-4 pb-1 pt-1 sm:px-6">
-			<ScorePanel {scoreResult} {scoreRank} {elapsedMs} difficultyMultiplier={isGenerated && generatedLevel ? generatedLevel.targetDifficulty / 3.0 : 1} />
+			<ScorePanel {scoreResult} {elapsedMs} difficultyMultiplier={generatedLevel ? generatedLevel.targetDifficulty / 3.0 : 1} />
 		</div>
 
 		<!-- Canvas -->
@@ -605,7 +596,7 @@
 					{#if canReset}
 						<button onclick={resetSamples} disabled={samples.length === 0} class="flex h-11 items-center gap-2 rounded-2xl px-4 text-[13px] font-medium transition-all hover:scale-[1.03] hover:shadow-md active:scale-95 disabled:opacity-20 disabled:hover:scale-100 disabled:hover:shadow-none" style="background: color-mix(in srgb, var(--accent-orange) 8%, transparent); border: 1px solid color-mix(in srgb, var(--accent-orange) 18%, transparent); color: color-mix(in srgb, var(--accent-orange) 65%, var(--text-primary));">
 							<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.451a.75.75 0 000-1.5H4.5a.75.75 0 00-.75.75v3.75a.75.75 0 001.5 0v-2.033l.364.363a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39zm-10.624-2.85a5.5 5.5 0 019.201-2.466l.312.311H11.75a.75.75 0 000 1.5H15.5a.75.75 0 00.75-.75V3.42a.75.75 0 00-1.5 0v2.033l-.364-.363A7 7 0 002.674 8.228a.75.75 0 001.449.39z" clip-rule="evenodd" /></svg>
-							Reset{#if isGenerated}&nbsp;({resetsLeft}){/if}
+							Reset&nbsp;({resetsLeft})
 						</button>
 					{:else}
 						<button onclick={regenerateLevel} class="flex h-11 items-center gap-2 rounded-2xl px-4 text-[13px] font-medium transition-all hover:scale-[1.03] hover:shadow-md active:scale-95" style="background: color-mix(in srgb, var(--accent-orange) 8%, transparent); border: 1px solid color-mix(in srgb, var(--accent-orange) 18%, transparent); color: color-mix(in srgb, var(--accent-orange) 65%, var(--text-primary));">
@@ -624,18 +615,10 @@
 		</div>
 	</div>
 
-	<!-- Submit dialog -->
+	<!-- Submit dialog (terminal — no dismiss) -->
 	{#if showDialog}
-		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div class="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm" style="background: var(--overlay);"
-			onclick={(e) => { if (e.target === e.currentTarget) closeDialog(); }}
-			onkeydown={(e) => e.key === 'Escape' && closeDialog()}
-		>
+		<div class="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm" style="background: var(--overlay);">
 			<div class="relative mx-4 w-full max-w-sm rounded-2xl p-5 shadow-2xl" style="background: var(--bg); border: 1px solid var(--border);">
-				<!-- Close button -->
-				<button onclick={closeDialog} class="absolute top-3 right-3 flex h-7 w-7 items-center justify-center rounded-full transition hover:opacity-70" style="background: var(--surface); color: var(--text-tertiary);" aria-label="Close">
-					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="h-3.5 w-3.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
-				</button>
 				<!-- Replay -->
 				<canvas bind:this={replayCanvas} class="mb-4 h-28 w-full rounded-lg sm:h-36" style="background: var(--canvas-bg);"></canvas>
 
@@ -643,7 +626,7 @@
 				<div class="mb-4 flex justify-between text-center">
 					<div>
 						<div class="text-[9px] uppercase tracking-wider" style="color: var(--text-tertiary);">Score</div>
-						<div class="text-lg font-bold tabular-nums" style="color: var(--text-primary);">{(isGenerated && weightedScore > 0 ? weightedScore : scoreResult.score).toLocaleString()}</div>
+						<div class="text-lg font-bold tabular-nums" style="color: var(--text-primary);">{(weightedScore > 0 ? weightedScore : scoreResult.score).toLocaleString()}</div>
 					</div>
 					<div>
 						<div class="text-[9px] uppercase tracking-wider" style="color: var(--text-tertiary);">Match</div>
@@ -656,27 +639,35 @@
 					<div>
 						<div class="text-[9px] uppercase tracking-wider" style="color: var(--text-tertiary);">Time</div>
 						<div class="text-lg font-bold tabular-nums" style="color: var(--accent-cyan);">
-							{Math.floor(elapsedMs / 60000)}:{(Math.floor(elapsedMs / 1000) % 60).toString().padStart(2, '0')}
+							{(elapsedMs / 1000).toFixed(1)}s
 						</div>
 					</div>
 				</div>
 
-				{#if isNewBest}
-					<div class="mb-3 text-center text-sm font-bold text-yellow-500">New #1 on this level!</div>
-				{/if}
-
 				{#if !$session.data}
-					{#if !isGenerated && rankPreviewLoading}
-						<div class="mb-3 flex justify-center">
-							<div class="h-4 w-32 animate-pulse rounded" style="background: color-mix(in srgb, var(--accent-cyan) 25%, var(--surface));"></div>
-						</div>
-					{:else if !isGenerated && rankPreview !== null}
-						<div class="mb-3 text-center text-sm font-bold" style="color: var(--accent-cyan);">
-							Your rank on this level: #{rankPreview}
+					{#if anonPreviewSkillLevel !== null}
+						{@const tier = getSkillTier(anonPreviewSkillLevel)}
+						{@const progress = getTierProgress(anonPreviewSkillLevel)}
+						<div class="mb-3 flex flex-col items-center gap-1">
+							<div class="flex items-center gap-2">
+								<RankBadge skillLevel={anonPreviewSkillLevel} size="lg" />
+								<span class="text-lg font-bold tabular-nums" style="color: {tier.color};">
+									{tier.name}
+								</span>
+							</div>
+							<div class="w-full max-w-[200px]">
+								<div class="flex items-center justify-between text-[9px]" style="color: var(--text-tertiary);">
+									<span style="color: {tier.color};">{tier.name}</span>
+									<span>{Math.round(progress * 100)}%</span>
+								</div>
+								<div class="mt-0.5 h-1.5 w-full overflow-hidden rounded-full" style="background: color-mix(in srgb, {tier.color} 15%, var(--surface));">
+									<div class="h-full rounded-full" style="width: {progress * 100}%; background: {tier.color};"></div>
+								</div>
+							</div>
 						</div>
 					{/if}
-					<p class="mb-3 text-xs" style="color: var(--text-secondary);">Sign in to submit your score to the leaderboard.</p>
-					<div class="flex flex-col gap-2">
+					<p class="mb-3 text-xs text-center" style="color: var(--text-secondary);">Sign in to claim your rank.</p>
+					<div class="mb-3 flex flex-col gap-2">
 						<button onclick={() => signInWith('github')} class="flex h-10 items-center justify-center gap-2 rounded-lg text-sm font-medium transition hover:opacity-80" style="background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary);">
 							<Github size={16} /> Continue with GitHub
 						</button>
@@ -685,13 +676,19 @@
 							Continue with Google
 						</button>
 					</div>
-				{:else if submitted}
-					<!-- Post-submit: success -->
-					<div class="mb-3 text-center text-sm font-semibold" style="color: #4ade80;">Score submitted!</div>
+					<div class="flex gap-2">
+						<a href="/" class="flex flex-1 items-center justify-center rounded-lg py-2.5 text-sm font-medium transition hover:opacity-70" style="background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary);">Home</a>
+						<button onclick={playAgain} class="flex flex-1 items-center justify-center rounded-lg py-2.5 text-sm font-semibold transition hover:opacity-80" style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);">Play Again</button>
+					</div>
+				{:else if submitted || skipped}
+					<!-- Post-submit / skipped -->
+					{#if submitted}
+						<div class="mb-3 text-center text-sm font-semibold" style="color: #4ade80;">Score submitted!</div>
+					{/if}
 
-					<!-- Skill level + rank badge -->
-					{#if submittedSkillLevel !== null}
-						<div class="mb-3 flex flex-col items-center gap-1.5">
+					<!-- Skill level + rank badge + tier progress -->
+					{#if submitted && submittedSkillLevel !== null}
+						<div class="mb-4 flex flex-col items-center gap-1.5">
 							{#if submittedRankUp && submittedTierName}
 								<div class="rank-up-anim mb-1 text-center text-xs font-bold uppercase tracking-wider" style="color: {submittedTierColor};">
 									Rank Up! — {submittedTierName}
@@ -711,42 +708,69 @@
 									{/if}
 								</div>
 							</div>
+							<!-- Tier progress bar -->
+							<div class="mt-1 w-full max-w-[200px]">
+								<div class="flex items-center justify-between text-[9px]" style="color: var(--text-tertiary);">
+									<span style="color: {getSkillTier(submittedSkillLevel).color};">{getSkillTier(submittedSkillLevel).name}</span>
+									<span>{Math.round(getTierProgress(submittedSkillLevel) * 100)}%</span>
+								</div>
+								<div class="mt-0.5 h-1.5 w-full overflow-hidden rounded-full" style="background: color-mix(in srgb, {getSkillTier(submittedSkillLevel).color} 15%, var(--surface));">
+									<div class="h-full rounded-full transition-all" style="width: {getTierProgress(submittedSkillLevel) * 100}%; background: {getSkillTier(submittedSkillLevel).color};"></div>
+								</div>
+							</div>
 						</div>
 					{/if}
 
-					{#if submittedRank !== null}
+					{#if submitted && submittedRank !== null}
 						<div class="mb-3 text-center text-sm font-bold" style="color: var(--accent-cyan);">
 							Leaderboard rank: #{submittedRank}
 						</div>
 					{/if}
 					<div class="flex gap-2">
-						{#if isGenerated}
-							<a href="/" class="flex flex-1 items-center justify-center rounded-lg py-2.5 text-sm font-medium transition hover:opacity-70" style="background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary);">Home</a>
-						{:else}
-							<button onclick={closeDialog} class="flex-1 rounded-lg py-2.5 text-sm font-medium transition hover:opacity-70" style="background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary);">Keep Playing</button>
-						{/if}
-						<a href="/leaderboard" class="flex flex-1 items-center justify-center rounded-lg py-2.5 text-sm font-semibold transition hover:opacity-80" style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);">
-							Leaderboard
-						</a>
+						<a href="/" class="flex flex-1 items-center justify-center rounded-lg py-2.5 text-sm font-medium transition hover:opacity-70" style="background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary);">Home</a>
+						<button onclick={playAgain} class="flex flex-1 items-center justify-center rounded-lg py-2.5 text-sm font-semibold transition hover:opacity-80" style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);">Play Again</button>
 					</div>
 				{:else}
 					<!-- Pre-submit: confirm -->
-					{#if !isGenerated && rankPreviewLoading}
-						<div class="mb-3 flex justify-center">
-							<div class="h-4 w-32 animate-pulse rounded" style="background: color-mix(in srgb, var(--accent-cyan) 25%, var(--surface));"></div>
-						</div>
-					{:else if !isGenerated && rankPreview !== null}
-						<div class="mb-3 text-center text-sm font-bold" style="color: var(--accent-cyan);">
-							Your rank on this level: #{rankPreview}
+					<!-- Skill level preview -->
+					{#if previewSkillLevel !== null && currentSkillLevel !== null}
+						{@const newTier = getSkillTier(previewSkillLevel)}
+						{@const progress = getTierProgress(previewSkillLevel)}
+						{@const delta = previewSkillLevel - currentSkillLevel}
+						<div class="mb-3 flex flex-col items-center gap-1">
+							<div class="flex items-center gap-2">
+								<RankBadge skillLevel={previewSkillLevel} size="lg" />
+								<div class="flex flex-col">
+									<span class="text-lg font-bold tabular-nums" style="color: {newTier.color};">
+										{previewSkillLevel.toLocaleString()}
+									</span>
+									<span class="text-[10px] font-semibold tabular-nums" style="color: {delta >= 0 ? 'var(--win-green)' : 'var(--loss-red)'};">
+										{delta >= 0 ? '+' : ''}{delta}
+									</span>
+								</div>
+							</div>
+							<div class="w-full max-w-[200px]">
+								<div class="flex items-center justify-between text-[9px]" style="color: var(--text-tertiary);">
+									<span style="color: {newTier.color};">{newTier.name}</span>
+									<span>{Math.round(progress * 100)}%</span>
+								</div>
+								<div class="mt-0.5 h-1.5 w-full overflow-hidden rounded-full" style="background: color-mix(in srgb, {newTier.color} 15%, var(--surface));">
+									<div class="h-full rounded-full transition-all" style="width: {progress * 100}%; background: {newTier.color};"></div>
+								</div>
+							</div>
 						</div>
 					{/if}
+
 					<div class="mb-4 flex items-center gap-3 rounded-lg px-3 py-2" style="background: var(--surface); border: 1px solid var(--border);">
 						{#if $session.data.user.image}
 							<img src={$session.data.user.image} alt="" class="h-7 w-7 rounded-full" />
 						{/if}
 						<div class="text-sm font-medium" style="color: var(--text-primary); opacity: 0.7;">{$session.data.user.name}</div>
 					</div>
-					<button onclick={submitScore} disabled={isSubmitting} class="w-full rounded-lg py-2.5 text-sm font-semibold transition hover:opacity-80 disabled:opacity-25" style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);">{isSubmitting ? 'Saving…' : 'Submit'}</button>
+					<div class="flex gap-2">
+						<button onclick={() => { skipped = true; }} class="flex-1 rounded-lg py-2.5 text-sm font-medium transition hover:opacity-70" style="background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary);">Skip</button>
+						<button onclick={submitScore} disabled={isSubmitting} class="flex-1 rounded-lg py-2.5 text-sm font-semibold transition hover:opacity-80 disabled:opacity-25" style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);">{isSubmitting ? 'Saving…' : 'Submit'}</button>
+					</div>
 				{/if}
 			</div>
 		</div>

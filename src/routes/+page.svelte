@@ -202,11 +202,12 @@
 		ctx.scale(dpr, dpr);
 		ctx.clearRect(0, 0, w, h);
 
-		const padX = w < 640 ? 16 : 48;
+		const padX = 0;
 		const padTop = 10,
 			padBot = 6;
-		const pw = w - padX * 2;
+		const pw = w;
 		const ph = h - padTop - padBot;
+		const fadeW = w < 640 ? 40 : 80;
 
 		const m1 = -2.5 + Math.sin(t * 0.4) * 0.5;
 		const m2 = -1.0 + Math.sin(t * 0.6 + 1.2) * 0.4;
@@ -279,6 +280,18 @@
 			ctx.stroke();
 			ctx.globalAlpha = 1;
 		}
+
+		// Edge fade: draw a gradient mask using destination-in compositing
+		ctx.save();
+		ctx.globalCompositeOperation = 'destination-in';
+		const fadeGrad = ctx.createLinearGradient(0, 0, w, 0);
+		fadeGrad.addColorStop(0, 'rgba(0,0,0,0)');
+		fadeGrad.addColorStop(fadeW / w, 'rgba(0,0,0,1)');
+		fadeGrad.addColorStop(1 - fadeW / w, 'rgba(0,0,0,1)');
+		fadeGrad.addColorStop(1, 'rgba(0,0,0,0)');
+		ctx.fillStyle = fadeGrad;
+		ctx.fillRect(0, 0, w, h);
+		ctx.restore();
 	}
 </script>
 

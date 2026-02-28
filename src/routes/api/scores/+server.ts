@@ -1,10 +1,9 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
-import { scores, players } from '$lib/server/db/schema';
-import { and, eq, desc, gt, count } from 'drizzle-orm';
-import { getLevel } from '$lib/game/levels';
-import { reconstructLevel, parseGeneratedId } from '$lib/game/generator';
+import { players } from '$lib/server/db/schema';
+import { eq, gt, count } from 'drizzle-orm';
+import { reconstructLevel } from '$lib/game/generator';
 import { computeShapeMatch, computeScore } from '$lib/game/scoring';
 import { computeWeightedScore, computeNewRating, computeSkillLevel, getSkillTier } from '$lib/game/rating';
 import { resolvePlayerName } from '$lib/utils/player-name';
@@ -15,12 +14,15 @@ function resolveCountry(request: Request): string | null {
 		|| null;
 }
 
+// Tier ordering for rank-up detection
+const SKILL_TIERS_ORDER = ['Iron', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Genius'];
+
 /**
  * Handle generated level submission.
  * Server-side verification: reconstructs the level from seed, recomputes score.
  * Updates the unified players table.
  */
-async function handleGeneratedSubmission(
+async function handleSubmission(
 	request: Request,
 	userId: string,
 	userName: string,
@@ -140,85 +142,6 @@ async function handleGeneratedSubmission(
 	});
 }
 
-// Tier ordering for rank-up detection
-const SKILL_TIERS_ORDER = ['Iron', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Genius'];
-
-/**
- * Handle legacy level submission.
- * Writes to the old scores table (kept for backward compatibility).
- */
-async function handleLegacySubmission(
-	request: Request,
-	userId: string,
-	userName: string,
-	body: Record<string, unknown>
-) {
-	const { levelId, samples, duration, clicks: clientClicks } = body;
-
-	if (!Array.isArray(samples) || samples.length < 1) {
-		return json({ success: false, error: 'Need at least 1 sample' }, { status: 400 });
-	}
-	if (samples.some((s: unknown) => typeof s !== 'number' || !isFinite(s as number))) {
-		return json({ success: false, error: 'Invalid samples' }, { status: 400 });
-	}
-
-	const level = getLevel(levelId as number);
-	if (!level) {
-		return json({ success: false, error: 'Invalid level' }, { status: 400 });
-	}
-
-	const playerName = resolvePlayerName(userName);
-	const totalClicks = typeof clientClicks === 'number' && clientClicks > 0 ? clientClicks : samples.length;
-	const durationMs = typeof duration === 'number' && duration > 0 && duration < 3600000
-		? Math.round(duration) : null;
-	const country = resolveCountry(request);
-
-	const { mse } = computeShapeMatch(samples as number[], level);
-	const score = computeScore(mse, durationMs ?? 300000);
-
-	const existing = await db
-		.select()
-		.from(scores)
-		.where(and(eq(scores.playerId, userId), eq(scores.levelId, levelId as number)))
-		.orderBy(desc(scores.score))
-		.limit(1);
-
-	const isNewBest = existing.length === 0 || score > existing[0].score;
-
-	if (isNewBest) {
-		if (existing.length > 0) {
-			await db.delete(scores).where(and(eq(scores.playerId, userId), eq(scores.levelId, levelId as number)));
-		}
-
-		await db.insert(scores).values({
-			playerName: playerName.slice(0, 24),
-			playerId: userId,
-			levelId: levelId as number,
-			score,
-			klDivergence: mse,
-			clicks: totalClicks,
-			duration: durationMs,
-			country,
-			samples: JSON.stringify(samples)
-		});
-	}
-
-	const scoreForRank = isNewBest ? score : existing[0].score;
-	const [{ value: betterCount }] = await db
-		.select({ value: count() })
-		.from(scores)
-		.where(and(eq(scores.levelId, levelId as number), gt(scores.score, scoreForRank)));
-	const rank = betterCount + 1;
-
-	return json({
-		success: true,
-		isNewBest,
-		score,
-		bestScore: isNewBest ? score : existing[0].score,
-		rank
-	});
-}
-
 export const POST: RequestHandler = async ({ request, locals }) => {
 	try {
 		if (!locals.user) {
@@ -229,13 +152,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		const userId = locals.user.id;
 		const userName = locals.user.name || 'Anonymous';
 
-		// Route to the correct handler based on levelId format
 		const levelId = body.levelId;
-		if (typeof levelId === 'string' && levelId.startsWith('g-')) {
-			return handleGeneratedSubmission(request, userId, userName, body);
+		if (typeof levelId !== 'string' || !levelId.startsWith('g-')) {
+			return json({ success: false, error: 'Invalid level format' }, { status: 400 });
 		}
 
-		return handleLegacySubmission(request, userId, userName, body);
+		return handleSubmission(request, userId, userName, body);
 	} catch (err) {
 		console.error('Score submission error:', err);
 		return json({ success: false, error: 'Server error' }, { status: 500 });

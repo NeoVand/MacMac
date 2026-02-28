@@ -3,7 +3,7 @@ import type { ClientMessage, ServerMessage, StartMessage, OpponentKdeMessage, Ba
 import type { PlayerInfo } from './shared/types';
 import { signBattleResult } from './shared/crypto';
 
-const BATTLE_DURATION_MS = 20_000;
+const BATTLE_DURATION_MS = 30_000;
 const KDE_BROADCAST_INTERVAL_MS = 200;
 const JACKPOT_THRESHOLD = 98; // match % for instant win
 const DISCONNECT_GRACE_MS = 10_000;
@@ -163,7 +163,7 @@ function computeMatchPct(samples: number[], hiddenClicks: number[], xRange: [num
 
 function computeScore(mse: number, elapsedMs: number): number {
 	const matchScore = Math.round(8000 / (1 + 100 * mse));
-	const timeBonus = Math.round(2000 * Math.max(0, 1 - Math.max(0, elapsedMs) / 60000));
+	const timeBonus = Math.round(2000 * Math.max(0, 1 - Math.max(0, elapsedMs) / 30000));
 	return matchScore + timeBonus;
 }
 

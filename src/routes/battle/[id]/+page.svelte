@@ -12,7 +12,7 @@
 	import GameCanvas from '$lib/components/GameCanvas.svelte';
 	import AppHeader from '$lib/components/AppHeader.svelte';
 	import RankBadge from '$lib/components/RankBadge.svelte';
-	import { getBattleTier } from '$lib/game/elo';
+	import { getBattleTier, getBattleTierProgress } from '$lib/game/elo';
 	import { authClient } from '$lib/auth-client';
 	import { resolvePlayerName } from '$lib/utils/player-name';
 	import { Github } from 'lucide-svelte';
@@ -688,13 +688,26 @@
 						</div>
 					{/if}
 					{#if reportedNewElo !== null}
+						{@const bTier = getBattleTier(reportedNewElo)}
+						{@const bProgress = getBattleTierProgress(reportedNewElo)}
 						<div class="mb-1 flex items-center justify-center gap-2">
 							<RankBadge mode="battle" value={reportedNewElo} size="lg" />
 							<span class="text-lg font-bold tabular-nums" style="color: {battleTierColor ?? 'var(--accent-red)'};">
 								{reportedNewElo}
 							</span>
 						</div>
+						<!-- Tier progress bar -->
+						<div class="mx-auto mt-1 mb-2 w-full max-w-[200px]">
+							<div class="flex items-center justify-between text-[9px]" style="color: var(--text-tertiary);">
+								<span style="color: {bTier.color};">{bTier.name}</span>
+								<span>{Math.round(bProgress * 100)}%</span>
+							</div>
+							<div class="mt-0.5 h-1.5 w-full overflow-hidden rounded-full" style="background: color-mix(in srgb, {bTier.color} 15%, var(--surface));">
+								<div class="h-full rounded-full transition-all" style="width: {bProgress * 100}%; background: {bTier.color};"></div>
+							</div>
+						</div>
 					{:else if isAnonymous}
+						{@const aProgress = getBattleTierProgress(anonElo)}
 						<div class="mb-1 flex items-center justify-center gap-2">
 							<RankBadge mode="battle" value={anonElo} size="lg" />
 							<span class="text-lg font-bold tabular-nums" style="color: {anonTier.color};">
@@ -703,6 +716,16 @@
 						</div>
 						<div class="mb-1 text-[10px] font-medium" style="color: {anonTier.color};">
 							{anonTier.name}
+						</div>
+						<!-- Tier progress bar (anonymous) -->
+						<div class="mx-auto mt-1 mb-2 w-full max-w-[200px]">
+							<div class="flex items-center justify-between text-[9px]" style="color: var(--text-tertiary);">
+								<span style="color: {anonTier.color};">{anonTier.name}</span>
+								<span>{Math.round(aProgress * 100)}%</span>
+							</div>
+							<div class="mt-0.5 h-1.5 w-full overflow-hidden rounded-full" style="background: color-mix(in srgb, {anonTier.color} 15%, var(--surface));">
+								<div class="h-full rounded-full transition-all" style="width: {aProgress * 100}%; background: {anonTier.color};"></div>
+							</div>
 						</div>
 					{/if}
 					<div class="text-[9px] font-medium uppercase tracking-wider" style="color: var(--text-tertiary);">ELO Change</div>
