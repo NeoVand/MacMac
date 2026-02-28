@@ -29,6 +29,7 @@
 
 	const family = $derived(svgPaths(160, 48));
 	const dColor = $derived(difficultyColor(level.targetDifficulty));
+	const diff = $derived(level.targetDifficulty);
 
 	onMount(() => {
 		const timer = setTimeout(() => {
@@ -89,13 +90,20 @@
 		{/each}
 	</svg>
 
-	<div class="flex items-center gap-1.5">
-		<span
-			class="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
-			style="background-color: {dColor};"
-		></span>
-		<span class="text-[11px] font-semibold tabular-nums" style="color: {dColor};">
-			{level.targetDifficulty.toFixed(1)}
-		</span>
-	</div>
+	<svg viewBox="0 0 38 6" class="mx-auto h-2 w-auto" aria-label="Difficulty {diff.toFixed(1)} out of 10">
+		<defs>
+			<clipPath id="half-{level.seed}" clipPathUnits="objectBoundingBox">
+				<rect x="0" y="0" width="0.5" height="1" />
+			</clipPath>
+		</defs>
+		{#each [0, 1, 2, 3, 4] as i}
+			{@const remaining = diff / 2 - i}
+			{@const full = remaining >= 0.75}
+			{@const half = !full && remaining >= 0.25}
+			<circle cx={3 + i * 8} cy="3" r="2.5" fill={dColor} opacity={full ? 1 : 0.2} />
+			{#if half}
+				<circle cx={3 + i * 8} cy="3" r="2.5" fill={dColor} clip-path="url(#half-{level.seed})" />
+			{/if}
+		{/each}
+	</svg>
 </a>

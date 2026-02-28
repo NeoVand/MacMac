@@ -360,7 +360,7 @@
 
 		<!-- Buttons: Solo + Battle + Leaderboard (uses .btn-action from layout.css) -->
 		<div class="flex w-full justify-center px-4 py-6">
-			<div class="flex flex-nowrap items-center justify-center gap-1.5 sm:gap-3">
+			<div class="flex flex-nowrap items-center justify-center gap-3 sm:gap-3">
 				<button onclick={playSolo} class="btn-action" style="--btn-color: var(--accent-cyan);" title="Play a random level">
 					<span class="btn-action-face">
 						<Sword class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" strokeWidth={2} />
@@ -376,12 +376,11 @@
 						<span class="absolute -top-2 -right-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[9px] font-bold" style="background: var(--accent-red); color: var(--bg);">{battleSearching}</span>
 					{/if}
 				</button>
-				<a href="/leaderboard" class="btn-action btn-gold">
-					<span class="btn-action-face">
-						<svg viewBox="0 0 24 24" fill="currentColor" class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4"
+				<a href="/leaderboard" class="btn-action btn-gold cursor-pointer !rounded-full">
+					<span class="btn-action-face !rounded-full h-10 w-10 !p-0 items-center justify-center">
+						<svg viewBox="0 0 24 24" fill="#eab308" class="h-[18px] w-[18px]"
 						><path d="M2 4l3 12h14l3-12-5 4-5-6-5 6-5-4zm3 14h14v2H5v-2z" /></svg
 					>
-						Leaderboard
 					</span>
 				</a>
 				<SoundButton size="lg" />
