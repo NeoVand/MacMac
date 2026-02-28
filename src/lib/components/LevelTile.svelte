@@ -51,8 +51,8 @@
 
 <a
 	href="/play/{level.id}"
-	class="group overflow-hidden rounded-2xl p-2.5 transition hover:opacity-80"
-	style="background: var(--surface);"
+	class="level-tile group overflow-hidden rounded-2xl p-2.5"
+	style="background: var(--surface); --tile-glow: {dColor};"
 >
 	<svg
 		viewBox="0 0 160 48"

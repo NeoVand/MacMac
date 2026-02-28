@@ -6,6 +6,22 @@ import type { ServerMessage } from './protocol';
 
 const PARTYKIT_HOST = import.meta.env.VITE_PARTYKIT_HOST || 'localhost:1999';
 
+/**
+ * Lightweight HTTP poll: how many players are searching for a battle?
+ * Returns 0 on any error so the indicator just hides gracefully.
+ */
+export async function fetchBattleQueueCount(): Promise<number> {
+	try {
+		const protocol = PARTYKIT_HOST.startsWith('localhost') ? 'http' : 'https';
+		const res = await fetch(`${protocol}://${PARTYKIT_HOST}/parties/matchmaker/global`);
+		if (!res.ok) return 0;
+		const data = await res.json();
+		return typeof data.searching === 'number' ? data.searching : 0;
+	} catch {
+		return 0;
+	}
+}
+
 export type MatchmakerMessage =
 	| { type: 'queue_status'; position: number; waitingCount: number }
 	| { type: 'match_found'; battleId: string; seed: number; targetDifficulty: number; opponentName: string; opponentElo: number; opponentCountry?: string | null };

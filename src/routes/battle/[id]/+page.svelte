@@ -222,8 +222,8 @@
 		<AppHeader  />
 		<div class="flex flex-1 flex-col items-center justify-center gap-4">
 			<div class="relative flex h-16 w-16 items-center justify-center">
-				<div class="absolute inset-0 animate-spin rounded-full" style="border: 2px solid transparent; border-top-color: var(--accent-cyan); animation-duration: 1.2s;"></div>
-				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-7 w-7" style="color: var(--accent-cyan);">
+				<div class="absolute inset-0 animate-spin rounded-full" style="border: 2px solid transparent; border-top-color: var(--accent-red); animation-duration: 1.2s;"></div>
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-7 w-7" style="color: var(--accent-red);">
 					<path d="M14.5 17.5L3 6V3h3l11.5 11.5M13 7l6-6h3v3l-6 6" stroke-linecap="round" stroke-linejoin="round"/>
 					<path d="M3 3l18 18" stroke-linecap="round" opacity="0.3"/>
 				</svg>
@@ -252,7 +252,7 @@
 			</div>
 			<div
 				class="text-8xl font-black tabular-nums sm:text-9xl"
-				style="color: var(--accent-cyan); text-shadow: 0 0 40px color-mix(in srgb, var(--accent-cyan) 40%, transparent);"
+				style="color: var(--accent-red); text-shadow: 0 0 40px color-mix(in srgb, var(--accent-red) 40%, transparent);"
 			>
 				{countdownNum}
 			</div>
@@ -286,7 +286,7 @@
 			<div class="text-center">
 				<div
 					class="text-2xl font-black tabular-nums"
-					style="color: {timeLeftMs <= 5000 ? '#ef4444' : 'var(--accent-cyan)'};"
+					style="color: var(--accent-red);"
 				>
 					{timerDisplay}
 				</div>
@@ -315,7 +315,7 @@
 		<div class="mx-4 mb-1 h-1 overflow-hidden rounded-full sm:mx-6" style="background: var(--surface);">
 			<div
 				class="h-full rounded-full transition-all duration-200"
-				style="width: {(timeLeftMs / durationMs) * 100}%; background: {timeLeftMs <= 5000 ? '#ef4444' : 'var(--accent-cyan)'};"
+				style="width: {(timeLeftMs / durationMs) * 100}%; background: var(--accent-red);"
 			></div>
 		</div>
 
@@ -424,7 +424,7 @@
 					{#if reportedNewElo !== null}
 						<div class="mb-1 flex items-center justify-center gap-2">
 							<RankBadge mode="battle" value={reportedNewElo} size="lg" />
-							<span class="text-lg font-bold tabular-nums" style="color: {battleTierColor ?? 'var(--accent-cyan)'};">
+							<span class="text-lg font-bold tabular-nums" style="color: {battleTierColor ?? 'var(--accent-red)'};">
 								{reportedNewElo}
 							</span>
 						</div>
@@ -443,8 +443,8 @@
 
 				<!-- Sign-in prompt for anonymous users -->
 				{#if isAnonymous}
-					<div class="mb-4 rounded-xl p-3 text-center" style="background: color-mix(in srgb, var(--accent-cyan) 8%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 20%, transparent);">
-						<div class="text-xs font-medium" style="color: var(--accent-cyan);">
+					<div class="mb-4 rounded-xl p-3 text-center" style="background: color-mix(in srgb, var(--accent-red) 8%, transparent); border: 1px solid color-mix(in srgb, var(--accent-red) 20%, transparent);">
+						<div class="text-xs font-medium" style="color: var(--accent-red);">
 							Sign in to save your ranking
 						</div>
 					</div>
@@ -462,7 +462,7 @@
 					<a
 						href="/?battle"
 						class="flex flex-1 items-center justify-center rounded-xl py-2.5 text-sm font-semibold transition hover:opacity-80"
-						style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);"
+						style="background: color-mix(in srgb, var(--accent-red) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-red) 25%, transparent); color: var(--accent-red);"
 					>
 						Rematch
 					</a>
@@ -493,7 +493,7 @@
 				<a
 					href="/?battle"
 					class="rounded-xl px-5 py-2.5 text-sm font-semibold transition hover:opacity-80"
-					style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);"
+					style="background: color-mix(in srgb, var(--accent-red) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-red) 25%, transparent); color: var(--accent-red);"
 				>
 					New Battle
 				</a>

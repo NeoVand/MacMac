@@ -17,74 +17,72 @@
 	);
 	const iconSize = $derived(size === 'sm' ? 16 : size === 'md' ? 18 : 20);
 	const visualizerSize = $derived(size === 'sm' ? 'h-5 w-5' : size === 'md' ? 'h-6 w-6' : 'h-7 w-7');
-	const buttonStyle = $derived.by(() => {
-		if (size === 'lg') {
-			return 'font-family: \'Outfit\', sans-serif; color: var(--accent-purple);';
-		}
-		return 'background: var(--surface); color: var(--accent-purple);';
-	});
 </script>
 
-<button
-	onclick={toggleAudio}
-	class="cursor-pointer relative z-10 flex {sizeClasses} items-center justify-center overflow-visible rounded-full transition hover:scale-[1.02] hover:opacity-90 active:scale-[0.98] sm:hover:brightness-[1.03] dark:hover:brightness-110 {size === 'lg' ? 'sound-btn-lg' : ''}"
-	style={buttonStyle}
-	aria-label={isMuted ? 'Turn sound on' : 'Turn sound off'}
->
-	{#if isMuted}
-		{#if size === 'lg'}
-			<svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="none" stroke="url(#music-icon-grad-lg)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-				<defs>
-					<linearGradient id="music-icon-grad-lg" x1="0%" y1="0%" x2="100%" y2="0%" gradientUnits="userSpaceOnUse">
-						<stop offset="0%" stop-color="var(--accent-cyan)" />
-						<stop offset="100%" stop-color="var(--accent-purple)" />
-					</linearGradient>
-				</defs>
-				<path d="M9 18V5l12-2v13" />
-				<circle cx="6" cy="18" r="3" />
-				<circle cx="18" cy="16" r="3" />
-			</svg>
-		{:else}
+{#if size === 'lg'}
+	<!-- Landing page: 3D press-style matching the action buttons, but circular -->
+	<button
+		onclick={toggleAudio}
+		class="btn-action btn-music cursor-pointer !rounded-full"
+		aria-label={isMuted ? 'Turn sound on' : 'Turn sound off'}
+	>
+		<span class="btn-action-face !rounded-full {sizeClasses} !p-0 items-center justify-center">
+			{#if isMuted}
+				<svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+					<path d="M9 18V5l12-2v13" />
+					<circle cx="6" cy="18" r="3" />
+					<circle cx="18" cy="16" r="3" />
+				</svg>
+			{:else}
+				<div class="relative z-10 flex {visualizerSize} items-center justify-center waveform-vis">
+					<svg viewBox="0 0 100 100" preserveAspectRatio="none" class="h-full w-full overflow-visible">
+						<defs>
+							<linearGradient id="waveform-grad-{size}" x1="0%" y1="0%" x2="100%" y2="0%" gradientUnits="userSpaceOnUse">
+								<stop offset="0%" stop-color="var(--accent-cyan)" />
+								<stop offset="100%" stop-color="var(--accent-purple)" />
+							</linearGradient>
+						</defs>
+						<path
+							d={path}
+							fill="url(#waveform-grad-{size})"
+							stroke="none"
+						/>
+					</svg>
+				</div>
+			{/if}
+		</span>
+	</button>
+{:else}
+	<!-- Header: simple circle button -->
+	<button
+		onclick={toggleAudio}
+		class="btn-music cursor-pointer relative z-10 flex {sizeClasses} items-center justify-center overflow-visible rounded-full active:scale-[0.98]"
+		style="background: var(--surface); color: var(--btn-color);"
+		aria-label={isMuted ? 'Turn sound on' : 'Turn sound off'}
+	>
+		{#if isMuted}
 			<Music size={iconSize} />
+		{:else}
+			<div class="relative z-10 flex {visualizerSize} items-center justify-center waveform-vis">
+				<svg viewBox="0 0 100 100" preserveAspectRatio="none" class="h-full w-full overflow-visible">
+					<defs>
+						<linearGradient id="waveform-grad-{size}" x1="0%" y1="0%" x2="100%" y2="0%" gradientUnits="userSpaceOnUse">
+							<stop offset="0%" stop-color="var(--accent-cyan)" />
+							<stop offset="100%" stop-color="var(--accent-purple)" />
+						</linearGradient>
+					</defs>
+					<path
+						d={path}
+						fill="url(#waveform-grad-{size})"
+						stroke="none"
+					/>
+				</svg>
+			</div>
 		{/if}
-	{:else}
-		<div class="relative z-10 flex {visualizerSize} items-center justify-center waveform-vis">
-			<svg viewBox="0 0 100 100" preserveAspectRatio="none" class="h-full w-full overflow-visible">
-				<defs>
-					<linearGradient id="waveform-grad-{size}" x1="0%" y1="0%" x2="100%" y2="0%" gradientUnits="userSpaceOnUse">
-						<stop offset="0%" stop-color="var(--accent-cyan)" />
-						<stop offset="100%" stop-color="var(--accent-purple)" />
-					</linearGradient>
-				</defs>
-				<path
-					d={path}
-					fill="url(#waveform-grad-{size})"
-					stroke="none"
-				/>
-			</svg>
-		</div>
-	{/if}
-</button>
+	</button>
+{/if}
 
 <style>
-	/* Landing page: gradient background + border (cyan → purple), very subtle - match Play/Leaderboard transparency */
-	.sound-btn-lg {
-		background: linear-gradient(
-				to right,
-				color-mix(in srgb, var(--accent-cyan) 1.5%, transparent),
-				color-mix(in srgb, var(--accent-purple) 1.8%, transparent)
-			)
-			padding-box,
-			linear-gradient(
-					to right,
-					color-mix(in srgb, var(--accent-cyan) 16%, transparent),
-					color-mix(in srgb, var(--accent-purple) 20%, transparent)
-				)
-				border-box;
-		border: 1px solid transparent;
-		box-shadow: 0 2px 12px color-mix(in srgb, var(--accent-purple) 5%, transparent);
-	}
-
 	/* Ensure waveform renders on top */
 	.waveform-vis {
 		overflow: visible;

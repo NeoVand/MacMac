@@ -58,6 +58,24 @@ export default class Matchmaker implements Party.Server {
 
 	constructor(readonly room: Party.Room) {}
 
+	/**
+	 * HTTP endpoint for lightweight polling: GET /parties/matchmaker/global
+	 * Returns { searching: <number> } — how many players are in the queue.
+	 */
+	async onRequest(req: Party.Request): Promise<Response> {
+		return new Response(
+			JSON.stringify({ searching: this.queue.size }),
+			{
+				status: 200,
+				headers: {
+					'Content-Type': 'application/json',
+					'Access-Control-Allow-Origin': '*',
+					'Cache-Control': 'no-store'
+				}
+			}
+		);
+	}
+
 	onConnect(conn: Party.Connection) {
 		// Wait for join_queue message
 	}

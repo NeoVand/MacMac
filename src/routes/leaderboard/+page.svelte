@@ -148,7 +148,7 @@
 					<a
 						href="/?battle"
 						class="mt-3 inline-flex items-center gap-1.5 rounded-xl px-4 py-1.5 text-[12px] font-semibold transition hover:brightness-110"
-						style="background: color-mix(in srgb, var(--accent-cyan) 10%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);"
+						style="background: color-mix(in srgb, var(--accent-red) 10%, transparent); border: 1px solid color-mix(in srgb, var(--accent-red) 25%, transparent); color: var(--accent-red);"
 					>
 						Start a battle
 					</a>
@@ -185,7 +185,7 @@
 								<tr
 									class="border-t text-sm"
 									style="border-color: var(--border); color: {i === 0
-										? 'var(--accent-cyan)'
+										? 'var(--accent-red)'
 										: 'var(--text-primary)'}; opacity: {i === 0 ? 1 : i < 3 ? 0.75 : 0.5};"
 								>
 									<td class="py-3 font-mono text-xs font-bold tabular-nums">{i + 1}</td>

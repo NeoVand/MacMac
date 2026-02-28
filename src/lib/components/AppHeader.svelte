@@ -16,8 +16,8 @@
 
 <header class="flex shrink-0 items-center justify-between px-4 py-2 sm:px-6 sm:py-3">
 	<!-- Left: logo -->
-	<a href="/" class="inline-block transition hover:opacity-80" style="font-family: 'Space Grotesk', sans-serif;">
-		<span class="text-lg" style="color: var(--text-primary); opacity: 0.85;">mac</span><span class="bg-gradient-to-r from-game-cyan to-purple-400 bg-clip-text text-lg text-transparent">mac</span>
+	<a href="/" class="inline-block transition hover:opacity-80" style="font-family: 'Believe Stronger', sans-serif;">
+		<span class="text-2xl" style="color: var(--text-primary); opacity: 0.85;">Mac</span><span class="bg-gradient-to-r from-game-cyan to-purple-400 bg-clip-text text-2xl text-transparent">Mac</span>
 	</a>
 
 	<!-- Right: nav + actions -->

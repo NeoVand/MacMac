@@ -5,7 +5,7 @@
 	import { gaussian, linspace } from '$lib/game/math';
 	import { generateGrid, generateReplacement, gridConfigForRating } from '$lib/game/grid';
 	import type { GeneratedLevel } from '$lib/game/generator';
-	import { joinMatchmaking, type MatchmakerMessage } from '$lib/battle/client';
+	import { joinMatchmaking, fetchBattleQueueCount, type MatchmakerMessage } from '$lib/battle/client';
 	import { authClient } from '$lib/auth-client';
 	import LevelTile from '$lib/components/LevelTile.svelte';
 	import RankBadge from '$lib/components/RankBadge.svelte';
@@ -18,6 +18,20 @@
 
 	let { data } = $props();
 	const session = authClient.useSession();
+
+	// --- Live battle search indicator (HTTP poll) ---
+	let battleSearching = $state(0);
+
+	onMount(() => {
+		let active = true;
+		async function poll() {
+			if (!active) return;
+			battleSearching = await fetchBattleQueueCount();
+			if (active) setTimeout(poll, 10_000);
+		}
+		poll();
+		return () => { active = false; };
+	});
 
 	// --- Battle queue state ---
 	let showQueue = $state(false);
@@ -192,20 +206,24 @@
 		const pw = w - padX * 2;
 		const ph = h - padTop - padBot;
 
-		const m1 = -2.2 + Math.sin(t * 0.4) * 0.6;
-		const m2 = 0.3 + Math.sin(t * 0.7 + 1.5) * 0.4;
-		const m3 = 2.5 + Math.cos(t * 0.3 + 3) * 0.5;
-		const s1 = 0.55 + Math.sin(t * 0.5) * 0.1;
-		const s2 = 0.8 + Math.cos(t * 0.6) * 0.15;
-		const s3 = 0.45 + Math.sin(t * 0.8 + 2) * 0.08;
+		const m1 = -2.5 + Math.sin(t * 0.4) * 0.5;
+		const m2 = -1.0 + Math.sin(t * 0.6 + 1.2) * 0.4;
+		const m3 = 0.3 + Math.sin(t * 0.7 + 1.5) * 0.35;
+		const m4 = 1.5 + Math.cos(t * 0.5 + 2.5) * 0.4;
+		const m5 = 2.8 + Math.cos(t * 0.3 + 3) * 0.45;
+		const s1 = 0.5 + Math.sin(t * 0.5) * 0.1;
+		const s2 = 0.6 + Math.cos(t * 0.45 + 0.8) * 0.12;
+		const s3 = 0.7 + Math.cos(t * 0.6) * 0.15;
+		const s4 = 0.55 + Math.sin(t * 0.55 + 1.8) * 0.1;
+		const s5 = 0.45 + Math.sin(t * 0.8 + 2) * 0.08;
 
 		const amplitude = 0.25 + 0.75 * (0.5 + 0.5 * Math.sin(t * 0.18));
 		const pdf = (x: number) =>
 			amplitude *
-			(0.3 * gaussian(x, m1, s1) + 0.4 * gaussian(x, m2, s2) + 0.3 * gaussian(x, m3, s3));
+			(0.18 * gaussian(x, m1, s1) + 0.22 * gaussian(x, m2, s2) + 0.25 * gaussian(x, m3, s3) + 0.20 * gaussian(x, m4, s4) + 0.15 * gaussian(x, m5, s5));
 
-		const xMin = -5,
-			xMax = 5;
+		const xMin = -4,
+			xMax = 4;
 		const numPts = 150;
 		const pts = linspace(xMin, xMax, numPts);
 		const vals = pts.map(pdf);
@@ -276,7 +294,12 @@
 	<meta property="og:url" content="https://macmac-gilt.vercel.app" />
 </svelte:head>
 
-<div class="relative flex min-h-dvh flex-col items-center">
+<div class="relative flex min-h-dvh flex-col items-center overflow-hidden">
+	<!-- Ambient floating orbs -->
+	<div class="ambient-orb ambient-orb-1"></div>
+	<div class="ambient-orb ambient-orb-2"></div>
+	<div class="ambient-orb ambient-orb-3"></div>
+
 	<div class="relative z-20 w-full shrink-0">
 		<AppHeader />
 	</div>
@@ -295,19 +318,19 @@
 			<div class="relative z-10 flex flex-col items-center justify-center px-4">
 				<h1
 					class="mb-1 text-center sm:mb-2"
-					style="font-family: 'Space Grotesk', sans-serif;"
+					style="font-family: 'Believe Stronger', sans-serif;"
 				>
 					<span
-						class="text-7xl tracking-tight sm:text-8xl"
-						style="color: var(--text-primary); opacity: 0.85;">mac</span
+						class="text-8xl tracking-tight sm:text-9xl"
+						style="color: var(--text-primary); opacity: 0.85;">Mac</span
 					><span
-						class="bg-gradient-to-r from-game-cyan to-purple-400 bg-clip-text text-7xl tracking-tight text-transparent sm:text-8xl"
-						>mac</span
+						class="bg-gradient-to-r from-game-cyan to-purple-400 bg-clip-text text-8xl tracking-tight text-transparent sm:text-9xl"
+						>Mac</span
 					>
 				</h1>
 				<p
-					class="mb-0 text-center text-sm font-medium uppercase tracking-[0.2em] sm:text-base"
-					style="color: var(--text-secondary);"
+					class="mb-0 text-center text-[10px] font-semibold uppercase tracking-[0.3em] sm:text-xs"
+					style="color: var(--text-tertiary);"
 				>
 					the sampling game
 				</p>
@@ -338,19 +361,28 @@
 		<!-- Buttons: Solo + Battle + Leaderboard (uses .btn-action from layout.css) -->
 		<div class="flex w-full justify-center px-4 py-6">
 			<div class="flex flex-nowrap items-center justify-center gap-1.5 sm:gap-3">
-				<button onclick={playSolo} class="btn-action" style="--btn-color: var(--accent-purple);" title="Play a random level">
-					<Sword class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" strokeWidth={2} />
-					Solo
+				<button onclick={playSolo} class="btn-action" style="--btn-color: var(--accent-cyan);" title="Play a random level">
+					<span class="btn-action-face">
+						<Sword class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" strokeWidth={2} />
+						Solo
+					</span>
 				</button>
-				<button onclick={startBattleQueue} class="btn-action" style="--btn-color: var(--accent-cyan);" title="Find an opponent">
-					<Swords class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" strokeWidth={2} />
-					Battle
+				<button onclick={startBattleQueue} class="btn-action btn-battle" title="Find an opponent">
+					<span class={"btn-action-face" + (battleSearching > 0 ? ' btn-battle-pulse' : '')}>
+						<Swords class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" strokeWidth={2} />
+						Battle
+					</span>
+					{#if battleSearching > 0}
+						<span class="absolute -top-2 -right-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[9px] font-bold" style="background: var(--accent-red); color: var(--bg);">{battleSearching}</span>
+					{/if}
 				</button>
-				<a href="/leaderboard" class="btn-action" style="--btn-color: #eab308;">
-					<svg viewBox="0 0 24 24" fill="currentColor" class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4"
+				<a href="/leaderboard" class="btn-action btn-gold">
+					<span class="btn-action-face">
+						<svg viewBox="0 0 24 24" fill="currentColor" class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4"
 						><path d="M2 4l3 12h14l3-12-5 4-5-6-5 6-5-4zm3 14h14v2H5v-2z" /></svg
 					>
-					Leaderboard
+						Leaderboard
+					</span>
 				</a>
 				<SoundButton size="lg" />
 			</div>
@@ -428,8 +460,8 @@
 		<div class="mx-4 w-full max-w-xs rounded-2xl p-6 text-center shadow-2xl" style="background: var(--bg); border: 1px solid var(--border);">
 			<!-- Spinner -->
 			<div class="relative mx-auto mb-4 flex h-14 w-14 items-center justify-center">
-				<div class="absolute inset-0 animate-spin rounded-full" style="border: 2px solid transparent; border-top-color: var(--accent-cyan); animation-duration: 1.2s;"></div>
-				<Swords class="h-6 w-6" style="color: var(--accent-cyan);" strokeWidth={2} />
+				<div class="absolute inset-0 animate-spin rounded-full" style="border: 2px solid transparent; border-top-color: var(--accent-red); animation-duration: 1.2s;"></div>
+				<Swords class="h-6 w-6" style="color: var(--accent-red);" strokeWidth={2} />
 			</div>
 
 			<div class="mb-1 text-sm font-semibold" style="color: var(--text-primary);">

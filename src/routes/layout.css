@@ -1,10 +1,19 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/typography';
 
+@font-face {
+	font-family: 'Believe Stronger';
+	src: url('/fonts/BelieveStronger.ttf') format('truetype');
+	font-weight: normal;
+	font-style: normal;
+	font-display: swap;
+}
+
 @theme {
 	--color-game-bg: var(--bg);
 	--color-game-surface: var(--surface);
 	--color-game-cyan: var(--accent-cyan);
+	--color-game-red: var(--accent-red);
 	--color-game-orange: var(--accent-orange);
 	--color-game-purple: var(--accent-purple);
 	--color-game-text: var(--text-primary);
@@ -17,6 +26,7 @@
 	--page-bg-edge: #faf8f2;
 	--canvas-bg: #f8f6f0;
 	--accent-cyan: #0891b2;
+	--accent-red: #dc2626;
 	--accent-orange: #d97706;
 	--accent-purple: #7c3aed;
 	--text-primary: #1c1917;
@@ -55,6 +65,7 @@
 	--page-bg-edge: var(--bg);
 	--canvas-bg: #0a0a1a;
 	--accent-cyan: #00d4ff;
+	--accent-red: #ef4444;
 	--accent-orange: #ff9933;
 	--accent-purple: #a855f7;
 	--text-primary: #ffffff;
@@ -135,36 +146,199 @@ canvas, svg, img, video {
 	animation: rank-up-pop 0.6s ease-out, rank-up-glow 2s ease-in-out infinite 0.6s;
 }
 
-/* Home action buttons (Solo, Battle, Leaderboard) */
+/* Home action buttons (Solo, Battle, Leaderboard) — 3D press style */
 .btn-action {
+	position: relative;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	gap: 0.375rem;
 	border-radius: 1rem;
-	padding: 0.625rem 0.75rem;
+	padding: 0;
+	border: none;
+	background: color-mix(in srgb, var(--btn-color) 30%, transparent);
+	cursor: pointer;
+	text-decoration: none;
 	font-family: 'Outfit', sans-serif;
 	font-size: 12px;
 	font-weight: 700;
 	letter-spacing: 0.02em;
 	white-space: nowrap;
-	backdrop-filter: blur(4px);
-	transition: transform 0.15s, filter 0.15s;
-	background: color-mix(in srgb, var(--btn-color) 14%, transparent);
+}
+.btn-action-face {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.375rem;
+	padding: 0.625rem 0.75rem;
+	border-radius: 1rem;
+	background: color-mix(in srgb, var(--btn-color) 14%, var(--bg));
 	border: 1px solid color-mix(in srgb, var(--btn-color) 35%, transparent);
 	color: var(--btn-color);
-	box-shadow: 0 2px 12px color-mix(in srgb, var(--btn-color) 15%, transparent);
-	text-decoration: none;
-	cursor: pointer;
+	transform: translateY(-3px);
+	transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1),
+				box-shadow 0.2s ease,
+				filter 0.2s ease,
+				background 0.2s ease,
+				border-color 0.2s ease;
+	box-shadow:
+		0 0 12px color-mix(in srgb, var(--btn-color) 12%, transparent),
+		inset 0 1px 0 color-mix(in srgb, white 6%, transparent);
 }
-.btn-action:hover { transform: scale(1.02); filter: brightness(1.03); }
-.btn-action:active { transform: scale(0.98); }
+/* Dark mode default: richer tint so buttons (especially purple) pop more */
+.dark .btn-action-face {
+	background: color-mix(in srgb, var(--btn-color) 24%, var(--bg));
+}
+/* Leaderboard gold: deeper amber in light mode for contrast, bright gold in dark */
+.btn-gold { --btn-color: #ca8a04; }
+.dark .btn-gold { --btn-color: #eab308; }
+/* Battle button: red for duel/combat feel */
+.btn-battle { --btn-color: #dc2626; }
+.dark .btn-battle { --btn-color: #ef4444; }
+/* Music button: purple to match the brand */
+.btn-music { --btn-color: var(--accent-purple); }
+/* Circular music button: stronger tint + glow so hover "light-up" is visible on small surface */
+.btn-music .btn-action-face {
+	background: color-mix(in srgb, var(--btn-color) 20%, var(--bg));
+}
+.dark .btn-music .btn-action-face {
+	background: color-mix(in srgb, var(--btn-color) 28%, var(--bg));
+}
+.btn-music:hover .btn-action-face {
+	background: color-mix(in srgb, var(--btn-color) 5%, white) !important;
+	box-shadow:
+		0 0 32px color-mix(in srgb, var(--btn-color) 35%, transparent),
+		0 4px 24px color-mix(in srgb, var(--btn-color) 15%, transparent),
+		inset 0 1px 0 color-mix(in srgb, white 20%, transparent);
+}
+.dark .btn-music:hover .btn-action-face {
+	background: color-mix(in srgb, var(--btn-color) 32%, var(--bg)) !important;
+	box-shadow:
+		0 0 36px color-mix(in srgb, var(--btn-color) 45%, transparent),
+		0 4px 28px color-mix(in srgb, var(--btn-color) 20%, transparent),
+		inset 0 1px 0 color-mix(in srgb, white 15%, transparent);
+}
+/* Light mode hover: background lights up toward white — "lit from within" */
+.btn-action:hover .btn-action-face {
+	transform: translateY(-4px);
+	background: color-mix(in srgb, var(--btn-color) 8%, white);
+	border-color: color-mix(in srgb, var(--btn-color) 45%, transparent);
+	box-shadow:
+		0 0 24px color-mix(in srgb, var(--btn-color) 25%, transparent),
+		0 4px 20px color-mix(in srgb, var(--btn-color) 10%, transparent),
+		inset 0 1px 0 color-mix(in srgb, white 15%, transparent);
+}
+/* Dark mode hover: brighten text/icon/border — "light glowing from behind" */
+.dark .btn-action:hover .btn-action-face {
+	background: color-mix(in srgb, var(--btn-color) 28%, var(--bg));
+	border-color: color-mix(in srgb, var(--btn-color) 55%, transparent);
+	filter: brightness(1.3);
+	box-shadow:
+		0 0 30px color-mix(in srgb, var(--btn-color) 35%, transparent),
+		0 4px 24px color-mix(in srgb, var(--btn-color) 15%, transparent),
+		inset 0 1px 0 color-mix(in srgb, white 12%, transparent);
+}
+.btn-action:active .btn-action-face {
+	transform: translateY(-1px);
+	box-shadow: 0 0 8px color-mix(in srgb, var(--btn-color) 15%, transparent);
+	transition-duration: 0.06s;
+}
 @media (min-width: 640px) {
-	.btn-action {
+	.btn-action-face {
 		gap: 0.5rem;
 		padding: 0.75rem 1.25rem;
 		font-size: 14px;
 	}
+}
+
+/* Battle button: pulsing glow to draw attention */
+.btn-battle-pulse {
+	animation: battle-glow 3s ease-in-out infinite;
+}
+@keyframes battle-glow {
+	0%, 100% { box-shadow: 0 0 12px color-mix(in srgb, var(--btn-color) 12%, transparent),
+							inset 0 1px 0 color-mix(in srgb, white 6%, transparent); }
+	50% { box-shadow: 0 0 28px color-mix(in srgb, var(--btn-color) 28%, transparent),
+					  0 0 56px color-mix(in srgb, var(--btn-color) 8%, transparent),
+					  inset 0 1px 0 color-mix(in srgb, white 8%, transparent); }
+}
+
+/* Ambient floating orbs */
+.ambient-orb {
+	position: fixed;
+	border-radius: 50%;
+	filter: blur(80px);
+	pointer-events: none;
+	z-index: 0;
+	will-change: transform;
+}
+.ambient-orb-1 {
+	width: 400px; height: 400px;
+	top: -100px; left: -100px;
+	background: var(--accent-cyan);
+	opacity: 0.06;
+	animation: float-orb-1 25s ease-in-out infinite;
+}
+.ambient-orb-2 {
+	width: 350px; height: 350px;
+	bottom: -80px; right: -80px;
+	background: var(--accent-purple);
+	opacity: 0.05;
+	animation: float-orb-2 22s ease-in-out infinite;
+}
+.ambient-orb-3 {
+	width: 250px; height: 250px;
+	top: 40%; left: 60%;
+	background: var(--accent-orange);
+	opacity: 0.03;
+	animation: float-orb-3 30s ease-in-out infinite;
+}
+@keyframes float-orb-1 {
+	0%, 100% { transform: translate(0, 0) scale(1); }
+	33% { transform: translate(60px, 40px) scale(1.15); }
+	66% { transform: translate(-30px, 60px) scale(0.9); }
+}
+@keyframes float-orb-2 {
+	0%, 100% { transform: translate(0, 0) scale(1); }
+	33% { transform: translate(-50px, -30px) scale(1.1); }
+	66% { transform: translate(40px, -50px) scale(0.95); }
+}
+@keyframes float-orb-3 {
+	0%, 100% { transform: translate(0, 0) scale(1); }
+	50% { transform: translate(-60px, 30px) scale(1.2); }
+}
+
+/* Level tiles: lift + colored glow on hover */
+.level-tile {
+	--tile-glow: var(--accent-cyan);
+	transform: translateY(0);
+	transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+				box-shadow 0.3s ease,
+				border-color 0.3s ease,
+				background 0.3s ease;
+	border: 1px solid transparent;
+	cursor: pointer;
+}
+/* Light mode: background brightens toward white */
+.level-tile:hover {
+	transform: translateY(-4px);
+	background: color-mix(in srgb, var(--tile-glow) 4%, white) !important;
+	box-shadow:
+		0 8px 24px color-mix(in srgb, var(--tile-glow) 15%, transparent),
+		0 0 0 1px color-mix(in srgb, var(--tile-glow) 20%, transparent);
+	border-color: color-mix(in srgb, var(--tile-glow) 25%, transparent);
+}
+/* Dark mode: surface brightens + colored glow intensifies */
+.dark .level-tile:hover {
+	background: color-mix(in srgb, var(--tile-glow) 8%, var(--surface)) !important;
+	box-shadow:
+		0 8px 28px color-mix(in srgb, var(--tile-glow) 22%, transparent),
+		0 0 0 1px color-mix(in srgb, var(--tile-glow) 28%, transparent);
+	border-color: color-mix(in srgb, var(--tile-glow) 35%, transparent);
+}
+.level-tile:active {
+	transform: translateY(-1px);
+	transition-duration: 0.08s;
 }
 
 /* Lock scroll on play page — prevents mobile overscroll and tap-induced scrolling */

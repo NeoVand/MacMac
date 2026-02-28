@@ -436,8 +436,8 @@
 		style="background: var(--surface);"
 	></canvas>
 
-	<h1 class="mt-6 mb-5 text-xl font-bold" style="font-family: 'Space Grotesk', sans-serif; color: var(--text-primary);">
-		About <span style="color: var(--text-primary); opacity: 0.8;">mac</span><span class="bg-gradient-to-r from-game-cyan to-purple-400 bg-clip-text text-transparent">mac</span>
+	<h1 class="mt-6 mb-5 text-xl font-bold" style="font-family: 'Believe Stronger', sans-serif; color: var(--text-primary);">
+		About <span style="color: var(--text-primary); opacity: 0.8;">Mac</span><span class="bg-gradient-to-r from-game-cyan to-purple-400 bg-clip-text text-transparent">Mac</span>
 	</h1>
 
 	<div class="space-y-4 text-[13px] leading-relaxed" style="color: var(--text-secondary);">
