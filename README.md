@@ -11,7 +11,7 @@ See a target probability density. Click to place samples. A [kernel density esti
 Your score balances two objectives:
 
 - **Shape match** — measured by mean squared error (MSE) between the peak-normalized target PDF and your KDE. Both curves are scaled so their maximum equals 1, then compared point-by-point. Up to 8,000 points.
-- **Time bonus** — up to 2,000 extra points for speed, decaying linearly to zero over 60 seconds.
+- **Time bonus** — up to 2,000 extra points for speed, decaying linearly to zero over 30 seconds.
 
 There is no explicit click penalty; time naturally penalizes extra clicks. The best players find the sweet spot: enough samples to capture the distribution's shape, placed strategically where the density matters most — without wasting time.
 
@@ -19,11 +19,11 @@ There is no explicit click penalty; time naturally penalizes extra clicks. The b
 
 ### Solo
 
-Procedurally generated levels across a difficulty grid from 1.0 to 7.5. Each level is seeded, so the same difficulty always produces the same target distribution. Complete levels to climb the solo leaderboard.
+Procedurally generated levels with difficulties from 1 to 10. Each level is seeded, so the same difficulty always produces the same target distribution. The grid adapts to your skill — as you play, levels center around your player rating. Complete levels to climb the solo leaderboard.
 
 ### Battle
 
-Real-time 1v1 multiplayer. Get matched with an opponent, race to sample the same target distribution in 20 seconds. See your opponent's KDE curve update live. Win by getting a higher score. An ELO rating system (K=32, starting at 1200) tracks battle rankings. Hit 98%+ match accuracy for an instant jackpot win.
+Real-time 1v1 multiplayer. Get matched with an opponent, race to sample the same target distribution in 30 seconds. See your opponent's KDE curve update live. Win by getting a higher score. An ELO rating system (K=32, starting at 1200) tracks battle rankings. Hit 98%+ match accuracy for an instant jackpot win.
 
 ## Tech stack
 

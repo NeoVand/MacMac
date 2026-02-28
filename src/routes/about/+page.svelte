@@ -10,7 +10,7 @@
 	let mathContainer: HTMLDivElement | undefined = $state();
 
 	const mseFormula = `$$\\text{MSE} = \\frac{1}{n} \\sum_{i=1}^{n} \\left( \\frac{p(x_i)}{\\max(p)} - \\frac{\\hat{q}(x_i)}{\\max(\\hat{q})} \\right)^2$$`;
-	const scoreFormula = `$$\\text{Score} = \\underbrace{\\operatorname{round}\\left( \\frac{8000}{1 + 100 \\cdot \\text{MSE}} \\right)}_{\\text{shape match}} + \\underbrace{\\operatorname{round}\\left( 2000 \\cdot \\max\\left(0, 1 - \\frac{t}{60}\\right) \\right)}_{\\text{time bonus}}$$`;
+	const scoreFormula = `$$\\text{Score} = \\underbrace{\\operatorname{round}\\left( \\frac{8000}{1 + 100 \\cdot \\text{MSE}} \\right)}_{\\text{shape match}} + \\underbrace{\\operatorname{round}\\left( 2000 \\cdot \\max\\left(0, 1 - \\frac{t}{30}\\right) \\right)}_{\\text{time bonus}}$$`;
 
 	const NUM_SAMPLES = 30;
 	const SAMPLE_INTERVAL_MS = 200;
@@ -479,7 +479,7 @@
 		</p>
 
 		<p>
-			<strong style="color: var(--text-primary); opacity: 0.55;">Time bonus</strong> rewards speed. A fast solution earns up to 2,000 extra points, dropping continuously to zero over 60 seconds.
+			<strong style="color: var(--text-primary); opacity: 0.55;">Time bonus</strong> rewards speed. A fast solution earns up to 2,000 extra points, dropping continuously to zero over 30 seconds.
 		</p>
 
 		<p>The final score:</p>
@@ -490,16 +490,6 @@
 
 		<p>
 			The shape match component (up to 8,000) measures how well your curve fits the target. The time bonus (up to 2,000) rewards efficiency — there is no explicit click penalty, but more clicks take more time. The tension: speed versus precision.
-		</p>
-
-		<h2 class="pt-2 text-sm font-semibold" style="color: var(--text-primary); opacity: 0.6;">Why it matters</h2>
-
-		<p>
-			MCMC methods are used everywhere — from
-			<a href="https://en.wikipedia.org/wiki/Bayesian_inference" target="_blank" rel="noopener" class="underline transition hover:opacity-80" style="color: var(--accent-cyan); opacity: 0.7;">Bayesian inference</a>
-			to protein folding to language models.
-			The core question is always the same: how can we represent a complex distribution with a
-			finite set of samples? This game lets you experience that question firsthand.
 		</p>
 
 		<h2 class="pt-2 text-sm font-semibold" style="color: var(--text-primary); opacity: 0.6;">Generated levels</h2>
@@ -537,7 +527,7 @@
 
 		<p>
 			Battle mode is real-time 1v1. Both players receive the same generated level and have
-			<strong style="color: var(--text-primary); opacity: 0.55;">20 seconds</strong> to match the target
+			<strong style="color: var(--text-primary); opacity: 0.55;">30 seconds</strong> to match the target
 			distribution. You can see your opponent's KDE building as a shadow curve — but not their click positions.
 		</p>
 
@@ -549,6 +539,16 @@
 			(K=32, starting at 1200). Matchmaking pairs players with similar ELO.
 		</p>
 
+		<h2 class="pt-2 text-sm font-semibold" style="color: var(--text-primary); opacity: 0.6;">Why it matters</h2>
+
+		<p>
+			MCMC methods are used everywhere — from
+			<a href="https://en.wikipedia.org/wiki/Bayesian_inference" target="_blank" rel="noopener" class="underline transition hover:opacity-80" style="color: var(--accent-cyan); opacity: 0.7;">Bayesian inference</a>
+			to protein folding to language models.
+			The core question is always the same: how can we represent a complex distribution with a
+			finite set of samples? This game lets you experience that question firsthand.
+		</p>
+
 		<!-- Footer -->
 		<div class="mt-10 mb-16 flex flex-col gap-4 rounded-2xl px-5 py-6 sm:px-6 sm:py-7" style="background: var(--surface); border: 1px solid var(--border);">
 			<div class="text-sm" style="color: var(--text-tertiary);">
@@ -558,10 +558,6 @@
 				<a href="https://github.com/NeoVand/MacMac" target="_blank" rel="noopener" class="flex items-center gap-2 text-sm transition hover:opacity-80" style="color: var(--text-secondary);">
 					<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M10 0C4.477 0 0 4.484 0 10.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0110 4.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.203 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0020 10.017C20 4.484 15.522 0 10 0z" clip-rule="evenodd" /></svg>
 					GitHub
-				</a>
-				<a href="https://en.wikipedia.org/wiki/Markov_chain_Monte_Carlo" target="_blank" rel="noopener" class="flex items-center gap-2 text-sm transition hover:opacity-80" style="color: var(--text-secondary);">
-					<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M4.25 5.5a.75.75 0 00-.75.75v8.5c0 .414.336.75.75.75h8.5a.75.75 0 00.75-.75v-4a.75.75 0 011.5 0v4A2.25 2.25 0 0112.75 17h-8.5A2.25 2.25 0 012 14.75v-8.5A2.25 2.25 0 014.25 4h5a.75.75 0 010 1.5h-5zm7.5-3a.75.75 0 01.75-.75h4.5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0V4.06l-6.22 6.22a.75.75 0 11-1.06-1.06l6.22-6.22H12.5a.75.75 0 01-.75-.75z" clip-rule="evenodd" /></svg>
-					MCMC on Wikipedia
 				</a>
 			</div>
 		</div>
