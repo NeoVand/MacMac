@@ -41,10 +41,14 @@ export function joinMatchmaking(
 	const socket = new PartySocket({
 		host: PARTYKIT_HOST,
 		party: 'matchmaker',
-		room: 'global'
+		room: 'global',
+		maxRetries: 0 // No auto-reconnect — prevents ghost re-queuing
 	});
 
+	let joinSent = false;
 	socket.addEventListener('open', () => {
+		if (joinSent) return; // Guard against duplicate sends
+		joinSent = true;
 		socket.send(JSON.stringify({
 			type: 'join_queue',
 			playerId,

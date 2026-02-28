@@ -5,7 +5,8 @@
 	import { gaussian, linspace } from '$lib/game/math';
 	import { generateGrid, generateReplacement, gridConfigForRating } from '$lib/game/grid';
 	import type { GeneratedLevel } from '$lib/game/generator';
-	import { joinMatchmaking, fetchBattleQueueCount, type MatchmakerMessage } from '$lib/battle/client';
+	import { fetchBattleQueueCount } from '$lib/battle/client';
+	import { battleQueue, startQueue, cancelQueue } from '$lib/stores/battle-queue';
 	import { authClient } from '$lib/auth-client';
 	import LevelTile from '$lib/components/LevelTile.svelte';
 	import RankBadge from '$lib/components/RankBadge.svelte';
@@ -35,45 +36,13 @@
 		return () => { active = false; };
 	});
 
-	// --- Battle queue state ---
-	let showQueue = $state(false);
-	let queueStatus = $state('');
-	let queueSocket: ReturnType<typeof joinMatchmaking> | null = null;
-
-	function startBattleQueue() {
-		showQueue = true;
-		queueStatus = 'Connecting...';
-
-		const playerId = $session.data?.user.id ?? `anon-${Date.now()}`;
-		const playerName = resolvePlayerName($session.data?.user.name ?? 'Anonymous');
+	// --- Battle queue (global store) ---
+	function handleBattleClick() {
+		const playerId = $session.data?.user?.id ?? `anon-${Date.now()}`;
+		const playerName = resolvePlayerName($session.data?.user?.name ?? 'Anonymous');
 		const battleElo = data.battleElo ?? 1200;
 		const country = data.country ?? null;
-
-		queueSocket = joinMatchmaking(
-			playerId,
-			playerName,
-			battleElo,
-			country,
-			(msg: MatchmakerMessage) => {
-				if (msg.type === 'queue_status') {
-					queueStatus = `Searching... (${msg.waitingCount} in queue)`;
-				} else if (msg.type === 'match_found') {
-					queueStatus = `Match found! vs ${msg.opponentName}`;
-					showQueue = false;
-					goto(`/battle/${msg.battleId}`);
-				}
-			},
-			() => {
-				queueStatus = 'Connection error. Try again.';
-			}
-		);
-	}
-
-	function cancelQueue() {
-		queueSocket?.leave();
-		queueSocket = null;
-		showQueue = false;
-		queueStatus = '';
+		startQueue(playerId, playerName, battleElo, country);
 	}
 
 	// --- Grid state ---
@@ -135,7 +104,7 @@
 		// Auto-start battle queue if navigated with ?battle
 		if (page.url.searchParams.has('battle')) {
 			replaceState('/', {});
-			startBattleQueue();
+			handleBattleClick();
 		}
 	});
 
@@ -386,15 +355,24 @@
 						Solo
 					</span>
 				</button>
-				<button onclick={startBattleQueue} class="btn-action btn-battle" title="Find an opponent">
-					<span class={"btn-action-face" + (battleSearching > 0 ? ' btn-battle-pulse' : '')}>
-						<Swords class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" strokeWidth={2} />
-						Battle
-					</span>
-					{#if battleSearching > 0}
-						<span class="absolute -top-2 -right-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[9px] font-bold" style="background: var(--accent-red); color: var(--bg);">{battleSearching}</span>
-					{/if}
-				</button>
+				{#if $battleQueue.status !== 'idle' && $battleQueue.status !== 'match_found'}
+					<button onclick={cancelQueue} class="btn-action btn-battle" title="Cancel search">
+						<span class="btn-action-face btn-battle-pulse">
+							<Swords class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4 animate-spin" style="animation-duration: 2s;" strokeWidth={2} />
+							Searching...
+						</span>
+					</button>
+				{:else}
+					<button onclick={handleBattleClick} class="btn-action btn-battle" title="Find an opponent">
+						<span class={"btn-action-face" + (battleSearching > 0 ? ' btn-battle-pulse' : '')}>
+							<Swords class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" strokeWidth={2} />
+							Battle
+						</span>
+						{#if battleSearching > 0}
+							<span class="absolute -top-2 -right-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[9px] font-bold" style="background: var(--accent-red); color: var(--bg);">{battleSearching}</span>
+						{/if}
+					</button>
+				{/if}
 				<a href="/leaderboard" class="btn-action btn-gold cursor-pointer !rounded-full">
 					<span class="btn-action-face !rounded-full h-10 w-10 sm:h-[46px] sm:w-[46px] !p-0 items-center justify-center">
 						<svg viewBox="0 0 24 24" fill="#eab308" class="h-[18px] w-[18px] sm:h-5 sm:w-5"
@@ -454,40 +432,6 @@
 		</div>
 	</div>
 </div>
-
-<!-- Queue overlay -->
-{#if showQueue}
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div
-		class="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm"
-		style="background: var(--overlay);"
-		onclick={(e) => { if (e.target === e.currentTarget) cancelQueue(); }}
-		onkeydown={(e) => e.key === 'Escape' && cancelQueue()}
-	>
-		<div class="mx-4 w-full max-w-xs rounded-2xl p-6 text-center shadow-2xl" style="background: var(--bg); border: 1px solid var(--border);">
-			<!-- Spinner -->
-			<div class="relative mx-auto mb-4 flex h-14 w-14 items-center justify-center">
-				<div class="absolute inset-0 animate-spin rounded-full" style="border: 2px solid transparent; border-top-color: var(--accent-red); animation-duration: 1.2s;"></div>
-				<Swords class="h-6 w-6" style="color: var(--accent-red);" strokeWidth={2} />
-			</div>
-
-			<div class="mb-1 text-sm font-semibold" style="color: var(--text-primary);">
-				Searching for opponent...
-			</div>
-			<div class="mb-4 text-xs" style="color: var(--text-tertiary);">
-				{queueStatus}
-			</div>
-
-			<button
-				onclick={cancelQueue}
-				class="w-full rounded-xl py-2.5 text-sm font-medium transition hover:opacity-80"
-				style="background: var(--surface); border: 1px solid var(--border); color: var(--text-tertiary);"
-			>
-				Cancel
-			</button>
-		</div>
-	</div>
-{/if}
 
 <RankingsModal
 	open={showRankings}
