@@ -15,8 +15,10 @@
 	import { getBattleTier } from '$lib/game/elo';
 	import { Github, Linkedin, Globe, Sword, Swords } from 'lucide-svelte';
 	import { resolvePlayerName } from '$lib/utils/player-name';
+	import RankingsModal from '$lib/components/RankingsModal.svelte';
 
 	let { data } = $props();
+	let showRankings = $state(false);
 	const session = authClient.useSession();
 
 	// --- Live battle search indicator (HTTP poll) ---
@@ -337,25 +339,25 @@
 			</div>
 		</div>
 
-		<!-- Rank badges for signed-in players -->
+		<!-- Rank badges for signed-in players (clickable → opens rankings modal) -->
 		{#if (data.gamesPlayed > 0 && data.playerRating !== null) || (data.battlesPlayed > 0 && data.battleElo !== null)}
-			<div class="flex items-center justify-center gap-4 pb-1">
+			<button onclick={() => showRankings = true} class="flex cursor-pointer items-center justify-center gap-4 rounded-xl px-4 py-1 transition hover:opacity-80" style="background: transparent;" title="View Rankings">
 				{#if data.gamesPlayed > 0 && data.playerRating !== null}
 					{@const skillLevel = computeSkillLevel(data.playerRating)}
 					{@const tier = getSkillTier(skillLevel)}
-					<div class="flex items-center gap-1.5" title="Solo Rank">
+					<div class="flex items-center gap-1.5">
 						<RankBadge mode="solo" value={skillLevel} size="md" />
 						<span class="text-sm font-bold tabular-nums" style="color: {tier.color};">{skillLevel.toLocaleString()}</span>
 					</div>
 				{/if}
 				{#if data.battlesPlayed > 0 && data.battleElo !== null}
 					{@const bTier = getBattleTier(data.battleElo)}
-					<div class="flex items-center gap-1.5" title="Battle Rank">
+					<div class="flex items-center gap-1.5">
 						<RankBadge mode="battle" value={data.battleElo} size="md" />
 						<span class="text-sm font-bold tabular-nums" style="color: {bTier.color};">{data.battleElo}</span>
 					</div>
 				{/if}
-			</div>
+			</button>
 		{/if}
 
 		<!-- Buttons: Solo + Battle + Leaderboard (uses .btn-action from layout.css) -->
@@ -480,3 +482,12 @@
 		</div>
 	</div>
 {/if}
+
+<RankingsModal
+	open={showRankings}
+	onclose={() => showRankings = false}
+	playerRating={data.playerRating}
+	battleElo={data.battleElo}
+	gamesPlayed={data.gamesPlayed}
+	battlesPlayed={data.battlesPlayed}
+/>

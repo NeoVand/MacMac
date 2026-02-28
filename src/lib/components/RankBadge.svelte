@@ -70,7 +70,7 @@
 		<polygon points={pts} fill="url(#b3d{mode}{tierIdx})" stroke-linejoin="round" />
 		<!-- Battle mode: center dot -->
 		{#if isBattle}
-			<circle cx="12" cy="13" r="2.5" fill="white" opacity="0.85" />
+			<circle cx="12" cy="12" r="2.5" fill="white" opacity="0.85" />
 		{/if}
 	</svg>
 </span>
