@@ -13,10 +13,10 @@
 	const isMuted = $derived($audioState.isMuted);
 	const path = $derived($visualizerPath);
 	const sizeClasses = $derived(
-		size === 'sm' ? 'h-9 w-9' : size === 'md' ? 'h-11 w-11' : 'h-10 w-10'
+		size === 'sm' ? 'h-9 w-9' : size === 'md' ? 'h-11 w-11' : 'h-10 w-10 sm:h-[46px] sm:w-[46px]'
 	);
 	const iconSize = $derived(size === 'sm' ? 16 : size === 'md' ? 18 : 18);
-	const visualizerSize = $derived(size === 'sm' ? 'h-5 w-5' : size === 'md' ? 'h-6 w-6' : 'h-5 w-5');
+	const visualizerSize = $derived(size === 'sm' ? 'h-5 w-5' : size === 'md' ? 'h-6 w-6' : 'h-5 w-5 sm:h-6 sm:w-6');
 </script>
 
 {#if size === 'lg'}

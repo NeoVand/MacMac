@@ -396,8 +396,8 @@
 					{/if}
 				</button>
 				<a href="/leaderboard" class="btn-action btn-gold cursor-pointer !rounded-full">
-					<span class="btn-action-face !rounded-full h-10 w-10 !p-0 items-center justify-center">
-						<svg viewBox="0 0 24 24" fill="#eab308" class="h-[18px] w-[18px]"
+					<span class="btn-action-face !rounded-full h-10 w-10 sm:h-[46px] sm:w-[46px] !p-0 items-center justify-center">
+						<svg viewBox="0 0 24 24" fill="#eab308" class="h-[18px] w-[18px] sm:h-5 sm:w-5"
 						><path d="M2 4l3 12h14l3-12-5 4-5-6-5 6-5-4zm3 14h14v2H5v-2z" /></svg
 					>
 					</span>
