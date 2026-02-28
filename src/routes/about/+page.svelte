@@ -512,9 +512,9 @@
 
 		<p>
 			Your raw score (shape match + time bonus) is scaled by the level's difficulty:
-			{@html '\\(\\text{weighted} = \\text{raw} \\times \\frac{d}{3}\\)'}
+			{@html '\\(\\text{weighted} = \\text{raw} \\times (0.55 + 0.15d)\\)'}
 			where {@html '\\(d\\)'} is the difficulty rating. Medium levels ({@html '\\(d \\approx 3\\)'})
-			get a 1&#215; multiplier; harder levels reward proportionally more.
+			get a 1&#215; multiplier; harder levels reward more, but with diminishing returns.
 		</p>
 
 		<p>

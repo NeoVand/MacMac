@@ -56,7 +56,6 @@
 	let submittedRankUp = $state(false);
 	let pausedElapsed = $state(0);
 	let expired = $state(false);
-	let skipped = $state(false);
 
 	// Countdown
 	const timeLeftMs = $derived(Math.max(0, TIME_LIMIT_MS - elapsedMs));
@@ -103,7 +102,6 @@
 		timerRunning = false;
 		resetCount = 0;
 		expired = false;
-		skipped = false;
 	});
 
 	// Restore game state after OAuth redirect
@@ -227,7 +225,6 @@
 		elapsedMs = 0;
 		timerRunning = false;
 		expired = false;
-		skipped = false;
 		resetCount++;
 	}
 
@@ -255,7 +252,6 @@
 		pausedElapsed = elapsedMs;
 		showDialog = true;
 		submitted = false;
-		skipped = false;
 		markCompleted();
 		startReplay();
 	}
@@ -581,7 +577,7 @@
 
 		<!-- Score panel -->
 		<div class="shrink-0 px-4 pb-1 pt-1 sm:px-6">
-			<ScorePanel {scoreResult} {elapsedMs} difficultyMultiplier={generatedLevel ? generatedLevel.targetDifficulty / 3.0 : 1} />
+			<ScorePanel {scoreResult} {elapsedMs} difficultyMultiplier={generatedLevel ? 0.55 + generatedLevel.targetDifficulty * 0.15 : 1} />
 		</div>
 
 		<!-- Canvas -->
@@ -699,11 +695,9 @@
 							<span class="btn-action-face w-full justify-center">Play Again</span>
 						</button>
 					</div>
-				{:else if submitted || skipped}
-					<!-- Post-submit / skipped -->
-					{#if submitted}
-						<div class="mb-3 text-center text-sm font-semibold" style="color: #4ade80;">Score submitted!</div>
-					{/if}
+				{:else if submitted}
+					<!-- Post-submit -->
+					<div class="mb-3 text-center text-sm font-semibold" style="color: #4ade80;">Score submitted!</div>
 
 					<!-- Skill level + rank badge + tier progress -->
 					{#if submitted && submittedSkillLevel !== null}
@@ -791,9 +785,6 @@
 						<div class="text-sm font-medium" style="color: var(--text-primary); opacity: 0.7;">{$session.data.user.name}</div>
 					</div>
 					<div class="flex gap-2">
-						<button onclick={() => { skipped = true; }} class="btn-action flex-1" style="--btn-color: var(--text-secondary);">
-							<span class="btn-action-face w-full justify-center">Skip</span>
-						</button>
 						<button onclick={submitScore} disabled={isSubmitting} class="btn-action flex-1" style="--btn-color: var(--accent-cyan);">
 							<span class="btn-action-face w-full justify-center">{isSubmitting ? 'Saving…' : 'Submit'}</span>
 						</button>

@@ -67,7 +67,9 @@ export function generateReplacement(
 	const seed = Math.floor(Date.now() / 1000) * 100 + slotIndex;
 	const rng = new SeededRandom(seed);
 	const center = ratingToDifficultyCenter(playerRating);
-	const difficulty = Math.round(clamp(center + rng.range(-2, 2), 1, 10) * 10) / 10;
+	const skill = computeSkillLevel(playerRating);
+	const halfSpread = Math.max(0.75, 1.5 - (skill / 8000) * 0.75);
+	const difficulty = Math.round(clamp(center + rng.range(-halfSpread, halfSpread), 1, 10) * 10) / 10;
 	return generateLevel(seed, difficulty);
 }
 
@@ -85,16 +87,16 @@ function deriveSeed(baseSeed: number, index: number): number {
  * Convert a raw EMA rating to a difficulty center for grid generation.
  *
  * Skill 0     → diff ~3 (beginner)
- * Skill 2000  → diff ~5
- * Skill 4000+ → diff ~8
+ * Skill 4000  → diff ~6
+ * Skill 8000+ → diff ~9
  *
  * Uses a smooth linear interpolation from the skill level.
  */
 function ratingToDifficultyCenter(rawEMA: number): number {
 	const skill = computeSkillLevel(rawEMA);
-	// Map skill 0→3, 2000→5, 4000→8
-	const diff = 3 + (skill / 4000) * 5;
-	return clamp(diff, 2, 8);
+	// Map skill 0→3, 4000→6, 8000→9
+	const diff = 3 + (skill / 8000) * 6;
+	return clamp(diff, 2, 9);
 }
 
 /**
@@ -104,9 +106,12 @@ export function gridConfigForRating(rating: number | null): Partial<GridConfig> 
 	if (rating === null || rating <= 0) {
 		return DEFAULT_CONFIG;
 	}
+	const skill = computeSkillLevel(rating);
+	// Narrow the spread at high skill: beginners 3.0, Genius-level 1.5
+	const spread = Math.max(1.5, 3.0 - (skill / 8000) * 1.5);
 	return {
 		total: 12,
 		difficultyCenter: ratingToDifficultyCenter(rating),
-		difficultySpread: 2.5
+		difficultySpread: spread
 	};
 }

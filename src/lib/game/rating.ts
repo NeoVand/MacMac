@@ -1,24 +1,24 @@
 /**
  * Player rating and weighted scoring.
  *
- * - weightedScore = rawScore × (difficulty / BASE_DIFFICULTY)
+ * - weightedScore = rawScore × (0.55 + difficulty × 0.15)
  * - rawEMA        = EMA of weightedScore
- * - skillLevel    = max(0, round(rawEMA / 5))
+ * - skillLevel    = max(0, round(rawEMA / 2))
  *
  * The skill level is a big friendly integer that grows as you
  * consistently perform well on harder levels.
  */
 
-const BASE_DIFFICULTY = 3.0;
-
 // ─── Weighted Score ───────────────────────────────────────────
 
 /**
  * Compute the difficulty-weighted score.
- * Medium-difficulty levels (~3.0) get a 1× multiplier.
+ * Uses compressed formula: 0.55 + d × 0.15
+ * Difficulty 3.0 gives a 1.0× multiplier (baseline).
+ * d=5: 1.30×, d=8: 1.75×, d=10: 2.05×
  */
 export function computeWeightedScore(rawScore: number, difficulty: number): number {
-	const multiplier = difficulty / BASE_DIFFICULTY;
+	const multiplier = 0.55 + difficulty * 0.15;
 	return Math.round(rawScore * multiplier);
 }
 
@@ -47,10 +47,10 @@ export function computeNewRating(
 
 /**
  * Convert the raw EMA into a display-friendly skill level integer.
- * rawEMA of 5000 → skillLevel 1000, etc.
+ * rawEMA of 4000 → skillLevel 2000, etc.
  */
 export function computeSkillLevel(rawEMA: number): number {
-	return Math.max(0, Math.round(rawEMA / 5));
+	return Math.max(0, Math.round(rawEMA / 2));
 }
 
 // ─── Rank Tiers ──────────────────────────────────────────────
@@ -63,12 +63,12 @@ export interface SkillTier {
 
 export const SKILL_TIERS: SkillTier[] = [
 	{ name: 'Iron', threshold: 0, color: '#8b8b8b' },
-	{ name: 'Bronze', threshold: 500, color: '#b07c4a' },
-	{ name: 'Silver', threshold: 1000, color: '#a8b4c4' },
-	{ name: 'Gold', threshold: 2000, color: '#eab308' },
-	{ name: 'Platinum', threshold: 3000, color: '#2dd4bf' },
-	{ name: 'Diamond', threshold: 3500, color: '#38bdf8' },
-	{ name: 'Genius', threshold: 4000, color: '#a855f7' }
+	{ name: 'Bronze', threshold: 1000, color: '#b07c4a' },
+	{ name: 'Silver', threshold: 2000, color: '#a8b4c4' },
+	{ name: 'Gold', threshold: 3500, color: '#eab308' },
+	{ name: 'Platinum', threshold: 5000, color: '#2dd4bf' },
+	{ name: 'Diamond', threshold: 6500, color: '#38bdf8' },
+	{ name: 'Genius', threshold: 8000, color: '#a855f7' }
 ];
 
 /**
