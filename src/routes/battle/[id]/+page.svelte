@@ -78,7 +78,8 @@
 
 	let socket: ReturnType<typeof joinBattle> | null = null;
 
-	const myPlayerId = $derived($session.data?.user?.id ?? 'anon-' + battleId);
+	const anonId = crypto.randomUUID();
+	const myPlayerId = $derived($session.data?.user?.id ?? 'anon-' + anonId);
 	const myName = $derived(resolvePlayerName($session.data?.user?.name ?? 'Anonymous'));
 	const isWinner = $derived(winnerId === myPlayerId);
 	const isAnonymous = $derived(!$session.data?.user);
@@ -91,6 +92,14 @@
 		const sec = Math.max(0, Math.ceil(timeLeftMs / 1000));
 		return `${sec}s`;
 	});
+	const battleTimerPct = $derived(timeLeftMs / durationMs);
+	const battleTimerColor = $derived.by(() => {
+		if (battleTimerPct > 0.5) return 'var(--accent-cyan)';
+		if (battleTimerPct > 0.2) return 'var(--accent-orange)';
+		return 'var(--accent-red)';
+	});
+	const battleTimerUrgent = $derived(timeLeftMs <= 10000);
+	const battleTimerCritical = $derived(timeLeftMs <= 5000);
 
 	async function signInWith(provider: 'github' | 'google') {
 		await authClient.signIn.social({ provider, callbackURL: window.location.href });
@@ -526,8 +535,8 @@
 			<!-- Timer -->
 			<div class="text-center">
 				<div
-					class="text-2xl font-black tabular-nums"
-					style="color: var(--accent-red);"
+					class="text-2xl font-black tabular-nums {battleTimerCritical ? 'timer-critical' : ''}"
+					style="color: {battleTimerColor};"
 				>
 					{timerDisplay}
 				</div>
@@ -553,10 +562,10 @@
 		</div>
 
 		<!-- Time progress bar -->
-		<div class="mx-4 mb-1 h-1 overflow-hidden rounded-full sm:mx-6" style="background: var(--surface);">
+		<div class="mx-4 mb-1 overflow-hidden rounded-full sm:mx-6" style="height: 10px; background: color-mix(in srgb, {battleTimerColor} 12%, var(--surface));">
 			<div
 				class="h-full rounded-full transition-all duration-200"
-				style="width: {(timeLeftMs / durationMs) * 100}%; background: var(--accent-red);"
+				style="width: {battleTimerPct * 100}%; background: linear-gradient(90deg, color-mix(in srgb, {battleTimerColor} 60%, var(--bg)), {battleTimerColor}, color-mix(in srgb, {battleTimerColor} 50%, white)); {battleTimerUrgent ? `box-shadow: 0 0 10px ${battleTimerColor};` : ''}"
 			></div>
 		</div>
 
@@ -618,10 +627,10 @@
 
 				<div class="mb-4 text-center">
 					<div
-						class="text-5xl tracking-tight sm:text-6xl"
-						style="font-family: 'Believe Stronger', sans-serif; color: {isWinner ? 'var(--win-green)' : 'var(--loss-red)'};"
+						class="bg-clip-text text-5xl tracking-tight text-transparent sm:text-6xl"
+						style="font-family: 'Believe Stronger', sans-serif; background-image: linear-gradient(to right, {isWinner ? 'var(--accent-cyan), #a78bfa' : '#ef4444, #f97316'});"
 					>
-						{isWinner ? 'You Won!' : 'You Lost'}
+						{isWinner ? 'You Won' : 'You Lost'}
 					</div>
 					<div class="mt-1 text-sm" style="color: var(--text-tertiary);">
 						vs {#if opponentCountry}{countryFlag(opponentCountry)} {/if}{opponentName}
@@ -738,23 +747,15 @@
 
 				<!-- Sign-in prompt for anonymous users -->
 				{#if isAnonymous}
-					<div class="mb-4 rounded-xl p-4 text-center" style="background: color-mix(in srgb, var(--accent-red) 8%, transparent); border: 1px solid color-mix(in srgb, var(--accent-red) 20%, transparent);">
-						<div class="mb-2.5 text-xs font-medium" style="color: var(--accent-red);">
-							Sign in to save your ranking
-						</div>
-						<div class="flex flex-col gap-2">
-							<button onclick={() => signInWith('github')} class="btn-action w-full" style="--btn-color: var(--text-secondary);">
-								<span class="btn-action-face w-full justify-center">
-									<Github size={14} /> Continue with GitHub
-								</span>
-							</button>
-							<button onclick={() => signInWith('google')} class="btn-action w-full" style="--btn-color: var(--text-secondary);">
-								<span class="btn-action-face w-full justify-center">
-								<svg viewBox="0 0 24 24" class="h-3.5 w-3.5"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-								Continue with Google
-								</span>
-							</button>
-						</div>
+					<div class="mb-3 text-center text-xs font-medium" style="color: var(--text-tertiary);">Sign in to save your ranking</div>
+					<div class="mb-4 flex flex-col gap-2">
+						<button onclick={() => signInWith('github')} class="flex h-9 items-center justify-center gap-2 rounded-lg text-xs font-medium transition hover:opacity-80" style="background: var(--surface); color: var(--text-secondary); border: 1px solid var(--border);">
+							<Github size={14} /> Continue with GitHub
+						</button>
+						<button onclick={() => signInWith('google')} class="flex h-9 items-center justify-center gap-2 rounded-lg text-xs font-medium transition hover:opacity-80" style="background: var(--surface); color: var(--text-secondary); border: 1px solid var(--border);">
+							<svg viewBox="0 0 24 24" class="h-3.5 w-3.5"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+							Continue with Google
+						</button>
 					</div>
 				{/if}
 

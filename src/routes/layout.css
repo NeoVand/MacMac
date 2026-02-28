@@ -258,6 +258,15 @@ canvas, svg, img, video {
 	}
 }
 
+/* Timer critical pulse animation */
+@keyframes timer-pulse {
+	0%, 100% { opacity: 1; transform: scale(1); }
+	50% { opacity: 0.7; transform: scale(1.15); }
+}
+.timer-critical {
+	animation: timer-pulse 0.6s ease-in-out infinite;
+}
+
 /* Battle button: pulsing glow to draw attention */
 .btn-battle-pulse {
 	animation: battle-glow 3s ease-in-out infinite;

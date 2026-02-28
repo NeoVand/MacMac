@@ -13,7 +13,7 @@
 	import SoundButton from '$lib/components/SoundButton.svelte';
 	import { computeSkillLevel, getSkillTier } from '$lib/game/rating';
 	import { getBattleTier } from '$lib/game/elo';
-	import { Github, Linkedin, Globe, Sword, Swords } from 'lucide-svelte';
+	import { Github, Linkedin, Sword, Swords } from 'lucide-svelte';
 	import { resolvePlayerName } from '$lib/utils/player-name';
 	import RankingsModal from '$lib/components/RankingsModal.svelte';
 
@@ -450,17 +450,6 @@
 			>
 				<Github size={12} strokeWidth={2} />
 				GitHub
-			</a>
-			<span class="opacity-50">·</span>
-			<a
-				href="https://en.wikipedia.org/wiki/Markov_chain_Monte_Carlo"
-				target="_blank"
-				rel="noopener"
-				class="inline-flex items-center gap-1 transition hover:opacity-80"
-				style="color: var(--text-secondary);"
-			>
-				<Globe size={12} strokeWidth={2} />
-				MCMC on Wikipedia
 			</a>
 		</div>
 	</div>
