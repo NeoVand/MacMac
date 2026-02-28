@@ -40,12 +40,13 @@ export interface JackpotMessage {
 
 export interface BattleEndMessage {
 	type: 'battle_end';
+	won: boolean; // personalized per player — no ID comparison needed
 	winnerId: string;
 	winnerName: string;
-	winnerScore: number;
-	winnerMatchPct: number;
-	loserScore: number;
-	loserMatchPct: number;
+	yourScore: number;
+	yourMatchPct: number;
+	opponentScore: number;
+	opponentMatchPct: number;
 	yourEloDelta: number;
 	resultToken?: string;
 	opponentSamples: number[];

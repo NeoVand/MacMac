@@ -37,14 +37,16 @@
 	let startTime = 0;
 
 	// Results
+	let won = $state(false);
 	let winnerId = $state('');
 	let winnerName = $state('');
-	let winnerScore = $state(0);
-	let winnerMatchPct = $state(0);
-	let loserScore = $state(0);
-	let loserMatchPct = $state(0);
+	let yourScore = $state(0);
+	let yourMatchPct_result = $state(0);
+	let opponentScore = $state(0);
+	let opponentMatchPct_result = $state(0);
 	let yourEloDelta = $state(0);
 	let isJackpot = $state(false);
+	let jackpotMatchPct = $state(0);
 	let battleTierName = $state<string | null>(null);
 	let battleTierColor = $state<string | null>(null);
 	let battleRankUp = $state(false);
@@ -81,7 +83,7 @@
 	const anonId = crypto.randomUUID();
 	const myPlayerId = $derived($session.data?.user?.id ?? 'anon-' + anonId);
 	const myName = $derived(resolvePlayerName($session.data?.user?.name ?? 'Anonymous'));
-	const isWinner = $derived(winnerId === myPlayerId);
+	const isWinner = $derived(won);
 	const isAnonymous = $derived(!$session.data?.user);
 
 	// For anonymous users, show hypothetical rank (starting ELO = 1200)
@@ -150,19 +152,19 @@
 				isJackpot = true;
 				winnerId = msg.winnerId;
 				winnerName = msg.winnerName;
-				winnerScore = msg.winnerScore;
-				winnerMatchPct = msg.winnerMatchPct;
+				jackpotMatchPct = msg.winnerMatchPct;
 				// battle_end will follow with full results
 				break;
 
 			case 'battle_end':
 				phase = 'ended';
+				won = msg.won;
 				winnerId = msg.winnerId;
 				winnerName = msg.winnerName;
-				winnerScore = msg.winnerScore;
-				winnerMatchPct = msg.winnerMatchPct;
-				loserScore = msg.loserScore;
-				loserMatchPct = msg.loserMatchPct;
+				yourScore = msg.yourScore;
+				yourMatchPct_result = msg.yourMatchPct;
+				opponentScore = msg.opponentScore;
+				opponentMatchPct_result = msg.opponentMatchPct;
 				yourEloDelta = msg.yourEloDelta;
 				opponentSamples = msg.opponentSamples ?? [];
 				stopCountdownTimer();
@@ -605,7 +607,7 @@
 					JACKPOT!
 				</div>
 				<div class="text-lg font-medium" style="color: var(--text-secondary);">
-					{winnerName} hit {winnerMatchPct}% accuracy
+					{winnerName} hit {jackpotMatchPct}% accuracy
 				</div>
 			</div>
 		</div>
@@ -663,13 +665,13 @@
 				<div class="mb-5 flex justify-between rounded-xl p-3" style="background: var(--surface);">
 					<div class="text-center">
 						<div class="text-[9px] font-medium uppercase tracking-wider" style="color: var(--text-tertiary);">
-							{isWinner ? 'Your Score' : 'Opponent'}
+							Your Score
 						</div>
-						<div class="text-xl font-bold tabular-nums" style="color: var(--win-green);">
-							{winnerScore.toLocaleString()}
+						<div class="text-xl font-bold tabular-nums" style="color: {isWinner ? 'var(--win-green)' : 'var(--loss-red)'};">
+							{yourScore.toLocaleString()}
 						</div>
 						<div class="text-xs tabular-nums" style="color: var(--text-tertiary);">
-							{winnerMatchPct}% match
+							{yourMatchPct_result}% match
 						</div>
 					</div>
 					<div class="flex items-center">
@@ -677,13 +679,13 @@
 					</div>
 					<div class="text-center">
 						<div class="text-[9px] font-medium uppercase tracking-wider" style="color: var(--text-tertiary);">
-							{isWinner ? 'Opponent' : 'Your Score'}
+							Opponent
 						</div>
-						<div class="text-xl font-bold tabular-nums" style="color: var(--loss-red);">
-							{loserScore.toLocaleString()}
+						<div class="text-xl font-bold tabular-nums" style="color: {isWinner ? 'var(--loss-red)' : 'var(--win-green)'};">
+							{opponentScore.toLocaleString()}
 						</div>
 						<div class="text-xs tabular-nums" style="color: var(--text-tertiary);">
-							{loserMatchPct}% match
+							{opponentMatchPct_result}% match
 						</div>
 					</div>
 				</div>

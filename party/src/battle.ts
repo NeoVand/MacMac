@@ -502,12 +502,13 @@ export default class BattleServer implements Party.Server {
 				const opponent = isWinner ? loser : winner;
 				conn.send(JSON.stringify({
 					type: 'battle_end',
+					won: isWinner,
 					winnerId: winner.info.playerId,
 					winnerName: winner.info.playerName,
-					winnerScore,
-					winnerMatchPct,
-					loserScore,
-					loserMatchPct,
+					yourScore: isWinner ? winnerScore : loserScore,
+					yourMatchPct: isWinner ? winnerMatchPct : loserMatchPct,
+					opponentScore: isWinner ? loserScore : winnerScore,
+					opponentMatchPct: isWinner ? loserMatchPct : winnerMatchPct,
 					yourEloDelta: eloDelta,
 					resultToken,
 					opponentSamples: opponent.samples
