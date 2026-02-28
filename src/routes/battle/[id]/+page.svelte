@@ -15,7 +15,7 @@
 	import { getBattleTier, getBattleTierProgress } from '$lib/game/elo';
 	import { authClient } from '$lib/auth-client';
 	import { resolvePlayerName } from '$lib/utils/player-name';
-	import { Github } from 'lucide-svelte';
+	import { Github, Swords } from 'lucide-svelte';
 
 	const session = authClient.useSession();
 	const battleId = $derived(page.params.id ?? '');
@@ -465,22 +465,19 @@
 	<div class="flex h-dvh flex-col" style="background: radial-gradient(ellipse at 50% 30%, var(--page-bg-center) 0%, var(--page-bg-edge) 70%);">
 		<AppHeader  />
 		<div class="flex flex-1 flex-col items-center justify-center gap-4">
-			<div class="relative flex h-16 w-16 items-center justify-center">
+			<div class="relative flex h-14 w-14 items-center justify-center">
 				<div class="absolute inset-0 animate-spin rounded-full" style="border: 2px solid transparent; border-top-color: var(--accent-red); animation-duration: 1.2s;"></div>
-				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-7 w-7" style="color: var(--accent-red);">
-					<path d="M14.5 17.5L3 6V3h3l11.5 11.5M13 7l6-6h3v3l-6 6" stroke-linecap="round" stroke-linejoin="round"/>
-					<path d="M3 3l18 18" stroke-linecap="round" opacity="0.3"/>
-				</svg>
+				<Swords class="h-6 w-6" style="color: var(--accent-red);" strokeWidth={2} />
 			</div>
 			<div class="text-sm font-medium" style="color: var(--text-secondary);">
 				{phase === 'connecting' ? 'Connecting...' : 'Waiting for opponent...'}
 			</div>
 			<button
 				onclick={() => { socket?.close(); goto('/'); }}
-				class="mt-2 rounded-xl px-4 py-2 text-[12px] font-medium transition hover:opacity-80"
-				style="background: var(--surface); border: 1px solid var(--border); color: var(--text-tertiary);"
+				class="btn-action mt-2"
+				style="--btn-color: var(--text-tertiary);"
 			>
-				Cancel
+				<span class="btn-action-face">Cancel</span>
 			</button>
 		</div>
 	</div>
@@ -579,11 +576,13 @@
 				<button
 					onclick={() => { if (samples.length > 0) { samples = samples.slice(0, -1); } }}
 					disabled={samples.length === 0}
-					class="flex h-10 items-center gap-2 rounded-2xl px-4 text-[13px] font-medium transition-all hover:scale-[1.03] active:scale-95 disabled:opacity-20"
-					style="background: color-mix(in srgb, var(--accent-purple) 8%, transparent); border: 1px solid color-mix(in srgb, var(--accent-purple) 18%, transparent); color: color-mix(in srgb, var(--accent-purple) 70%, var(--text-primary));"
+					class="btn-action"
+					style="--btn-color: var(--accent-purple);"
 				>
-					<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M7.793 2.232a.75.75 0 01-.025 1.06L3.622 7.25h10.003a5.375 5.375 0 010 10.75H10.75a.75.75 0 010-1.5h2.875a3.875 3.875 0 000-7.75H3.622l4.146 3.957a.75.75 0 01-1.036 1.085l-5.5-5.25a.75.75 0 010-1.085l5.5-5.25a.75.75 0 011.06.025z" clip-rule="evenodd" /></svg>
-					Undo
+					<span class="btn-action-face">
+						<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M7.793 2.232a.75.75 0 01-.025 1.06L3.622 7.25h10.003a5.375 5.375 0 010 10.75H10.75a.75.75 0 010-1.5h2.875a3.875 3.875 0 000-7.75H3.622l4.146 3.957a.75.75 0 01-1.036 1.085l-5.5-5.25a.75.75 0 010-1.085l5.5-5.25a.75.75 0 011.06.025z" clip-rule="evenodd" /></svg>
+						Undo
+					</span>
 				</button>
 			</div>
 		</div>
@@ -619,8 +618,8 @@
 
 				<div class="mb-4 text-center">
 					<div
-						class="text-3xl font-black sm:text-4xl"
-						style="color: {isWinner ? 'var(--win-green)' : 'var(--loss-red)'};"
+						class="text-5xl tracking-tight sm:text-6xl"
+						style="font-family: 'Believe Stronger', sans-serif; color: {isWinner ? 'var(--win-green)' : 'var(--loss-red)'};"
 					>
 						{isWinner ? 'You Won!' : 'You Lost'}
 					</div>
@@ -744,12 +743,16 @@
 							Sign in to save your ranking
 						</div>
 						<div class="flex flex-col gap-2">
-							<button onclick={() => signInWith('github')} class="flex h-9 items-center justify-center gap-2 rounded-lg text-xs font-medium transition hover:opacity-80" style="background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary);">
-								<Github size={14} /> Continue with GitHub
+							<button onclick={() => signInWith('github')} class="btn-action w-full" style="--btn-color: var(--text-secondary);">
+								<span class="btn-action-face w-full justify-center">
+									<Github size={14} /> Continue with GitHub
+								</span>
 							</button>
-							<button onclick={() => signInWith('google')} class="flex h-9 items-center justify-center gap-2 rounded-lg text-xs font-medium transition hover:opacity-80" style="background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary);">
+							<button onclick={() => signInWith('google')} class="btn-action w-full" style="--btn-color: var(--text-secondary);">
+								<span class="btn-action-face w-full justify-center">
 								<svg viewBox="0 0 24 24" class="h-3.5 w-3.5"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
 								Continue with Google
+								</span>
 							</button>
 						</div>
 					</div>
@@ -757,19 +760,11 @@
 
 				<!-- Actions -->
 				<div class="flex gap-2">
-					<a
-						href="/"
-						class="flex flex-1 items-center justify-center rounded-xl py-2.5 text-sm font-medium transition hover:opacity-80"
-						style="background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary);"
-					>
-						Home
+					<a href="/" class="btn-action flex-1" style="--btn-color: var(--text-secondary);">
+						<span class="btn-action-face w-full justify-center">Home</span>
 					</a>
-					<a
-						href="/?battle"
-						class="flex flex-1 items-center justify-center rounded-xl py-2.5 text-sm font-semibold transition hover:opacity-80"
-						style="background: color-mix(in srgb, var(--accent-red) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-red) 25%, transparent); color: var(--accent-red);"
-					>
-						Rematch
+					<a href="/?battle" class="btn-action flex-1" style="--btn-color: var(--accent-red);">
+						<span class="btn-action-face w-full justify-center">Rematch</span>
 					</a>
 				</div>
 			</div>
@@ -788,19 +783,11 @@
 				The battle is no longer available. Start a new one!
 			</div>
 			<div class="mt-2 flex gap-3">
-				<a
-					href="/"
-					class="rounded-xl px-5 py-2.5 text-sm font-medium transition hover:opacity-80"
-					style="background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary);"
-				>
-					Home
+				<a href="/" class="btn-action" style="--btn-color: var(--text-secondary);">
+					<span class="btn-action-face">Home</span>
 				</a>
-				<a
-					href="/?battle"
-					class="rounded-xl px-5 py-2.5 text-sm font-semibold transition hover:opacity-80"
-					style="background: color-mix(in srgb, var(--accent-red) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-red) 25%, transparent); color: var(--accent-red);"
-				>
-					New Battle
+				<a href="/?battle" class="btn-action" style="--btn-color: var(--accent-red);">
+					<span class="btn-action-face">New Battle</span>
 				</a>
 			</div>
 		</div>

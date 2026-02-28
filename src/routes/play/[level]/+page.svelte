@@ -587,29 +587,37 @@
 			<div class="flex items-center justify-between">
 				<div class="flex gap-2">
 					<!-- Undo -->
-					<button onclick={undoLast} disabled={samples.length === 0} class="flex h-11 items-center gap-2 rounded-2xl px-4 text-[13px] font-medium transition-all hover:scale-[1.03] hover:shadow-md active:scale-95 disabled:opacity-20 disabled:hover:scale-100 disabled:hover:shadow-none" style="background: color-mix(in srgb, var(--accent-purple) 8%, transparent); border: 1px solid color-mix(in srgb, var(--accent-purple) 18%, transparent); color: color-mix(in srgb, var(--accent-purple) 70%, var(--text-primary));">
-						<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M7.793 2.232a.75.75 0 01-.025 1.06L3.622 7.25h10.003a5.375 5.375 0 010 10.75H10.75a.75.75 0 010-1.5h2.875a3.875 3.875 0 000-7.75H3.622l4.146 3.957a.75.75 0 01-1.036 1.085l-5.5-5.25a.75.75 0 010-1.085l5.5-5.25a.75.75 0 011.06.025z" clip-rule="evenodd" /></svg>
-						Undo
+					<button onclick={undoLast} disabled={samples.length === 0} class="btn-action" style="--btn-color: var(--accent-purple);">
+						<span class="btn-action-face">
+							<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M7.793 2.232a.75.75 0 01-.025 1.06L3.622 7.25h10.003a5.375 5.375 0 010 10.75H10.75a.75.75 0 010-1.5h2.875a3.875 3.875 0 000-7.75H3.622l4.146 3.957a.75.75 0 01-1.036 1.085l-5.5-5.25a.75.75 0 010-1.085l5.5-5.25a.75.75 0 011.06.025z" clip-rule="evenodd" /></svg>
+							Undo
+						</span>
 					</button>
 
 					<!-- Reset / Regenerate -->
 					{#if canReset}
-						<button onclick={resetSamples} disabled={samples.length === 0} class="flex h-11 items-center gap-2 rounded-2xl px-4 text-[13px] font-medium transition-all hover:scale-[1.03] hover:shadow-md active:scale-95 disabled:opacity-20 disabled:hover:scale-100 disabled:hover:shadow-none" style="background: color-mix(in srgb, var(--accent-orange) 8%, transparent); border: 1px solid color-mix(in srgb, var(--accent-orange) 18%, transparent); color: color-mix(in srgb, var(--accent-orange) 65%, var(--text-primary));">
-							<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.451a.75.75 0 000-1.5H4.5a.75.75 0 00-.75.75v3.75a.75.75 0 001.5 0v-2.033l.364.363a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39zm-10.624-2.85a5.5 5.5 0 019.201-2.466l.312.311H11.75a.75.75 0 000 1.5H15.5a.75.75 0 00.75-.75V3.42a.75.75 0 00-1.5 0v2.033l-.364-.363A7 7 0 002.674 8.228a.75.75 0 001.449.39z" clip-rule="evenodd" /></svg>
-							Reset&nbsp;({resetsLeft})
+						<button onclick={resetSamples} disabled={samples.length === 0} class="btn-action" style="--btn-color: var(--accent-orange);">
+							<span class="btn-action-face">
+								<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.451a.75.75 0 000-1.5H4.5a.75.75 0 00-.75.75v3.75a.75.75 0 001.5 0v-2.033l.364.363a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39zm-10.624-2.85a5.5 5.5 0 019.201-2.466l.312.311H11.75a.75.75 0 000 1.5H15.5a.75.75 0 00.75-.75V3.42a.75.75 0 00-1.5 0v2.033l-.364-.363A7 7 0 002.674 8.228a.75.75 0 001.449.39z" clip-rule="evenodd" /></svg>
+								Reset&nbsp;({resetsLeft})
+							</span>
 						</button>
 					{:else}
-						<button onclick={regenerateLevel} class="flex h-11 items-center gap-2 rounded-2xl px-4 text-[13px] font-medium transition-all hover:scale-[1.03] hover:shadow-md active:scale-95" style="background: color-mix(in srgb, var(--accent-orange) 8%, transparent); border: 1px solid color-mix(in srgb, var(--accent-orange) 18%, transparent); color: color-mix(in srgb, var(--accent-orange) 65%, var(--text-primary));">
-							<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.451a.75.75 0 000-1.5H4.5a.75.75 0 00-.75.75v3.75a.75.75 0 001.5 0v-2.033l.364.363a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39zm-10.624-2.85a5.5 5.5 0 019.201-2.466l.312.311H11.75a.75.75 0 000 1.5H15.5a.75.75 0 00.75-.75V3.42a.75.75 0 00-1.5 0v2.033l-.364-.363A7 7 0 002.674 8.228a.75.75 0 001.449.39z" clip-rule="evenodd" /></svg>
-							Regenerate
+						<button onclick={regenerateLevel} class="btn-action" style="--btn-color: var(--accent-orange);">
+							<span class="btn-action-face">
+								<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.451a.75.75 0 000-1.5H4.5a.75.75 0 00-.75.75v3.75a.75.75 0 001.5 0v-2.033l.364.363a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39zm-10.624-2.85a5.5 5.5 0 019.201-2.466l.312.311H11.75a.75.75 0 000 1.5H15.5a.75.75 0 00.75-.75V3.42a.75.75 0 00-1.5 0v2.033l-.364-.363A7 7 0 002.674 8.228a.75.75 0 001.449.39z" clip-rule="evenodd" /></svg>
+								Regenerate
+							</span>
 						</button>
 					{/if}
 				</div>
 
 				<!-- Submit -->
-				<button onclick={openSubmit} disabled={samples.length < 1} class="flex h-11 items-center gap-2 rounded-2xl px-6 text-[13px] font-bold transition-all hover:scale-[1.04] hover:shadow-lg active:scale-95 disabled:opacity-20 disabled:hover:scale-100 disabled:hover:shadow-none" style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 30%, transparent); color: var(--accent-cyan);">
-					<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M10 17a.75.75 0 01-.75-.75V5.612L5.29 9.77a.75.75 0 01-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z" clip-rule="evenodd" /></svg>
-					Submit
+				<button onclick={openSubmit} disabled={samples.length < 1} class="btn-action" style="--btn-color: var(--accent-cyan);">
+					<span class="btn-action-face">
+						<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M10 17a.75.75 0 01-.75-.75V5.612L5.29 9.77a.75.75 0 01-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z" clip-rule="evenodd" /></svg>
+						Submit
+					</span>
 				</button>
 			</div>
 		</div>
@@ -668,17 +676,25 @@
 					{/if}
 					<p class="mb-3 text-xs text-center" style="color: var(--text-secondary);">Sign in to claim your rank.</p>
 					<div class="mb-3 flex flex-col gap-2">
-						<button onclick={() => signInWith('github')} class="flex h-10 items-center justify-center gap-2 rounded-lg text-sm font-medium transition hover:opacity-80" style="background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary);">
-							<Github size={16} /> Continue with GitHub
+						<button onclick={() => signInWith('github')} class="btn-action w-full" style="--btn-color: var(--text-secondary);">
+							<span class="btn-action-face w-full justify-center">
+								<Github size={16} /> Continue with GitHub
+							</span>
 						</button>
-						<button onclick={() => signInWith('google')} class="flex h-10 items-center justify-center gap-2 rounded-lg text-sm font-medium transition hover:opacity-80" style="background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary);">
+						<button onclick={() => signInWith('google')} class="btn-action w-full" style="--btn-color: var(--text-secondary);">
+							<span class="btn-action-face w-full justify-center">
 							<svg viewBox="0 0 24 24" class="h-4 w-4"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
 							Continue with Google
+							</span>
 						</button>
 					</div>
 					<div class="flex gap-2">
-						<a href="/" class="flex flex-1 items-center justify-center rounded-lg py-2.5 text-sm font-medium transition hover:opacity-70" style="background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary);">Home</a>
-						<button onclick={playAgain} class="flex flex-1 items-center justify-center rounded-lg py-2.5 text-sm font-semibold transition hover:opacity-80" style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);">Play Again</button>
+						<a href="/" class="btn-action flex-1" style="--btn-color: var(--text-secondary);">
+							<span class="btn-action-face w-full justify-center">Home</span>
+						</a>
+						<button onclick={playAgain} class="btn-action flex-1" style="--btn-color: var(--accent-cyan);">
+							<span class="btn-action-face w-full justify-center">Play Again</span>
+						</button>
 					</div>
 				{:else if submitted || skipped}
 					<!-- Post-submit / skipped -->
@@ -727,8 +743,12 @@
 						</div>
 					{/if}
 					<div class="flex gap-2">
-						<a href="/" class="flex flex-1 items-center justify-center rounded-lg py-2.5 text-sm font-medium transition hover:opacity-70" style="background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary);">Home</a>
-						<button onclick={playAgain} class="flex flex-1 items-center justify-center rounded-lg py-2.5 text-sm font-semibold transition hover:opacity-80" style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);">Play Again</button>
+						<a href="/" class="btn-action flex-1" style="--btn-color: var(--text-secondary);">
+							<span class="btn-action-face w-full justify-center">Home</span>
+						</a>
+						<button onclick={playAgain} class="btn-action flex-1" style="--btn-color: var(--accent-cyan);">
+							<span class="btn-action-face w-full justify-center">Play Again</span>
+						</button>
 					</div>
 				{:else}
 					<!-- Pre-submit: confirm -->
@@ -768,8 +788,12 @@
 						<div class="text-sm font-medium" style="color: var(--text-primary); opacity: 0.7;">{$session.data.user.name}</div>
 					</div>
 					<div class="flex gap-2">
-						<button onclick={() => { skipped = true; }} class="flex-1 rounded-lg py-2.5 text-sm font-medium transition hover:opacity-70" style="background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary);">Skip</button>
-						<button onclick={submitScore} disabled={isSubmitting} class="flex-1 rounded-lg py-2.5 text-sm font-semibold transition hover:opacity-80 disabled:opacity-25" style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);">{isSubmitting ? 'Saving…' : 'Submit'}</button>
+						<button onclick={() => { skipped = true; }} class="btn-action flex-1" style="--btn-color: var(--text-secondary);">
+							<span class="btn-action-face w-full justify-center">Skip</span>
+						</button>
+						<button onclick={submitScore} disabled={isSubmitting} class="btn-action flex-1" style="--btn-color: var(--accent-cyan);">
+							<span class="btn-action-face w-full justify-center">{isSubmitting ? 'Saving…' : 'Submit'}</span>
+						</button>
 					</div>
 				{/if}
 			</div>

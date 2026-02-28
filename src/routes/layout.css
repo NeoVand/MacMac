@@ -243,6 +243,13 @@ canvas, svg, img, video {
 	box-shadow: 0 0 8px color-mix(in srgb, var(--btn-color) 15%, transparent);
 	transition-duration: 0.06s;
 }
+.btn-action:disabled {
+	opacity: 0.2;
+	pointer-events: none;
+}
+.btn-action:disabled .btn-action-face {
+	transform: translateY(-2px);
+}
 @media (min-width: 640px) {
 	.btn-action-face {
 		gap: 0.5rem;
