@@ -45,6 +45,23 @@
 		startQueue(playerId, playerName, battleElo, country);
 	}
 
+	function handleCancelQueue() {
+		cancelQueue();
+	}
+
+	// When the user leaves the queue (cancel, match, etc.), the polled
+	// battleSearching still includes them until the next HTTP cycle.
+	// Immediately decrement to avoid the "ghost self" badge.
+	let wasInQueue = false;
+	$effect(() => {
+		const inQueue = $battleQueue.status !== 'idle' && $battleQueue.status !== 'match_found';
+		if (wasInQueue && !inQueue) {
+			battleSearching = Math.max(0, battleSearching - 1);
+			setTimeout(() => fetchBattleQueueCount().then(c => { battleSearching = c; }), 1500);
+		}
+		wasInQueue = inQueue;
+	});
+
 	// --- Grid state ---
 	const GRID_KEY = 'macmac_grid_seed';
 	const COMPLETED_KEY = 'macmac_completed';
@@ -356,7 +373,7 @@
 					</span>
 				</button>
 				{#if $battleQueue.status !== 'idle' && $battleQueue.status !== 'match_found'}
-					<button onclick={cancelQueue} class="btn-action btn-battle" title="Cancel search">
+					<button onclick={handleCancelQueue} class="btn-action btn-battle" title="Cancel search">
 						<span class="btn-action-face btn-battle-pulse">
 							<Swords class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4 animate-spin" style="animation-duration: 2s;" strokeWidth={2} />
 							Searching...
