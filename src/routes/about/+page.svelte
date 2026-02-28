@@ -532,7 +532,7 @@
 		</p>
 
 		<p>
-			If either player reaches <strong style="color: var(--text-primary); opacity: 0.55;">98% accuracy</strong>
+			If either player reaches <strong style="color: var(--text-primary); opacity: 0.55;">90% accuracy</strong>
 			before time runs out, they trigger a jackpot and win instantly. Otherwise, the higher score wins.
 			Battle results update your
 			<a href="https://en.wikipedia.org/wiki/Elo_rating_system" target="_blank" rel="noopener" class="underline transition hover:opacity-80" style="color: var(--accent-cyan); opacity: 0.7;">ELO rating</a>

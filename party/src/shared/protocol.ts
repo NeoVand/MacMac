@@ -10,7 +10,7 @@
  *   countdown   - 3-2-1 countdown tick
  *   start       - Battle begins, includes level data
  *   opponent_kde - Opponent's KDE curve update (~5Hz)
- *   jackpot     - A player hit ≥98% match accuracy — instant win
+ *   jackpot     - A player hit ≥90% match accuracy — instant win
  *   battle_end  - Battle is over, includes results
  *   error       - Something went wrong
  */

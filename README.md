@@ -23,7 +23,7 @@ Procedurally generated levels with difficulties from 1 to 10. Each level is seed
 
 ### Battle
 
-Real-time 1v1 multiplayer. Get matched with an opponent, race to sample the same target distribution in 30 seconds. See your opponent's KDE curve update live. Win by getting a higher score. An ELO rating system (K=32, starting at 1200) tracks battle rankings. Hit 98%+ match accuracy for an instant jackpot win.
+Real-time 1v1 multiplayer. Get matched with an opponent, race to sample the same target distribution in 30 seconds. See your opponent's KDE curve update live. Win by getting a higher score. An ELO rating system (K=32, starting at 1200) tracks battle rankings. Hit 90%+ match accuracy for an instant jackpot win.
 
 ## Tech stack
 

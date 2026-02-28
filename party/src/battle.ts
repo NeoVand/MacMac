@@ -5,7 +5,7 @@ import { signBattleResult } from './shared/crypto';
 
 const BATTLE_DURATION_MS = 30_000;
 const KDE_BROADCAST_INTERVAL_MS = 200;
-const JACKPOT_THRESHOLD = 98; // match % for instant win
+const JACKPOT_THRESHOLD = 90; // match % for instant win
 const DISCONNECT_GRACE_MS = 10_000;
 const COUNTDOWN_SECONDS = 3;
 const KDE_EVAL_POINTS = 200;
