@@ -20,6 +20,7 @@
 	} = $props();
 
 	let tab = $state<'solo' | 'battle'>('solo');
+	let selectedTier = $state<number | null>(null);
 
 	const skillLevel = $derived(playerRating !== null ? computeSkillLevel(playerRating) : 0);
 	const soloTier = $derived(getSkillTier(skillLevel));
@@ -31,8 +32,35 @@
 	const bProgress = $derived(getBattleTierProgress(elo));
 	const bTierIdx = $derived(BATTLE_TIERS.indexOf(bTier));
 
+	/** Whether the user has any data for the active tab */
+	const hasSoloData = $derived(playerRating !== null && gamesPlayed > 0);
+	const hasBattleData = $derived(battleElo !== null && battlesPlayed > 0);
+
+	/** Progress track fill for solo */
+	const soloCurrentIdx = $derived(hasSoloData ? soloTierIdx : -1);
+	const soloFillPct = $derived(
+		soloCurrentIdx >= 0
+			? ((soloCurrentIdx + soloProgress) / (SKILL_TIERS.length - 1)) * 100
+			: 0
+	);
+	const soloFillColor = $derived(soloCurrentIdx >= 0 ? soloTier.color : 'transparent');
+
+	/** Progress track fill for battle */
+	const battleCurrentIdx = $derived(hasBattleData ? bTierIdx : -1);
+	const battleFillPct = $derived(
+		battleCurrentIdx >= 0
+			? ((battleCurrentIdx + bProgress) / (BATTLE_TIERS.length - 1)) * 100
+			: 0
+	);
+	const battleFillColor = $derived(battleCurrentIdx >= 0 ? bTier.color : 'transparent');
+
 	function handleBackdrop(e: MouseEvent) {
 		if (e.target === e.currentTarget) onclose();
+	}
+
+	function switchTab(t: 'solo' | 'battle') {
+		tab = t;
+		selectedTier = null;
 	}
 </script>
 
@@ -62,14 +90,14 @@
 				<!-- Tab switcher -->
 				<div class="mx-5 mb-4 flex rounded-xl p-1" style="background: var(--surface);">
 					<button
-						onclick={() => tab = 'solo'}
+						onclick={() => switchTab('solo')}
 						class="flex-1 rounded-lg py-1.5 text-xs font-semibold transition"
 						style="background: {tab === 'solo' ? 'var(--bg)' : 'transparent'}; color: {tab === 'solo' ? 'var(--accent-cyan)' : 'var(--text-tertiary)'}; {tab === 'solo' ? 'box-shadow: 0 1px 3px rgba(0,0,0,0.1);' : ''}"
 					>
 						Solo Skill
 					</button>
 					<button
-						onclick={() => tab = 'battle'}
+						onclick={() => switchTab('battle')}
 						class="flex-1 rounded-lg py-1.5 text-xs font-semibold transition"
 						style="background: {tab === 'battle' ? 'var(--bg)' : 'transparent'}; color: {tab === 'battle' ? 'var(--accent-red)' : 'var(--text-tertiary)'}; {tab === 'battle' ? 'box-shadow: 0 1px 3px rgba(0,0,0,0.1);' : ''}"
 					>
@@ -78,8 +106,8 @@
 				</div>
 
 				{#if tab === 'solo'}
-					<!-- Solo: current stats -->
-					{#if playerRating !== null && gamesPlayed > 0}
+					{#if hasSoloData}
+						<!-- Solo stats card -->
 						<div class="mx-5 mb-4 rounded-xl p-3 text-center" style="background: var(--surface);">
 							<div class="mb-1 flex items-center justify-center gap-2">
 								<RankBadge mode="solo" value={skillLevel} size="lg" />
@@ -88,7 +116,6 @@
 									<div class="text-[10px] font-semibold" style="color: {soloTier.color};">{soloTier.name}</div>
 								</div>
 							</div>
-							<!-- Progress to next tier -->
 							{#if soloTierIdx < SKILL_TIERS.length - 1}
 								{@const nextTier = SKILL_TIERS[soloTierIdx + 1]}
 								<div class="mt-2">
@@ -106,40 +133,50 @@
 							</div>
 						</div>
 					{:else}
-						<div class="mx-5 mb-4 rounded-xl p-3 text-center" style="background: var(--surface);">
-							<div class="text-xs" style="color: var(--text-tertiary);">Play solo games to earn a skill rating</div>
+						<!-- Sign in prompt -->
+						<div class="mx-5 mb-4 rounded-xl p-4 text-center" style="background: var(--surface);">
+							<div class="text-xs font-medium" style="color: var(--text-secondary);">Sign in and play to earn your rank</div>
 						</div>
 					{/if}
 
-					<!-- All solo tiers -->
+					<!-- Solo tier strip -->
 					<div class="px-5 pb-5">
-						<div class="mb-2 text-[10px] font-semibold uppercase tracking-wider" style="color: var(--text-tertiary);">All Tiers</div>
-						<div class="flex flex-col gap-1.5">
+						<!-- Badges row -->
+						<div class="flex items-end justify-between">
 							{#each SKILL_TIERS as tier, i}
-								{@const isCurrent = playerRating !== null && gamesPlayed > 0 && soloTierIdx === i}
+								{@const isCurrent = soloCurrentIdx === i}
+								{@const isPast = soloCurrentIdx > i}
+								{@const noData = soloCurrentIdx < 0}
 								{@const nextThreshold = i < SKILL_TIERS.length - 1 ? SKILL_TIERS[i + 1].threshold : null}
-								<div
-									class="flex items-center gap-3 rounded-xl px-3 py-2 transition"
-									style="background: {isCurrent ? `color-mix(in srgb, ${tier.color} 8%, var(--surface))` : 'transparent'}; border: 1px solid {isCurrent ? `color-mix(in srgb, ${tier.color} 20%, transparent)` : 'transparent'};"
+								<button
+									class="flex flex-col items-center border-none bg-transparent p-0 transition-all"
+									style="opacity: {noData ? 0.7 : isCurrent ? 1 : isPast ? 0.7 : 0.35}; {isCurrent ? `filter: drop-shadow(0 0 6px ${tier.color});` : ''}"
+									onclick={() => selectedTier = selectedTier === i ? null : i}
 								>
-									<RankBadge mode="solo" value={tier.threshold} size="md" />
-									<div class="flex-1">
-										<div class="text-xs font-bold" style="color: {tier.color};">{tier.name}</div>
-										<div class="text-[10px] tabular-nums" style="color: var(--text-tertiary);">
-											{tier.threshold.toLocaleString()}{nextThreshold !== null ? ` – ${(nextThreshold - 1).toLocaleString()}` : '+'}
-										</div>
+									<div class="transition-transform" style="{isCurrent ? 'transform: scale(1.3);' : ''}">
+										<RankBadge mode="solo" value={tier.threshold} size={isCurrent ? 'lg' : 'md'} />
 									</div>
-									{#if isCurrent}
-										<div class="text-[9px] font-bold uppercase tracking-wider" style="color: {tier.color};">You</div>
+									<span
+										class="mt-1 text-[9px] font-bold leading-none"
+										style="color: {isCurrent ? tier.color : 'var(--text-tertiary)'};"
+									>{tier.name}</span>
+									{#if selectedTier === i}
+										<span class="mt-0.5 text-[8px] tabular-nums leading-none" style="color: var(--text-tertiary);">
+											{tier.threshold.toLocaleString()}{nextThreshold !== null ? `–${(nextThreshold - 1).toLocaleString()}` : '+'}
+										</span>
 									{/if}
-								</div>
+								</button>
 							{/each}
+						</div>
+						<!-- Progress track -->
+						<div class="relative mx-auto mt-3 h-1 overflow-hidden rounded-full" style="background: var(--border); width: calc(100% - 16px);">
+							<div class="absolute inset-y-0 left-0 rounded-full transition-all" style="width: {soloFillPct}%; background: {soloFillColor};"></div>
 						</div>
 					</div>
 
 				{:else}
-					<!-- Battle: current stats -->
-					{#if battleElo !== null && battlesPlayed > 0}
+					{#if hasBattleData}
+						<!-- Battle stats card -->
 						<div class="mx-5 mb-4 rounded-xl p-3 text-center" style="background: var(--surface);">
 							<div class="mb-1 flex items-center justify-center gap-2">
 								<RankBadge mode="battle" value={elo} size="lg" />
@@ -148,7 +185,6 @@
 									<div class="text-[10px] font-semibold" style="color: {bTier.color};">{bTier.name}</div>
 								</div>
 							</div>
-							<!-- Progress to next tier -->
 							{#if bTierIdx < BATTLE_TIERS.length - 1}
 								{@const nextTier = BATTLE_TIERS[bTierIdx + 1]}
 								<div class="mt-2">
@@ -166,34 +202,44 @@
 							</div>
 						</div>
 					{:else}
-						<div class="mx-5 mb-4 rounded-xl p-3 text-center" style="background: var(--surface);">
-							<div class="text-xs" style="color: var(--text-tertiary);">Play battles to earn an ELO rating</div>
+						<!-- Sign in prompt -->
+						<div class="mx-5 mb-4 rounded-xl p-4 text-center" style="background: var(--surface);">
+							<div class="text-xs font-medium" style="color: var(--text-secondary);">Sign in and play to earn your rank</div>
 						</div>
 					{/if}
 
-					<!-- All battle tiers -->
+					<!-- Battle tier strip -->
 					<div class="px-5 pb-5">
-						<div class="mb-2 text-[10px] font-semibold uppercase tracking-wider" style="color: var(--text-tertiary);">All Tiers</div>
-						<div class="flex flex-col gap-1.5">
+						<!-- Badges row -->
+						<div class="flex items-end justify-between">
 							{#each BATTLE_TIERS as tier, i}
-								{@const isCurrent = battleElo !== null && battlesPlayed > 0 && bTierIdx === i}
+								{@const isCurrent = battleCurrentIdx === i}
+								{@const isPast = battleCurrentIdx > i}
+								{@const noData = battleCurrentIdx < 0}
 								{@const nextThreshold = i < BATTLE_TIERS.length - 1 ? BATTLE_TIERS[i + 1].threshold : null}
-								<div
-									class="flex items-center gap-3 rounded-xl px-3 py-2 transition"
-									style="background: {isCurrent ? `color-mix(in srgb, ${tier.color} 8%, var(--surface))` : 'transparent'}; border: 1px solid {isCurrent ? `color-mix(in srgb, ${tier.color} 20%, transparent)` : 'transparent'};"
+								<button
+									class="flex flex-col items-center border-none bg-transparent p-0 transition-all"
+									style="opacity: {noData ? 0.7 : isCurrent ? 1 : isPast ? 0.7 : 0.35}; {isCurrent ? `filter: drop-shadow(0 0 6px ${tier.color});` : ''}"
+									onclick={() => selectedTier = selectedTier === i ? null : i}
 								>
-									<RankBadge mode="battle" value={tier.threshold} size="md" />
-									<div class="flex-1">
-										<div class="text-xs font-bold" style="color: {tier.color};">{tier.name}</div>
-										<div class="text-[10px] tabular-nums" style="color: var(--text-tertiary);">
-											ELO {tier.threshold.toLocaleString()}{nextThreshold !== null ? ` – ${(nextThreshold - 1).toLocaleString()}` : '+'}
-										</div>
+									<div class="transition-transform" style="{isCurrent ? 'transform: scale(1.3);' : ''}">
+										<RankBadge mode="battle" value={tier.threshold} size={isCurrent ? 'lg' : 'md'} />
 									</div>
-									{#if isCurrent}
-										<div class="text-[9px] font-bold uppercase tracking-wider" style="color: {tier.color};">You</div>
+									<span
+										class="mt-1 text-[9px] font-bold leading-none"
+										style="color: {isCurrent ? tier.color : 'var(--text-tertiary)'};"
+									>{tier.name}</span>
+									{#if selectedTier === i}
+										<span class="mt-0.5 text-[8px] tabular-nums leading-none" style="color: var(--text-tertiary);">
+											ELO {tier.threshold.toLocaleString()}{nextThreshold !== null ? `–${(nextThreshold - 1).toLocaleString()}` : '+'}
+										</span>
 									{/if}
-								</div>
+								</button>
 							{/each}
+						</div>
+						<!-- Progress track -->
+						<div class="relative mx-auto mt-3 h-1 overflow-hidden rounded-full" style="background: var(--border); width: calc(100% - 16px);">
+							<div class="absolute inset-y-0 left-0 rounded-full transition-all" style="width: {battleFillPct}%; background: {battleFillColor};"></div>
 						</div>
 					</div>
 				{/if}

@@ -310,7 +310,7 @@
 	<div class="flex w-full flex-1 flex-col items-center justify-center">
 		<!-- Hero: animation + logo + subtext -->
 		<div
-			class="relative flex h-[200px] w-full flex-col items-center justify-center sm:h-[240px]"
+			class="relative flex h-[180px] w-full flex-col items-center justify-end pb-2 sm:h-[220px]"
 		>
 			<canvas
 				bind:this={heroCanvas}
@@ -358,10 +358,14 @@
 					</div>
 				{/if}
 			</button>
+		{:else if !$session.data?.user}
+			<button onclick={() => showRankings = true} class="cursor-pointer rounded-lg px-3 py-1 text-[11px] font-medium transition hover:opacity-70" style="color: var(--text-tertiary); background: transparent;" title="View Rankings">
+				Sign in to get ranked
+			</button>
 		{/if}
 
 		<!-- Buttons: Solo + Battle + Leaderboard (uses .btn-action from layout.css) -->
-		<div class="flex w-full justify-center px-4 py-6">
+		<div class="flex w-full justify-center px-4 pt-3 pb-6">
 			<div class="flex flex-nowrap items-center justify-center gap-3 sm:gap-3">
 				<button onclick={playSolo} class="btn-action" style="--btn-color: var(--accent-cyan);" title="Play a random level">
 					<span class="btn-action-face">
