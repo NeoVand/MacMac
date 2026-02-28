@@ -156,23 +156,43 @@
 				// battle_end will follow with full results
 				break;
 
-			case 'battle_end':
+			case 'battle_end': {
 				phase = 'ended';
-				won = msg.won;
 				winnerId = msg.winnerId;
 				winnerName = msg.winnerName;
-				yourScore = msg.yourScore;
-				yourMatchPct_result = msg.yourMatchPct;
-				opponentScore = msg.opponentScore;
-				opponentMatchPct_result = msg.opponentMatchPct;
 				yourEloDelta = msg.yourEloDelta;
 				opponentSamples = msg.opponentSamples ?? [];
+
+				// New server sends personalized fields; old server sends winner/loser fields.
+				// Support both for backwards compatibility during deploy rollout.
+				const raw = msg as unknown as Record<string, unknown>;
+				if (typeof msg.won === 'boolean') {
+					// New format — server tells us directly
+					won = msg.won;
+					yourScore = msg.yourScore;
+					yourMatchPct_result = msg.yourMatchPct;
+					opponentScore = msg.opponentScore;
+					opponentMatchPct_result = msg.opponentMatchPct;
+				} else {
+					// Legacy format — derive from winnerId (best-effort)
+					won = msg.winnerId === myPlayerId;
+					const ws = (raw.winnerScore as number) ?? 0;
+					const wm = (raw.winnerMatchPct as number) ?? 0;
+					const ls = (raw.loserScore as number) ?? 0;
+					const lm = (raw.loserMatchPct as number) ?? 0;
+					yourScore = won ? ws : ls;
+					yourMatchPct_result = won ? wm : lm;
+					opponentScore = won ? ls : ws;
+					opponentMatchPct_result = won ? lm : wm;
+				}
+
 				stopCountdownTimer();
 				if (msg.resultToken) {
 					reportBattleResult(msg.resultToken);
 				}
 				startBattleReplay();
 				break;
+			}
 
 			case 'error':
 				console.error('Battle error:', msg.message);
