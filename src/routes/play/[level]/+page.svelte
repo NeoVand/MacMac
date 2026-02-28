@@ -581,23 +581,9 @@
 	<div class="flex h-dvh flex-col overflow-hidden" style="background: radial-gradient(ellipse at 50% 30%, var(--page-bg-center) 0%, var(--page-bg-edge) 70%);">
 		<AppHeader showNav={!isGenerated} prevHref={prevLevel ? `/play/${prevLevel}` : null} nextHref={nextLevel ? `/play/${nextLevel}` : null} />
 
-		<!-- Level name + difficulty -->
-		<div class="flex shrink-0 items-center gap-2 px-4 pb-1.5 sm:px-6">
-			<span class="inline-block h-2.5 w-2.5 rounded-full" style="background: {levelDiffColor}"></span>
-			<span class="text-sm font-semibold" style="color: var(--text-primary); opacity: 0.7;">{levelName}</span>
-			{#if isGenerated && generatedLevel}
-				<span class="text-[11px] font-semibold tabular-nums" style="color: {levelDiffColor};">
-					{generatedLevel.targetDifficulty.toFixed(1)}
-				</span>
-			{/if}
-			{#if isNewBest}
-				<span class="ml-auto text-xs font-bold text-yellow-500">New #1</span>
-			{/if}
-		</div>
-
 		<!-- Score panel -->
-		<div class="shrink-0 px-4 pb-1 sm:px-6">
-			<ScorePanel {scoreResult} {scoreRank} {elapsedMs} />
+		<div class="shrink-0 px-4 pb-1 pt-1 sm:px-6">
+			<ScorePanel {scoreResult} {scoreRank} {elapsedMs} difficultyMultiplier={isGenerated && generatedLevel ? generatedLevel.targetDifficulty / 3.0 : 1} />
 		</div>
 
 		<!-- Canvas -->
@@ -645,7 +631,11 @@
 			onclick={(e) => { if (e.target === e.currentTarget) closeDialog(); }}
 			onkeydown={(e) => e.key === 'Escape' && closeDialog()}
 		>
-			<div class="mx-4 w-full max-w-sm rounded-2xl p-5 shadow-2xl" style="background: var(--bg); border: 1px solid var(--border);">
+			<div class="relative mx-4 w-full max-w-sm rounded-2xl p-5 shadow-2xl" style="background: var(--bg); border: 1px solid var(--border);">
+				<!-- Close button -->
+				<button onclick={closeDialog} class="absolute top-3 right-3 flex h-7 w-7 items-center justify-center rounded-full transition hover:opacity-70" style="background: var(--surface); color: var(--text-tertiary);" aria-label="Close">
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="h-3.5 w-3.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+				</button>
 				<!-- Replay -->
 				<canvas bind:this={replayCanvas} class="mb-4 h-28 w-full rounded-lg sm:h-36" style="background: var(--canvas-bg);"></canvas>
 
@@ -653,16 +643,10 @@
 				<div class="mb-4 flex justify-between text-center">
 					<div>
 						<div class="text-[9px] uppercase tracking-wider" style="color: var(--text-tertiary);">Score</div>
-						<div class="text-lg font-bold tabular-nums" style="color: var(--text-primary);">{scoreResult.score.toLocaleString()}</div>
+						<div class="text-lg font-bold tabular-nums" style="color: var(--text-primary);">{(isGenerated && weightedScore > 0 ? weightedScore : scoreResult.score).toLocaleString()}</div>
 					</div>
-					{#if isGenerated && weightedScore > 0}
-						<div>
-							<div class="text-[9px] uppercase tracking-wider" style="color: var(--text-tertiary);">Weighted</div>
-							<div class="text-lg font-bold tabular-nums" style="color: {levelDiffColor};">{weightedScore.toLocaleString()}</div>
-						</div>
-					{/if}
 					<div>
-						<div class="text-[9px] uppercase tracking-wider" style="color: var(--text-tertiary);">Accuracy</div>
+						<div class="text-[9px] uppercase tracking-wider" style="color: var(--text-tertiary);">Match</div>
 						<div class="text-lg font-bold tabular-nums" style="color: #4ade80;">{scoreResult.matchPct}%</div>
 					</div>
 					<div>
@@ -671,7 +655,7 @@
 					</div>
 					<div>
 						<div class="text-[9px] uppercase tracking-wider" style="color: var(--text-tertiary);">Time</div>
-						<div class="text-lg font-bold tabular-nums" style="color: var(--accent-purple);">
+						<div class="text-lg font-bold tabular-nums" style="color: var(--accent-cyan);">
 							{Math.floor(elapsedMs / 60000)}:{(Math.floor(elapsedMs / 1000) % 60).toString().padStart(2, '0')}
 						</div>
 					</div>
@@ -701,7 +685,6 @@
 							Continue with Google
 						</button>
 					</div>
-					<button onclick={closeDialog} class="mt-3 w-full rounded-lg py-2 text-sm font-medium transition hover:opacity-70" style="background: var(--surface); color: var(--text-tertiary);">Cancel</button>
 				{:else if submitted}
 					<!-- Post-submit: success -->
 					<div class="mb-3 text-center text-sm font-semibold" style="color: #4ade80;">Score submitted!</div>
@@ -763,10 +746,7 @@
 						{/if}
 						<div class="text-sm font-medium" style="color: var(--text-primary); opacity: 0.7;">{$session.data.user.name}</div>
 					</div>
-					<div class="flex gap-2">
-						<button onclick={closeDialog} class="flex-1 rounded-lg py-2.5 text-sm font-medium transition hover:opacity-80" style="border: 1px solid var(--border-hover); color: var(--text-primary); opacity: 0.6;">Cancel</button>
-						<button onclick={submitScore} disabled={isSubmitting} class="flex-1 rounded-lg py-2.5 text-sm font-semibold transition hover:opacity-80 disabled:opacity-25" style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);">{isSubmitting ? 'Saving…' : 'Submit'}</button>
-					</div>
+					<button onclick={submitScore} disabled={isSubmitting} class="w-full rounded-lg py-2.5 text-sm font-semibold transition hover:opacity-80 disabled:opacity-25" style="background: color-mix(in srgb, var(--accent-cyan) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);">{isSubmitting ? 'Saving…' : 'Submit'}</button>
 				{/if}
 			</div>
 		</div>

@@ -499,6 +499,7 @@ export default class BattleServer implements Party.Server {
 					}
 				}
 
+				const opponent = isWinner ? loser : winner;
 				conn.send(JSON.stringify({
 					type: 'battle_end',
 					winnerId: winner.info.playerId,
@@ -508,7 +509,8 @@ export default class BattleServer implements Party.Server {
 					loserScore,
 					loserMatchPct,
 					yourEloDelta: eloDelta,
-					resultToken
+					resultToken,
+					opponentSamples: opponent.samples
 				} satisfies BattleEndMessage));
 			}
 		}

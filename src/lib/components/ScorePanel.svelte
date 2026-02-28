@@ -7,14 +7,16 @@
 		scoreResult: ScoreResult;
 		scoreRank: TopRank;
 		elapsedMs: number;
+		difficultyMultiplier?: number;
 	}
 
-	let { scoreResult, scoreRank, elapsedMs }: Props = $props();
+	let { scoreResult, scoreRank, elapsedMs, difficultyMultiplier = 1 }: Props = $props();
 
 	let dScore = $state(0);
 	let dMatch = $state(0);
-	let dTimeBonus = $state(0);
 	let dClicks = $state(0);
+
+	const displayScore = $derived(Math.round(scoreResult.score * difficultyMultiplier));
 
 	const isTopThree = $derived(scoreRank !== null);
 	const rankColor = $derived.by(() => {
@@ -38,21 +40,18 @@
 	});
 
 	onMount(() => {
-		dScore = scoreResult.score;
+		dScore = displayScore;
 		dMatch = scoreResult.matchPct;
-		dTimeBonus = scoreResult.timeBonus;
 		dClicks = scoreResult.clicks;
 
 		let running = true;
 		function tick() {
 			if (!running) return;
-			dScore += (scoreResult.score - dScore) * 0.15;
+			dScore += (displayScore - dScore) * 0.15;
 			dMatch += (scoreResult.matchPct - dMatch) * 0.15;
-			dTimeBonus += (scoreResult.timeBonus - dTimeBonus) * 0.15;
 			dClicks += (scoreResult.clicks - dClicks) * 0.15;
-			if (Math.abs(dScore - scoreResult.score) < 1) dScore = scoreResult.score;
+			if (Math.abs(dScore - displayScore) < 1) dScore = displayScore;
 			if (Math.abs(dMatch - scoreResult.matchPct) < 0.5) dMatch = scoreResult.matchPct;
-			if (Math.abs(dTimeBonus - scoreResult.timeBonus) < 1) dTimeBonus = scoreResult.timeBonus;
 			if (Math.abs(dClicks - scoreResult.clicks) < 0.5) dClicks = scoreResult.clicks;
 			requestAnimationFrame(tick);
 		}
@@ -61,9 +60,9 @@
 	});
 </script>
 
-<div class="flex flex-wrap items-end gap-x-5 gap-y-1">
-	<!-- Score -->
-	<div>
+<div class="flex items-end gap-4">
+	<!-- Score (prominent) -->
+	<div class="min-w-0 shrink-0">
 		<div class="flex items-center gap-1.5">
 			<span class="text-[9px] font-medium tracking-[0.15em] uppercase" style="color: var(--text-tertiary);">Score</span>
 			{#if isTopThree}
@@ -75,35 +74,27 @@
 		</div>
 	</div>
 
-	<!-- Match -->
-	<div>
-		<div class="text-[9px] font-medium tracking-[0.15em] uppercase" style="color: var(--text-tertiary);">Match</div>
-		<div class="text-xl font-bold tabular-nums leading-none sm:text-2xl" style="color: #4ade80;">
-			{Math.round(dMatch)}%
+	<!-- Secondary stats: Match, Clicks, Time -->
+	<div class="flex min-w-0 gap-4">
+		<div>
+			<div class="text-[9px] font-medium tracking-[0.15em] uppercase" style="color: var(--text-tertiary);">Match</div>
+			<div class="text-lg font-bold tabular-nums leading-none sm:text-xl" style="color: #4ade80;">
+				{Math.round(dMatch)}%
+			</div>
 		</div>
-	</div>
 
-	<!-- Time Bonus -->
-	<div>
-		<div class="text-[9px] font-medium tracking-[0.15em] uppercase" style="color: var(--text-tertiary);">Bonus</div>
-		<div class="text-xl font-bold tabular-nums leading-none sm:text-2xl" style="color: var(--accent-purple);">
-			+{Math.round(dTimeBonus)}
+		<div>
+			<div class="text-[9px] font-medium tracking-[0.15em] uppercase" style="color: var(--text-tertiary);">Clicks</div>
+			<div class="text-lg font-bold tabular-nums leading-none sm:text-xl" style="color: var(--accent-orange);">
+				{Math.round(dClicks)}
+			</div>
 		</div>
-	</div>
 
-	<!-- Clicks -->
-	<div>
-		<div class="text-[9px] font-medium tracking-[0.15em] uppercase" style="color: var(--text-tertiary);">Clicks</div>
-		<div class="text-xl font-bold tabular-nums leading-none sm:text-2xl" style="color: var(--accent-orange);">
-			{Math.round(dClicks)}
-		</div>
-	</div>
-
-	<!-- Timer -->
-	<div>
-		<div class="text-[9px] font-medium tracking-[0.15em] uppercase" style="color: var(--text-tertiary);">Time</div>
-		<div class="text-xl font-bold tabular-nums leading-none sm:text-2xl" style="color: var(--accent-cyan);">
-			{timerDisplay}
+		<div>
+			<div class="text-[9px] font-medium tracking-[0.15em] uppercase" style="color: var(--text-tertiary);">Time</div>
+			<div class="text-lg font-bold tabular-nums leading-none sm:text-xl" style="color: var(--accent-cyan);">
+				{timerDisplay}
+			</div>
 		</div>
 	</div>
 </div>

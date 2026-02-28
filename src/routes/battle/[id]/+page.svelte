@@ -4,6 +4,8 @@
 	import { goto } from '$app/navigation';
 	import { reconstructLevel } from '$lib/game/generator';
 	import { getFullScore, type ScoreResult } from '$lib/game/scoring';
+	import { linspace } from '$lib/game/math';
+	import { computeKDE } from '$lib/game/kde';
 	import { joinBattle } from '$lib/battle/client';
 	import type { ServerMessage } from '$lib/battle/protocol';
 	import type { Level } from '$lib/game/levels';
@@ -46,6 +48,28 @@
 	let battleTierColor = $state<string | null>(null);
 	let battleRankUp = $state(false);
 	let reportedNewElo = $state<number | null>(null);
+	let opponentSamples = $state<number[]>([]);
+
+	// Replay state
+	let replayCanvas: HTMLCanvasElement | undefined = $state();
+	let replayTimer: number = 0;
+	let showYou = $state(true);
+	let showOpponent = $state(true);
+	let replayIdx = $state(0);
+	let yourReplayKde: number[] = [];
+	let oppReplayKde: number[] = [];
+	let replayXs: number[] = [];
+	let replayStepTimer = 0;
+	let replayPhase: 'adding' | 'holding' | 'fadingOut' = 'adding';
+	let replayPauseTimer = 0;
+	let replayFadeTimer = 0;
+	let replayFadeFactor = 1;
+
+	const REPLAY_START_DELAY = 12;
+	const REPLAY_STEP = 18;
+	const REPLAY_HOLD = 90;
+	const REPLAY_FADE_OUT = 33;
+	const REPLAY_FADE_LERP = 0.22;
 
 	// Score tracking
 	const emptyScore: ScoreResult = { mse: 1, clicks: 0, score: 0, matchPct: 0, matchScore: 0, timeBonus: 0, histogramData: [] };
@@ -57,6 +81,10 @@
 	const myName = $derived(resolvePlayerName($session.data?.user?.name ?? 'Anonymous'));
 	const isWinner = $derived(winnerId === myPlayerId);
 	const isAnonymous = $derived(!$session.data?.user);
+
+	// For anonymous users, show hypothetical rank (starting ELO = 1200)
+	const anonElo = $derived(1200 + yourEloDelta);
+	const anonTier = $derived(getBattleTier(anonElo));
 
 	const timerDisplay = $derived.by(() => {
 		const sec = Math.max(0, Math.ceil(timeLeftMs / 1000));
@@ -122,10 +150,12 @@
 				loserScore = msg.loserScore;
 				loserMatchPct = msg.loserMatchPct;
 				yourEloDelta = msg.yourEloDelta;
+				opponentSamples = msg.opponentSamples ?? [];
 				stopCountdownTimer();
 				if (msg.resultToken) {
 					reportBattleResult(msg.resultToken);
 				}
+				startBattleReplay();
 				break;
 
 			case 'error':
@@ -172,6 +202,214 @@
 		}
 	}
 
+	function startBattleReplay() {
+		if (!level) return;
+		const [xMin, xMax] = level.xRange;
+		replayXs = linspace(xMin, xMax, 200);
+		replayIdx = 0;
+		yourReplayKde = new Array(200).fill(0);
+		oppReplayKde = new Array(200).fill(0);
+		replayStepTimer = 0;
+		replayPhase = 'adding';
+		replayPauseTimer = 0;
+		replayFadeTimer = 0;
+		replayFadeFactor = 1;
+
+		const maxClicks = Math.max(samples.length, opponentSamples.length);
+
+		function frame() {
+			if (phase !== 'ended') return;
+
+			if (replayPhase === 'adding') {
+				const interval = replayIdx === 0 ? REPLAY_START_DELAY : REPLAY_STEP;
+				replayStepTimer++;
+				if (replayStepTimer >= interval) {
+					replayStepTimer = 0;
+					replayIdx++;
+					if (replayIdx > maxClicks) {
+						replayPhase = 'holding';
+						replayPauseTimer = 0;
+					}
+				}
+			} else if (replayPhase === 'holding') {
+				replayPauseTimer++;
+				if (replayPauseTimer > REPLAY_HOLD) {
+					replayPhase = 'fadingOut';
+					replayFadeTimer = 0;
+				}
+			} else {
+				replayFadeTimer++;
+				for (let i = 0; i < 200; i++) {
+					yourReplayKde[i] += (0 - yourReplayKde[i]) * REPLAY_FADE_LERP;
+					oppReplayKde[i] += (0 - oppReplayKde[i]) * REPLAY_FADE_LERP;
+				}
+				replayFadeFactor = Math.max(0, 1 - replayFadeTimer / REPLAY_FADE_OUT);
+				if (replayFadeTimer >= REPLAY_FADE_OUT) {
+					replayIdx = 0;
+					replayStepTimer = 0;
+					replayPhase = 'adding';
+					replayFadeFactor = 1;
+					yourReplayKde = yourReplayKde.map(() => 0);
+					oppReplayKde = oppReplayKde.map(() => 0);
+				}
+			}
+
+			if (replayPhase !== 'fadingOut') {
+				const yourSlice = samples.slice(0, Math.min(replayIdx, samples.length));
+				const oppSlice = opponentSamples.slice(0, Math.min(replayIdx, opponentSamples.length));
+				const yourTarget = yourSlice.length > 0 ? computeKDE(yourSlice, replayXs) : new Array(200).fill(0);
+				const oppTarget = oppSlice.length > 0 ? computeKDE(oppSlice, replayXs) : new Array(200).fill(0);
+				for (let i = 0; i < 200; i++) {
+					yourReplayKde[i] += (yourTarget[i] - yourReplayKde[i]) * 0.12;
+					oppReplayKde[i] += (oppTarget[i] - oppReplayKde[i]) * 0.12;
+				}
+			}
+
+			drawBattleReplay();
+			replayTimer = requestAnimationFrame(frame);
+		}
+		frame();
+	}
+
+	function drawBattleReplay() {
+		if (!replayCanvas || !level) return;
+		const ctx = replayCanvas.getContext('2d');
+		if (!ctx) return;
+
+		const w = replayCanvas.clientWidth;
+		const h = replayCanvas.clientHeight;
+		const dpr = window.devicePixelRatio || 1;
+		replayCanvas.width = w * dpr;
+		replayCanvas.height = h * dpr;
+		ctx.scale(dpr, dpr);
+
+		const s = getComputedStyle(document.documentElement);
+		const canvasBg = s.getPropertyValue('--canvas-bg').trim();
+		const accentCyan = s.getPropertyValue('--accent-cyan').trim();
+
+		ctx.fillStyle = canvasBg;
+		ctx.fillRect(0, 0, w, h);
+
+		const pad = 12;
+		const pw = w - pad * 2, ph = h - pad * 2;
+		const [xMin, xMax] = level.xRange;
+		const pdfVals = replayXs.map((x) => level!.pdf(x));
+		const pdfMax = Math.max(...pdfVals) || 1;
+		const yourMax = yourReplayKde.length > 0 ? Math.max(...yourReplayKde) : 0;
+		const oppMax = oppReplayKde.length > 0 ? Math.max(...oppReplayKde) : 0;
+		const yMax = Math.max(pdfMax, yourMax, oppMax) * 1.15 || 1;
+
+		const toX = (x: number) => pad + ((x - xMin) / (xMax - xMin)) * pw;
+		const toY = (y: number) => pad + ph - (y / yMax) * ph;
+		const baseY = toY(0);
+
+		// Axis
+		ctx.strokeStyle = 'rgba(128,128,128,0.3)';
+		ctx.lineWidth = 1;
+		ctx.beginPath();
+		ctx.moveTo(pad, baseY);
+		ctx.lineTo(pad + pw, baseY);
+		ctx.stroke();
+
+		// PDF family (dimmed)
+		const pdfScales = linspace(0.08, 1, 20);
+		for (let si = 0; si < pdfScales.length; si++) {
+			const scale = pdfScales[si];
+			const isMain = si === pdfScales.length - 1;
+			const alpha = (isMain ? 0.5 : 0.03 + (si / (pdfScales.length - 1)) * 0.25) * 0.5;
+			ctx.beginPath();
+			for (let i = 0; i < replayXs.length; i++) {
+				const sy = toY(pdfVals[i] * scale);
+				i === 0 ? ctx.moveTo(toX(replayXs[i]), sy) : ctx.lineTo(toX(replayXs[i]), sy);
+			}
+			ctx.globalAlpha = alpha;
+			ctx.strokeStyle = accentCyan;
+			ctx.lineWidth = isMain ? 1.5 : 0.5;
+			ctx.stroke();
+			ctx.globalAlpha = 1;
+		}
+
+		const maxClicks = Math.max(samples.length, opponentSamples.length);
+
+		// Your KDE + samples (orange)
+		if (showYou && replayIdx > 0 && replayFadeFactor > 0.01) {
+			ctx.globalAlpha = replayFadeFactor;
+			// Fill
+			ctx.beginPath();
+			for (let i = 0; i < replayXs.length; i++) {
+				const sy = toY(Math.min(yourReplayKde[i], yMax * 0.99));
+				i === 0 ? ctx.moveTo(toX(replayXs[i]), sy) : ctx.lineTo(toX(replayXs[i]), sy);
+			}
+			ctx.lineTo(toX(replayXs[replayXs.length - 1]), baseY);
+			ctx.lineTo(toX(replayXs[0]), baseY);
+			ctx.closePath();
+			const g = ctx.createLinearGradient(0, pad, 0, baseY);
+			g.addColorStop(0, 'rgba(251,146,60,0.15)');
+			g.addColorStop(1, 'rgba(251,146,60,0.01)');
+			ctx.fillStyle = g;
+			ctx.fill();
+			// Stroke
+			ctx.beginPath();
+			ctx.strokeStyle = 'rgba(251,146,60,0.7)';
+			ctx.lineWidth = 1.5;
+			ctx.setLineDash([4, 3]);
+			for (let i = 0; i < replayXs.length; i++) {
+				const sy = toY(Math.min(yourReplayKde[i], yMax * 0.99));
+				i === 0 ? ctx.moveTo(toX(replayXs[i]), sy) : ctx.lineTo(toX(replayXs[i]), sy);
+			}
+			ctx.stroke();
+			ctx.setLineDash([]);
+			// Dots
+			const yourSlice = replayPhase === 'fadingOut' ? samples : samples.slice(0, Math.min(replayIdx, samples.length));
+			for (const sp of yourSlice) {
+				ctx.fillStyle = 'rgba(251,146,60,0.25)';
+				ctx.beginPath(); ctx.arc(toX(sp), baseY, 5, 0, Math.PI * 2); ctx.fill();
+				ctx.fillStyle = 'rgba(251,146,60,0.9)';
+				ctx.beginPath(); ctx.arc(toX(sp), baseY, 3, 0, Math.PI * 2); ctx.fill();
+			}
+			ctx.globalAlpha = 1;
+		}
+
+		// Opponent KDE + samples (pink)
+		if (showOpponent && replayIdx > 0 && replayFadeFactor > 0.01) {
+			ctx.globalAlpha = replayFadeFactor;
+			// Fill
+			ctx.beginPath();
+			for (let i = 0; i < replayXs.length; i++) {
+				const sy = toY(Math.min(oppReplayKde[i], yMax * 0.99));
+				i === 0 ? ctx.moveTo(toX(replayXs[i]), sy) : ctx.lineTo(toX(replayXs[i]), sy);
+			}
+			ctx.lineTo(toX(replayXs[replayXs.length - 1]), baseY);
+			ctx.lineTo(toX(replayXs[0]), baseY);
+			ctx.closePath();
+			const g2 = ctx.createLinearGradient(0, pad, 0, baseY);
+			g2.addColorStop(0, 'rgba(236,72,153,0.15)');
+			g2.addColorStop(1, 'rgba(236,72,153,0.01)');
+			ctx.fillStyle = g2;
+			ctx.fill();
+			// Stroke
+			ctx.beginPath();
+			ctx.strokeStyle = 'rgba(236,72,153,0.6)';
+			ctx.lineWidth = 1.5;
+			ctx.setLineDash([4, 3]);
+			for (let i = 0; i < replayXs.length; i++) {
+				const sy = toY(Math.min(oppReplayKde[i], yMax * 0.99));
+				i === 0 ? ctx.moveTo(toX(replayXs[i]), sy) : ctx.lineTo(toX(replayXs[i]), sy);
+			}
+			ctx.stroke();
+			ctx.setLineDash([]);
+			// Dots
+			const oppSlice = replayPhase === 'fadingOut' ? opponentSamples : opponentSamples.slice(0, Math.min(replayIdx, opponentSamples.length));
+			for (const sp of oppSlice) {
+				ctx.fillStyle = 'rgba(236,72,153,0.25)';
+				ctx.beginPath(); ctx.arc(toX(sp), baseY, 5, 0, Math.PI * 2); ctx.fill();
+				ctx.fillStyle = 'rgba(236,72,153,0.9)';
+				ctx.beginPath(); ctx.arc(toX(sp), baseY, 3, 0, Math.PI * 2); ctx.fill();
+			}
+			ctx.globalAlpha = 1;
+		}
+	}
+
 	function handleSampleAdd(x: number) {
 		if (phase !== 'playing' || !level) return;
 		samples = [...samples, x];
@@ -207,6 +445,7 @@
 			clearTimeout(timeout);
 			clearTimeout(connTimeout);
 			stopCountdownTimer();
+			cancelAnimationFrame(replayTimer);
 			socket?.close();
 		};
 	});
@@ -373,7 +612,7 @@
 					</div>
 				{/if}
 
-				<div class="mb-5 text-center">
+				<div class="mb-4 text-center">
 					<div
 						class="text-3xl font-black sm:text-4xl"
 						style="color: {isWinner ? '#4ade80' : '#ef4444'};"
@@ -383,6 +622,28 @@
 					<div class="mt-1 text-sm" style="color: var(--text-tertiary);">
 						vs {#if opponentCountry}{countryFlag(opponentCountry)} {/if}{opponentName}
 					</div>
+				</div>
+
+				<!-- Replay canvas -->
+				<canvas bind:this={replayCanvas} class="mb-2 h-28 w-full rounded-lg sm:h-36" style="background: var(--canvas-bg);"></canvas>
+				<!-- Toggle controls -->
+				<div class="mb-4 flex justify-center gap-2">
+					<button
+						onclick={() => showYou = !showYou}
+						class="flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-semibold transition"
+						style="background: {showYou ? 'rgba(251,146,60,0.15)' : 'var(--surface)'}; border: 1px solid {showYou ? 'rgba(251,146,60,0.3)' : 'var(--border)'}; color: {showYou ? 'rgb(251,146,60)' : 'var(--text-tertiary)'};"
+					>
+						<span class="inline-block h-2 w-2 rounded-full" style="background: {showYou ? 'rgb(251,146,60)' : 'var(--text-tertiary)'}; opacity: {showYou ? 1 : 0.3};"></span>
+						You
+					</button>
+					<button
+						onclick={() => showOpponent = !showOpponent}
+						class="flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-semibold transition"
+						style="background: {showOpponent ? 'rgba(236,72,153,0.15)' : 'var(--surface)'}; border: 1px solid {showOpponent ? 'rgba(236,72,153,0.3)' : 'var(--border)'}; color: {showOpponent ? 'rgb(236,72,153)' : 'var(--text-tertiary)'};"
+					>
+						<span class="inline-block h-2 w-2 rounded-full" style="background: {showOpponent ? 'rgb(236,72,153)' : 'var(--text-tertiary)'}; opacity: {showOpponent ? 1 : 0.3};"></span>
+						{opponentName}
+					</button>
 				</div>
 
 				<!-- Score comparison -->
@@ -428,6 +689,16 @@
 								{reportedNewElo}
 							</span>
 						</div>
+					{:else if isAnonymous}
+						<div class="mb-1 flex items-center justify-center gap-2">
+							<RankBadge mode="battle" value={anonElo} size="lg" />
+							<span class="text-lg font-bold tabular-nums" style="color: {anonTier.color};">
+								{anonElo}
+							</span>
+						</div>
+						<div class="mb-1 text-[10px] font-medium" style="color: {anonTier.color};">
+							{anonTier.name}
+						</div>
 					{/if}
 					<div class="text-[9px] font-medium uppercase tracking-wider" style="color: var(--text-tertiary);">ELO Change</div>
 					<div
@@ -436,9 +707,6 @@
 					>
 						{yourEloDelta >= 0 ? '+' : ''}{yourEloDelta}
 					</div>
-					{#if isAnonymous}
-						<div class="mt-1 text-[10px]" style="color: var(--text-tertiary);">(not saved)</div>
-					{/if}
 				</div>
 
 				<!-- Sign-in prompt for anonymous users -->
