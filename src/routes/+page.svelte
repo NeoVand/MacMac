@@ -490,6 +490,7 @@
 <RankingsModal
 	open={showRankings}
 	onclose={() => showRankings = false}
+	isAuthenticated={!!$session.data?.user}
 	playerRating={data.playerRating}
 	battleElo={data.battleElo}
 	gamesPlayed={data.gamesPlayed}
