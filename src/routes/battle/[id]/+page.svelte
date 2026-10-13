@@ -835,6 +835,8 @@
 					class="duel-clock"
 					class:critical={battleTimerCritical}
 					style:--clock-color={battleTimerColor}
+					role="timer"
+					aria-label="Time remaining in duel"
 				>
 					<svg class="clock-ring" viewBox="0 0 120 120" aria-hidden="true"
 						><circle class="clock-ring-track" cx="60" cy="60" r="54" /><circle
@@ -846,11 +848,7 @@
 							stroke-dashoffset={2 * Math.PI * 54 * (1 - battleTimerPct)}
 						/></svg
 					>
-					<div class="clock-context">
-						<Swords size={13} aria-hidden="true" /><span>Live duel</span>
-					</div>
 					<strong>{timerDisplay}</strong>
-					<span>remaining</span>
 				</div>
 				<div class="player-meter opponent-meter">
 					<div class="player-label">
@@ -1444,10 +1442,8 @@
 	}
 	.duel-clock {
 		display: flex;
-		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		gap: 3px;
 		color: var(--clock-color);
 		width: 132px;
 		height: 132px;
@@ -1475,13 +1471,6 @@
 	.duel-clock > :not(.clock-ring) {
 		position: relative;
 	}
-	.clock-context {
-		display: flex;
-		align-items: center;
-		gap: 5px;
-		font-size: 10px;
-		color: var(--text-secondary);
-	}
 	.duel-clock strong {
 		font-family: var(--font-display);
 		font-size: 44px;
@@ -1489,10 +1478,6 @@
 		line-height: 1.1;
 		font-variant-numeric: tabular-nums;
 		letter-spacing: -0.055em;
-	}
-	.duel-clock > span {
-		font-size: 10px;
-		color: var(--text-secondary);
 	}
 	.duel-clock.critical strong {
 		animation: clock-pulse 1s ease-in-out infinite;
@@ -1954,17 +1939,10 @@
 		.duel-clock {
 			width: 84px;
 			height: 84px;
-			gap: 1px;
 			justify-self: center;
 		}
 		.duel-clock strong {
 			font-size: 29px;
-		}
-		.clock-context {
-			font-size: 8px;
-		}
-		.duel-clock > span {
-			font-size: 8px;
 		}
 		.duel-standing {
 			font-size: 10px;
@@ -2054,14 +2032,10 @@
 		.duel-clock {
 			width: 68px;
 			height: 68px;
-			gap: 1px;
 			justify-self: center;
 		}
 		.duel-clock strong {
 			font-size: 25px;
-		}
-		.clock-context :global(svg) {
-			display: none;
 		}
 		.result-heading {
 			--result-title-size: 29px;
@@ -2097,15 +2071,12 @@
 		}
 		.player-detail,
 		.match-track,
-		.duel-clock > span,
-		.clock-context,
 		.duel-footer {
 			display: none;
 		}
 		.duel-clock {
 			width: 66px;
 			height: 66px;
-			gap: 1px;
 			justify-self: center;
 		}
 		.duel-clock strong {
