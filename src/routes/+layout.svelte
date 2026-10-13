@@ -17,22 +17,30 @@
 	<link rel="preconnect" href="https://fonts.googleapis.com" />
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
 	<link
-		href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700&family=Space+Grotesk:wght@600;700&display=swap"
+		href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Sora:wght@400;500;600;700;800&display=swap"
 		rel="stylesheet"
 	/>
 	<!-- KaTeX for about page (preload so it's ready on first nav) -->
-	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous" />
-	<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
-	<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous"></script>
-	<!-- Initialize theme before paint to avoid flash -->
-	{@html `<script>
-		(function() {
-			var t = localStorage.getItem('macmac-theme');
-			if (t === 'dark' || (!t)) document.documentElement.classList.add('dark');
-		})();
-	<\/script>`}
+	<link
+		rel="stylesheet"
+		href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"
+		crossorigin="anonymous"
+	/>
+	<script
+		defer
+		src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"
+		crossorigin="anonymous"
+	></script>
+	<script
+		defer
+		src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+		crossorigin="anonymous"
+	></script>
 </svelte:head>
 
-<div class="min-h-dvh" style="background: radial-gradient(ellipse at 50% 30%, var(--page-bg-center) 0%, var(--page-bg-edge) 70%); color: var(--text-primary);">
+<div
+	class="min-h-dvh"
+	style="background: var(--bg); color: var(--text-primary); font-family: var(--font-body);"
+>
 	{@render children()}
 </div>

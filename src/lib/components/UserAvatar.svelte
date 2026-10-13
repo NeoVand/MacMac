@@ -15,8 +15,7 @@
 	let isSigningIn = $state(false);
 	let signInError = $state('');
 
-	const dim = $derived(size === 'sm' ? 'h-7 w-7' : 'h-8 w-8');
-	const iconSize = $derived(size === 'sm' ? 14 : 16);
+	const iconSize = $derived(size === 'sm' ? 16 : 17);
 
 	function handleAvatarClick() {
 		if ($session.data) showMenu = !showMenu;
@@ -46,8 +45,7 @@
 <div class="relative">
 	<button
 		onclick={handleAvatarClick}
-		class="{dim} flex items-center justify-center overflow-hidden rounded-full transition"
-		style="background: var(--border); color: var(--text-secondary);"
+		class="account-trigger"
 		aria-label={$session.data ? 'Account menu' : 'Sign in'}
 	>
 		{#if $session.data?.user?.image}
@@ -66,19 +64,19 @@
 		<div class="fixed inset-0 z-40" onclick={() => (showMenu = false)} onkeydown={() => {}}></div>
 		<div
 			class="absolute top-full right-0 z-50 mt-1 w-48 rounded-lg p-2 shadow-xl"
-			style="background: var(--bg); border: 1px solid var(--border);"
+			style="background: var(--surface); "
 		>
 			<div class="mb-2 px-2 pt-1">
 				<div class="text-xs font-medium" style="color: var(--text-primary);">
 					{$session.data.user.name}
 				</div>
-				<div class="text-[10px]" style="color: var(--text-tertiary);">
+				<div class="text-[10px]" style="color: var(--text-secondary);">
 					{$session.data.user.email}
 				</div>
 			</div>
 			<button
 				onclick={signOut}
-				class="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition hover:opacity-70"
+				class="flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition hover:opacity-70"
 				style="color: var(--text-secondary);"
 			>
 				<LogOut size={12} />
@@ -99,15 +97,15 @@
 		>
 			<div
 				class="mx-4 w-full max-w-xs rounded-2xl p-6 shadow-2xl"
-				style="background: var(--bg); border: 1px solid var(--border);"
+				style="background: var(--surface); "
 			>
 				<h3
 					class="mb-1 text-base font-bold"
-					style="font-family: 'Space Grotesk', sans-serif; color: var(--text-primary);"
+					style="font-family: var(--font-display); color: var(--text-primary);"
 				>
 					Sign in
 				</h3>
-				<p class="mb-5 text-xs" style="color: var(--text-tertiary);">
+				<p class="mb-5 text-xs" style="color: var(--text-secondary);">
 					Sign in to submit scores to the leaderboard.
 				</p>
 				{#if signInError}
@@ -119,8 +117,8 @@
 					<button
 						onclick={() => signInWith('github')}
 						disabled={isSigningIn || $session.isPending}
-						class="flex h-10 items-center justify-center gap-2 rounded-lg text-sm font-medium transition hover:opacity-80"
-						style="background: var(--surface); color: var(--text-secondary); border: 1px solid var(--border);"
+						class="flex h-11 items-center justify-center gap-2 rounded-lg text-sm font-medium transition hover:opacity-80"
+						style="background: var(--surface-raised); color: var(--text-secondary); "
 					>
 						<Github size={16} />
 						Continue with GitHub
@@ -128,8 +126,8 @@
 					<button
 						onclick={() => signInWith('google')}
 						disabled={isSigningIn || $session.isPending}
-						class="flex h-10 items-center justify-center gap-2 rounded-lg text-sm font-medium transition hover:opacity-80"
-						style="background: var(--surface); color: var(--text-secondary); border: 1px solid var(--border);"
+						class="flex h-11 items-center justify-center gap-2 rounded-lg text-sm font-medium transition hover:opacity-80"
+						style="background: var(--surface-raised); color: var(--text-secondary); "
 					>
 						<svg viewBox="0 0 24 24" class="h-4 w-4"
 							><path
@@ -151,10 +149,35 @@
 				</div>
 				<button
 					onclick={() => (showSignIn = false)}
-					class="mt-3 w-full text-center text-xs transition hover:opacity-70"
-					style="color: var(--text-tertiary);">Cancel</button
+					class="mt-3 min-h-11 w-full text-center text-xs transition hover:opacity-70"
+					style="color: var(--text-secondary);">Cancel</button
 				>
 			</div>
 		</div>
 	{/if}
 </div>
+
+<style>
+	.account-trigger {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 44px;
+		height: 44px;
+		overflow: hidden;
+
+		border-radius: 11px;
+		background: transparent;
+		color: var(--text-secondary);
+		cursor: pointer;
+	}
+	.account-trigger:hover {
+		background: var(--surface);
+		color: var(--text-primary);
+	}
+	.account-trigger:focus-visible {
+		background: var(--accent-cyan);
+		color: var(--on-accent);
+		outline: none;
+	}
+</style>

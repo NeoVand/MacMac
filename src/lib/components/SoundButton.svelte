@@ -13,10 +13,7 @@
 	let container: HTMLDivElement | undefined;
 	const uid = $props.id();
 	const allMuted = $derived($audioState.isMuted && $audioState.effectsMuted);
-	const sizeClasses = $derived(
-		size === 'sm' ? 'h-9 w-9' : size === 'md' ? 'h-11 w-11' : 'h-10 w-10 sm:h-[46px] sm:w-[46px]'
-	);
-	const iconSize = $derived(size === 'sm' ? 16 : 18);
+	const iconSize = $derived(size === 'sm' ? 17 : 18);
 
 	onMount(initAudio);
 
@@ -48,20 +45,15 @@
 	<button
 		type="button"
 		onclick={() => (open = !open)}
-		class="audio-trigger btn-music cursor-pointer {size === 'lg'
-			? 'btn-action !rounded-full'
-			: `relative flex ${sizeClasses} items-center justify-center rounded-full active:scale-[0.98]`}"
-		style={size !== 'lg' ? 'background: var(--surface); color: var(--btn-color);' : ''}
+		class="audio-trigger"
+		data-size={size}
+		data-open={open}
 		aria-label="Audio settings"
 		aria-expanded={open}
 		aria-controls="{uid}-settings"
 		title="Audio settings"
 	>
-		<span
-			class={size === 'lg'
-				? `btn-action-face !rounded-full ${sizeClasses} items-center justify-center !p-0`
-				: 'flex items-center justify-center'}
-		>
+		<span class="audio-trigger-icon">
 			{#if $audioState.isPlaying}
 				<svg
 					viewBox="0 0 100 100"
@@ -129,6 +121,33 @@
 </div>
 
 <style>
+	.audio-trigger {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 44px;
+		height: 44px;
+
+		border-radius: 11px;
+		background: transparent;
+		color: var(--text-secondary);
+		cursor: pointer;
+	}
+	.audio-trigger[data-size='lg'] {
+		width: 44px;
+		height: 44px;
+	}
+	.audio-trigger:hover,
+	.audio-trigger[data-open='true'] {
+		background: var(--surface);
+		color: var(--text-primary);
+	}
+	.audio-trigger-icon {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
 	.audio-control {
 		position: relative;
 		z-index: 60;
@@ -138,10 +157,10 @@
 		right: 0;
 		top: calc(100% + 10px);
 		width: 250px;
-		border: 1px solid var(--border);
-		border-radius: 16px;
+
+		border-radius: 12px;
 		padding: 12px;
-		background: var(--bg);
+		background: var(--surface);
 		color: var(--text-primary);
 		box-shadow: 0 16px 50px #0003;
 	}
@@ -157,9 +176,9 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 28px;
-		height: 28px;
-		border-radius: 50%;
+		width: 44px;
+		height: 44px;
+		border-radius: 9px;
 		color: var(--text-secondary);
 		cursor: pointer;
 	}
@@ -169,14 +188,14 @@
 		justify-content: space-between;
 		gap: 12px;
 		width: 100%;
-		padding: 10px 6px;
+		padding: 12px 8px;
 		border-radius: 10px;
 		text-align: left;
 		cursor: pointer;
 	}
 	.audio-option:hover,
 	.close-settings:hover {
-		background: var(--surface);
+		background: var(--surface-raised);
 	}
 	.audio-option-label {
 		display: flex;
@@ -188,26 +207,42 @@
 	.audio-option-label small {
 		display: block;
 		margin-top: 3px;
-		font-size: 10px;
+		font-size: 11px;
 		font-weight: 400;
-		color: var(--text-tertiary);
+		color: var(--text-secondary);
 	}
 	.audio-switch {
 		min-width: 36px;
 		padding: 4px 7px;
 		border-radius: 7px;
 		background: var(--surface);
-		color: var(--text-tertiary);
+		color: var(--text-secondary);
 		text-align: center;
-		font-size: 10px;
+		font-size: 11px;
 		font-weight: 700;
 	}
 	.audio-switch[data-on='true'] {
 		background: color-mix(in srgb, var(--accent-cyan) 13%, var(--surface));
 		color: var(--accent-cyan);
 	}
+	@media (max-width: 639px) {
+		.audio-settings {
+			position: fixed;
+			top: 72px;
+			right: 14px;
+			max-width: calc(100vw - 28px);
+		}
+	}
 	button:focus-visible {
-		outline: 2px solid var(--accent-cyan);
-		outline-offset: 3px;
+		outline: none;
+		background: var(--surface-raised);
+		text-decoration: underline;
+		text-underline-offset: 3px;
+	}
+	.audio-trigger:focus-visible,
+	.close-settings:focus-visible {
+		background: var(--accent-cyan);
+		color: var(--on-accent);
+		text-decoration: none;
 	}
 </style>

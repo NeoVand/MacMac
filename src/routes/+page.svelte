@@ -4,18 +4,17 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { gaussian, linspace } from '$lib/game/math';
+	import { prefersReducedMotion } from 'svelte/motion';
 	import { generateGrid, generateReplacement, gridConfigForRating } from '$lib/game/grid';
 	import type { GeneratedLevel } from '$lib/game/generator';
 	import { fetchBattleQueueCount } from '$lib/battle/client';
 	import { battleQueue, startQueue, cancelQueue } from '$lib/stores/battle-queue';
 	import { authClient } from '$lib/auth-client';
 	import LevelTile from '$lib/components/LevelTile.svelte';
-	import RankBadge from '$lib/components/RankBadge.svelte';
 	import AppHeader from '$lib/components/AppHeader.svelte';
-	import SoundButton from '$lib/components/SoundButton.svelte';
-	import { computeSkillLevel, getSkillTier } from '$lib/game/rating';
-	import { getBattleTier } from '$lib/game/elo';
-	import { Github, Linkedin, Sword, Swords } from 'lucide-svelte';
+	import RankBadge from '$lib/components/RankBadge.svelte';
+	import { computeSkillLevel } from '$lib/game/rating';
+	import { Play, Pause, Sword, Swords } from 'lucide-svelte';
 	import { resolvePlayerName } from '$lib/utils/player-name';
 	import RankingsModal from '$lib/components/RankingsModal.svelte';
 
@@ -136,53 +135,80 @@
 		}
 	});
 
-	// --- Hero animation ---
+	// The original living contour waves, paced by elapsed time rather than frame count.
 	let heroCanvas: HTMLCanvasElement | undefined;
+	let animationPaused = $state(false);
+	let pageHidden = $state(false);
+	const wavePaused = $derived(animationPaused || pageHidden || prefersReducedMotion.current);
+	const queued = $derived($battleQueue.status !== 'idle' && $battleQueue.status !== 'match_found');
 	let animFrame = 0;
+	let lastWaveTime = 0;
+	let wavePhase = 3;
 	let heroColors = {
 		accentCyan: '#00d4ff',
-		accentPurple: '#a855f7',
+		accentPurple: '#c084fc',
 		curveGlow: 'rgba(0,200,255,0.12)',
 		curveFillStart: 'rgba(0,200,255,0.07)',
-		curveFillEnd: 'rgba(0,200,255,0.0)'
+		curveFillEnd: 'rgba(0,200,255,0)'
 	};
 
 	function refreshHeroColors() {
-		const s = getComputedStyle(document.documentElement);
-		const v = (n: string) => s.getPropertyValue(n).trim();
+		const style = getComputedStyle(document.documentElement);
+		const value = (name: string) => style.getPropertyValue(name).trim();
 		heroColors = {
-			accentCyan: v('--accent-cyan'),
-			accentPurple: v('--accent-purple'),
-			curveGlow: v('--curve-glow'),
-			curveFillStart: v('--curve-fill-start'),
-			curveFillEnd: v('--curve-fill-end')
+			accentCyan: value('--accent-cyan'),
+			accentPurple: value('--accent-purple'),
+			curveGlow: value('--curve-glow'),
+			curveFillStart: value('--curve-fill-start'),
+			curveFillEnd: value('--curve-fill-end')
 		};
+		paintHero();
+	}
+
+	function paintHero() {
+		if (heroCanvas) drawHero(wavePhase, heroCanvas.clientWidth < 640);
+	}
+
+	function animateHero(now: number) {
+		animFrame = 0;
+		if (!heroCanvas || wavePaused) {
+			lastWaveTime = 0;
+			return;
+		}
+		if (lastWaveTime > 0) wavePhase += ((now - lastWaveTime) / 1000) * 0.9;
+		lastWaveTime = now;
+		paintHero();
+		animFrame = requestAnimationFrame(animateHero);
 	}
 
 	function attachHeroCanvas(node: HTMLCanvasElement) {
 		heroCanvas = node;
 		refreshHeroColors();
-
-		const observer = new MutationObserver(() => refreshHeroColors());
-		observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-
-		let running = true;
-		let t = 0;
-		function animate() {
-			if (!running || !heroCanvas) return;
-			const isMobile = heroCanvas.clientWidth < 640;
-			t += isMobile ? 0.02 : 0.012;
-			drawHero(t, isMobile);
-			animFrame = requestAnimationFrame(animate);
-		}
-		requestAnimationFrame(() => {
-			requestAnimationFrame(() => animate());
+		const themeObserver = new MutationObserver(refreshHeroColors);
+		themeObserver.observe(document.documentElement, {
+			attributes: true,
+			attributeFilter: ['class']
 		});
+		const resizeObserver = new ResizeObserver(paintHero);
+		resizeObserver.observe(node);
 		return () => {
-			running = false;
 			cancelAnimationFrame(animFrame);
+			animFrame = 0;
+			lastWaveTime = 0;
 			heroCanvas = undefined;
-			observer.disconnect();
+			themeObserver.disconnect();
+			resizeObserver.disconnect();
+		};
+	}
+
+	function syncHeroAnimation(paused: boolean) {
+		return () => {
+			lastWaveTime = 0;
+			if (paused) {
+				cancelAnimationFrame(animFrame);
+				animFrame = 0;
+			} else if (heroCanvas && !animFrame) animFrame = requestAnimationFrame(animateHero);
+			paintHero();
 		};
 	}
 
@@ -195,9 +221,13 @@
 		const h = heroCanvas.clientHeight;
 		if (w <= 0 || h <= 0) return;
 		const dpr = isMobile ? Math.min(window.devicePixelRatio || 1, 2) : window.devicePixelRatio || 1;
-		heroCanvas.width = w * dpr;
-		heroCanvas.height = h * dpr;
-		ctx.scale(dpr, dpr);
+		const pixelWidth = Math.round(w * dpr);
+		const pixelHeight = Math.round(h * dpr);
+		if (heroCanvas.width !== pixelWidth || heroCanvas.height !== pixelHeight) {
+			heroCanvas.width = pixelWidth;
+			heroCanvas.height = pixelHeight;
+		}
+		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 		ctx.clearRect(0, 0, w, h);
 
 		const padX = 0;
@@ -299,203 +329,106 @@
 	<title>macmac — The Sampling Game</title>
 	<meta
 		name="description"
-		content="Match probability distributions with the fewest clicks. A game about sampling, intuition, and efficiency."
+		content="A 30-second game of sampling and visual intuition. Match the target curve solo or in a live duel."
 	/>
 	<meta property="og:title" content="macmac — The Sampling Game" />
 	<meta
 		property="og:description"
-		content="Match probability distributions with the fewest clicks. A game about MCMC intuition."
+		content="A 30-second game of sampling and visual intuition. Match the target curve solo or in a live duel."
 	/>
 	<meta property="og:url" content="https://macmac-gilt.vercel.app" />
 </svelte:head>
 
-<div class="relative flex min-h-dvh flex-col items-center overflow-hidden">
-	<!-- Ambient floating orbs -->
-	<div class="ambient-orb ambient-orb-1"></div>
-	<div class="ambient-orb ambient-orb-2"></div>
-	<div class="ambient-orb ambient-orb-3"></div>
+<svelte:document onvisibilitychange={() => (pageHidden = document.hidden)} />
 
-	<div class="relative z-20 w-full shrink-0">
-		<AppHeader />
-	</div>
-
-	<!-- Main content -->
-	<div class="flex w-full flex-1 flex-col items-center justify-center">
-		<!-- Hero: animation + logo + subtext -->
-		<div class="relative flex h-[180px] w-full flex-col items-center justify-end pb-2 sm:h-[220px]">
+<div class="title-screen">
+	<AppHeader />
+	<main class="home-main">
+		<section class="wave-hero" aria-labelledby="game-title">
 			<canvas
+				class="contour-waves"
 				{@attach attachHeroCanvas}
-				class="absolute inset-0 h-full w-full opacity-50"
-				style="pointer-events: none;"
+				{@attach syncHeroAnimation(wavePaused)}
+				aria-hidden="true"
 			></canvas>
-			<div class="relative z-10 flex flex-col items-center justify-center px-4">
-				<h1 class="mb-1 text-center sm:mb-2" style="font-family: 'Believe Stronger', sans-serif;">
-					<span
-						class="text-8xl tracking-tight sm:text-9xl"
-						style="color: var(--text-primary); opacity: 0.85;">Mac</span
-					><span
-						class="bg-gradient-to-r from-game-cyan to-purple-400 bg-clip-text text-8xl tracking-tight text-transparent sm:text-9xl"
-						>Mac</span
-					>
+			<div class="hero-wordmark">
+				<h1 id="game-title">
+					<span class="wordmark-first">Mac</span><span class="wordmark-second">Mac</span>
 				</h1>
-				<p
-					class="mb-0 text-center text-[10px] font-semibold tracking-[0.3em] uppercase sm:text-xs"
-					style="color: var(--text-tertiary);"
-				>
-					the sampling game
-				</p>
+				<p>The sampling game</p>
 			</div>
+			{#if !prefersReducedMotion.current}<button
+					type="button"
+					class="wave-control"
+					onclick={() => (animationPaused = !animationPaused)}
+					aria-label={animationPaused
+						? 'Resume background animation'
+						: 'Pause background animation'}
+					aria-pressed={animationPaused}
+					>{#if animationPaused}<Play
+							size={14}
+							fill="currentColor"
+							strokeWidth={1.5}
+						/>{:else}<Pause size={14} />{/if}</button
+				>{/if}
+		</section>
+		<p class="game-instruction">Match the curve. 30 seconds. Make every sample count.</p>
+		<div class="home-actions">
+			<button type="button" class="game-button solo-button" onclick={playSolo} disabled={!mounted}
+				><Sword size={16} strokeWidth={2} aria-hidden="true" />Solo</button
+			>
+			{#if queued}<button
+					type="button"
+					class="game-button battle-button"
+					onclick={handleCancelQueue}
+					><Swords class="queue-spinner" size={16} strokeWidth={2} aria-hidden="true" /><span
+						>Searching…</span
+					></button
+				>{:else}<button type="button" class="game-button battle-button" onclick={handleBattleClick}
+					><Swords
+						size={16}
+						strokeWidth={2}
+						aria-hidden="true"
+					/>Battle{#if battleSearching > 0}<span class="queue-count">{battleSearching}</span
+						>{/if}</button
+				>{/if}
 		</div>
-
-		<!-- Rank badges for signed-in players (clickable → opens rankings modal) -->
 		{#if (data.gamesPlayed > 0 && data.playerRating !== null) || (data.battlesPlayed > 0 && data.battleElo !== null)}
 			<button
+				type="button"
+				class="player-ranks"
 				onclick={() => (showRankings = true)}
-				class="flex cursor-pointer items-center justify-center gap-4 rounded-xl px-4 py-1 transition hover:opacity-80"
-				style="background: transparent;"
-				title="View Rankings"
+				aria-label="View your rankings"
 			>
-				{#if data.gamesPlayed > 0 && data.playerRating !== null}
-					{@const skillLevel = computeSkillLevel(data.playerRating)}
-					{@const tier = getSkillTier(skillLevel)}
-					<div class="flex items-center gap-1.5">
-						<RankBadge mode="solo" value={skillLevel} size="md" />
-						<span class="text-sm font-bold tabular-nums" style="color: {tier.color};"
-							>{skillLevel.toLocaleString()}</span
-						>
-					</div>
-				{/if}
-				{#if data.battlesPlayed > 0 && data.battleElo !== null}
-					{@const bTier = getBattleTier(data.battleElo)}
-					<div class="flex items-center gap-1.5">
-						<RankBadge mode="battle" value={data.battleElo} size="md" />
-						<span class="text-sm font-bold tabular-nums" style="color: {bTier.color};"
-							>{data.battleElo}</span
-						>
-					</div>
-				{/if}
+				{#if data.gamesPlayed > 0 && data.playerRating !== null}{@const skill = computeSkillLevel(
+						data.playerRating
+					)}<span><RankBadge mode="solo" value={skill} size="sm" />{skill.toLocaleString()}</span
+					>{/if}
+				{#if data.battlesPlayed > 0 && data.battleElo !== null}<span
+						><RankBadge mode="battle" value={data.battleElo} size="sm" />{data.battleElo}</span
+					>{/if}
 			</button>
-		{:else if !$session.data?.user}
-			<button
-				onclick={() => (showRankings = true)}
-				class="cursor-pointer rounded-lg px-3 py-1 text-[11px] font-medium transition hover:opacity-70"
-				style="color: var(--text-tertiary); background: transparent;"
-				title="View Rankings"
-			>
-				Sign in to get ranked
-			</button>
-		{/if}
-
-		<!-- Buttons: Solo + Battle + Leaderboard (uses .btn-action from layout.css) -->
-		<div class="flex w-full justify-center px-4 pt-3 pb-6">
-			<div class="flex flex-nowrap items-center justify-center gap-3 sm:gap-3">
-				<button
-					onclick={playSolo}
-					class="btn-action"
-					style="--btn-color: var(--accent-cyan);"
-					title="Play a random level"
-				>
-					<span class="btn-action-face">
-						<Sword class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" strokeWidth={2} />
-						Solo
-					</span>
-				</button>
-				{#if $battleQueue.status !== 'idle' && $battleQueue.status !== 'match_found'}
-					<button onclick={handleCancelQueue} class="btn-action btn-battle" title="Cancel search">
-						<span class="btn-action-face btn-battle-pulse">
-							<Swords
-								class="h-3.5 w-3.5 shrink-0 animate-spin sm:h-4 sm:w-4"
-								style="animation-duration: 2s;"
-								strokeWidth={2}
-							/>
-							Searching...
-						</span>
-					</button>
-				{:else}
-					<button
-						onclick={handleBattleClick}
-						class="btn-action btn-battle"
-						title="Find an opponent"
-					>
-						<span class={'btn-action-face' + (battleSearching > 0 ? ' btn-battle-pulse' : '')}>
-							<Swords class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" strokeWidth={2} />
-							Battle
-						</span>
-						{#if battleSearching > 0}
-							<span
-								class="absolute -top-2 -right-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[9px] font-bold"
-								style="background: var(--accent-red); color: var(--bg);">{battleSearching}</span
-							>
-						{/if}
-					</button>
-				{/if}
-				<a
-					href={resolve('/leaderboard')}
-					aria-label="Leaderboard"
-					class="btn-action btn-gold cursor-pointer !rounded-full"
-				>
-					<span
-						class="btn-action-face h-10 w-10 items-center justify-center !rounded-full !p-0 sm:h-[46px] sm:w-[46px]"
-					>
-						<svg viewBox="0 0 24 24" fill="#eab308" class="h-[18px] w-[18px] sm:h-5 sm:w-5"
-							><path d="M2 4l3 12h14l3-12-5 4-5-6-5 6-5-4zm3 14h14v2H5v-2z" /></svg
-						>
-					</span>
-				</a>
-				<SoundButton size="lg" />
-			</div>
+		{:else if !$session.data?.user}<button
+				type="button"
+				class="sign-in-rank"
+				onclick={() => (showRankings = true)}>Sign in to get ranked</button
+			>{/if}
+		<div class="level-grid" aria-label="Choose a curve">
+			{#if mounted && gridLevels.length > 0}{#each gridLevels as level (level.seed)}<LevelTile
+						{level}
+					/>{/each}{:else}{#each skeletonIds as skeletonId (skeletonId)}<div
+						class="level-skeleton"
+						aria-hidden="true"
+					></div>{/each}{/if}
 		</div>
-
-		<!-- Generated level grid -->
-		<div class="mx-auto mt-2 w-full max-w-3xl px-4">
-			{#if mounted && gridLevels.length > 0}
-				<div class="grid grid-cols-3 gap-2 sm:grid-cols-4">
-					{#each gridLevels as level, i (level.seed)}
-						<LevelTile {level} delay={i * 80} />
-					{/each}
-				</div>
-			{:else}
-				<!-- Skeleton grid while loading -->
-				<div class="grid grid-cols-3 gap-2 sm:grid-cols-4">
-					{#each skeletonIds as skeletonId (skeletonId)}
-						<div
-							class="h-[76px] animate-pulse rounded-2xl"
-							style="background: var(--surface);"
-						></div>
-					{/each}
-				</div>
-			{/if}
-		</div>
-
-		<!-- Footer -->
-		<div
-			class="mt-8 flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 pb-6 text-[11px] sm:text-xs"
-			style="color: var(--text-tertiary);"
-		>
-			<span>Created by</span>
-			<a
-				href="https://www.linkedin.com/in/mohsenvand/"
-				target="_blank"
-				rel="noopener"
-				class="inline-flex items-center gap-1 transition hover:opacity-80"
-				style="color: var(--text-secondary);"
-			>
-				<Linkedin size={12} strokeWidth={2} />
-				Neo Mohsenvand
-			</a>
-			<span class="opacity-50">·</span>
-			<a
-				href="https://github.com/NeoVand/MacMac"
-				target="_blank"
-				rel="noopener"
-				class="inline-flex items-center gap-1 transition hover:opacity-80"
-				style="color: var(--text-secondary);"
-			>
-				<Github size={12} strokeWidth={2} />
-				GitHub
-			</a>
-		</div>
-	</div>
+		<footer class="home-footer">
+			<span
+				>Created by <a href="https://www.linkedin.com/in/mohsenvand/" target="_blank" rel="noopener"
+					>Neo Mohsenvand</a
+				></span
+			><a href="https://github.com/NeoVand/MacMac" target="_blank" rel="noopener">GitHub</a>
+		</footer>
+	</main>
 </div>
 
 <RankingsModal
@@ -507,3 +440,283 @@
 	gamesPlayed={data.gamesPlayed}
 	battlesPlayed={data.battlesPlayed}
 />
+
+<style>
+	.title-screen {
+		display: flex;
+		flex-direction: column;
+		min-height: 100dvh;
+		background: var(--bg);
+	}
+	.home-main {
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		width: 100%;
+		padding: 18px 0 28px;
+	}
+	.wave-hero {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: end;
+		width: 100%;
+		height: 220px;
+		padding-bottom: 18px;
+	}
+	.contour-waves {
+		position: absolute;
+		inset: 0;
+		display: block;
+		width: 100%;
+		height: 100%;
+		opacity: 0.62;
+		pointer-events: none;
+	}
+	.hero-wordmark {
+		position: relative;
+		z-index: 1;
+		padding: 0 16px;
+		text-align: center;
+	}
+	.hero-wordmark h1 {
+		margin: 0;
+		font-family: 'Believe Stronger', sans-serif;
+		font-size: 128px;
+		font-weight: 400;
+		letter-spacing: -0.025em;
+		line-height: 1;
+	}
+	.wordmark-first {
+		color: var(--text-primary);
+	}
+	.wordmark-second {
+		background: linear-gradient(90deg, var(--accent-cyan), #c084fc);
+		background-clip: text;
+		-webkit-background-clip: text;
+		color: transparent;
+	}
+	.hero-wordmark p {
+		margin: 11px 0 0;
+		color: var(--text-secondary);
+		font-size: 11px;
+		font-weight: 600;
+		letter-spacing: 0.24em;
+		text-transform: uppercase;
+	}
+	.wave-control {
+		position: absolute;
+		right: max(16px, calc((100% - 768px) / 2));
+		bottom: 17px;
+		z-index: 2;
+		display: grid;
+		place-items: center;
+		width: 36px;
+		height: 36px;
+		border: 0;
+		border-radius: 50%;
+		background: transparent;
+		color: var(--text-secondary);
+		cursor: pointer;
+	}
+	.wave-control:hover {
+		color: var(--text-primary);
+		background: color-mix(in srgb, var(--surface) 55%, transparent);
+	}
+	.game-instruction {
+		margin: 12px 16px 0;
+		color: var(--text-secondary);
+		font-size: 13px;
+		line-height: 1.6;
+		text-align: center;
+	}
+	.home-actions {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 12px;
+		padding: 22px 16px 0;
+	}
+	.game-button {
+		position: relative;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+		min-width: 128px;
+		height: 48px;
+		padding: 0 23px;
+		border: 0;
+		border-radius: 12px;
+		font-family: var(--font-body);
+		font-size: 15px;
+		font-weight: 600;
+		cursor: pointer;
+		transition:
+			background 140ms ease,
+			transform 100ms ease;
+	}
+	.game-button:active {
+		transform: translateY(1px);
+	}
+	.game-button:disabled {
+		cursor: wait;
+		opacity: 0.6;
+	}
+	.solo-button {
+		background: color-mix(in srgb, var(--accent-cyan) 15%, var(--surface));
+		color: var(--accent-cyan);
+	}
+	.solo-button:hover {
+		background: color-mix(in srgb, var(--accent-cyan) 23%, var(--surface));
+	}
+	.battle-button {
+		background: color-mix(in srgb, var(--accent-red) 15%, var(--surface));
+		color: var(--accent-red);
+	}
+	.battle-button:hover {
+		background: color-mix(in srgb, var(--accent-red) 23%, var(--surface));
+	}
+	.queue-count {
+		position: absolute;
+		top: -6px;
+		right: -6px;
+		display: grid;
+		place-items: center;
+		min-width: 19px;
+		height: 19px;
+		padding: 0 4px;
+		border-radius: 50%;
+		background: var(--accent-red);
+		color: var(--on-accent);
+		font-size: 10px;
+	}
+	:global(.queue-spinner) {
+		animation: queue-search 1.4s linear infinite;
+	}
+	@keyframes queue-search {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+	.player-ranks {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 20px;
+		min-height: 32px;
+		margin-top: 13px;
+		padding: 0 12px;
+		border: 0;
+		background: transparent;
+		color: var(--text-primary);
+		cursor: pointer;
+	}
+	.player-ranks span {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		font-size: 12px;
+		font-weight: 500;
+		font-variant-numeric: tabular-nums;
+	}
+	.sign-in-rank {
+		min-height: 32px;
+		margin-top: 13px;
+		padding: 0 10px;
+		border: 0;
+		background: transparent;
+		color: var(--text-secondary);
+		font-size: 11px;
+		cursor: pointer;
+	}
+	.sign-in-rank:hover {
+		color: var(--text-primary);
+	}
+	.level-grid {
+		display: grid;
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+		gap: 8px;
+		width: min(768px, calc(100% - 32px));
+		margin-top: 26px;
+	}
+	.level-skeleton {
+		height: 82px;
+		border-radius: 12px;
+		background: var(--surface);
+	}
+	.home-footer {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: center;
+		gap: 10px;
+		margin-top: 28px;
+		padding-inline: 16px;
+		color: var(--text-secondary);
+		font-size: 11px;
+	}
+	.home-footer a:hover {
+		color: var(--text-primary);
+	}
+	@media (max-width: 640px) {
+		.home-main {
+			justify-content: start;
+			padding-top: 8px;
+			padding-bottom: 24px;
+		}
+		.wave-hero {
+			height: 190px;
+			padding-bottom: 17px;
+		}
+		.hero-wordmark h1 {
+			font-size: clamp(76px, 24vw, 96px);
+		}
+		.hero-wordmark p {
+			margin-top: 12px;
+			font-size: 10px;
+			letter-spacing: 0.2em;
+		}
+		.contour-waves {
+			opacity: 0.55;
+		}
+		.game-instruction {
+			max-width: 32ch;
+			margin-top: 13px;
+			font-size: 12px;
+		}
+		.home-actions {
+			padding-top: 18px;
+			gap: 10px;
+		}
+		.game-button {
+			min-width: 125px;
+			height: 46px;
+			padding-inline: 17px;
+			font-size: 14px;
+		}
+		.level-grid {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+			margin-top: 23px;
+		}
+		.wave-control {
+			right: 12px;
+			bottom: 12px;
+		}
+		.home-footer {
+			margin-top: 23px;
+			font-size: 10px;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.game-button {
+			transition: none;
+		}
+		:global(.queue-spinner) {
+			animation: none;
+		}
+	}
+</style>

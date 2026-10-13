@@ -6,7 +6,7 @@ A game that builds intuition for [Markov Chain Monte Carlo](https://en.wikipedia
 
 ## How it works
 
-See a target probability density. Click or tap anywhere in the chart to place a sample at that horizontal position, including directly on the curve. A [kernel density estimate](https://en.wikipedia.org/wiki/Kernel_density_estimation) builds in real time to show how well your samples match the target shape. The solid cyan curve is the target; the dashed orange curve is yours. Both are peak-normalized on screen, just as they are for scoring.
+See a target probability density. Click or tap anywhere in the chart to place a sample at that horizontal position, including directly on the curve. On a touch screen, hold and drag to aim, then lift your finger to place the sample at its final position. The aiming guide disappears as soon as you lift. A [kernel density estimate](https://en.wikipedia.org/wiki/Kernel_density_estimation) builds in real time to show how well your samples match the target shape. The solid cyan curve is the target; the dashed orange curve is yours. Both are peak-normalized on screen, just as they are for scoring.
 
 Focus the chart to use the arrow keys to aim and Enter or Space to place a sample. Solo also supports U or Ctrl/Cmd+Z to undo, and Enter outside the chart to finish. Open **How to play** for guidance. **Audio settings** controls sound effects and background music independently, with preferences remembered in your browser. Sample notes follow your horizontal position; countdown and result cues make each round easier to follow.
 

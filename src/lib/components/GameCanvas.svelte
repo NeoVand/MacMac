@@ -10,6 +10,7 @@
 		moveSampleX,
 		normalizeShape,
 		plotSampleX,
+		plotReleaseSample,
 		snapSampleX,
 		SAMPLE_DECIMALS,
 		type PlotPoint
@@ -35,12 +36,17 @@
 		disabled = false
 	}: Props = $props();
 	const uid = $props.id();
-	const PAD = { top: 64, right: 30, bottom: 44, left: 30 };
 	const N_POINTS = 250;
 	const Y_MAX = 1.13;
 	let canvas: HTMLCanvasElement | undefined;
 	let width = $state(800);
 	let height = $state(500);
+	const PAD = $derived({
+		top: width < 640 ? (height < 280 ? 52 : 56) : 64,
+		right: width < 640 ? 16 : 30,
+		bottom: height < 280 ? 36 : 44,
+		left: width < 640 ? 16 : 30
+	});
 	let pointerPoint: PlotPoint | null = $state(null);
 	let keyboardActive = $state(false);
 	let announcement = $state('');
@@ -79,14 +85,15 @@
 	let frameHandle = 0;
 	let lastFrameTime = 0;
 	let pulse: { x: number; startedAt: number } | null = null;
-	let gesture: { id: number; start: PlotPoint; cancelled: boolean } | null = null;
+	let gesture: { id: number; pointerType: string; start: PlotPoint; cancelled: boolean } | null =
+		null;
+	let suppressPointerClick = false;
 	const activePointers = new SvelteSet<number>();
 	let colors = {
 		axis: 'rgba(255,255,255,0.1)',
 		text: 'rgba(255,255,255,0.6)',
 		crosshair: 'rgba(255,255,255,0.7)',
-		curveFillStart: 'rgba(0,200,255,0.07)',
-		curveFillEnd: 'rgba(0,200,255,0)',
+		fontBody: 'DM Sans, system-ui, sans-serif',
 		accentCyan: '#00d4ff',
 		accentOrange: '#ff9933',
 		accentPurple: '#a855f7'
@@ -99,8 +106,7 @@
 			axis: value('--canvas-axis'),
 			text: value('--text-secondary'),
 			crosshair: value('--canvas-crosshair'),
-			curveFillStart: value('--curve-fill-start'),
-			curveFillEnd: value('--curve-fill-end'),
+			fontBody: value('--font-body') || 'DM Sans, system-ui, sans-serif',
 			accentCyan: value('--accent-cyan'),
 			accentOrange: value('--accent-orange'),
 			accentPurple: value('--accent-purple')
@@ -220,6 +226,20 @@
 		ctx.lineCap = 'round';
 		ctx.lineJoin = 'round';
 		ctx.strokeStyle = colors.axis;
+		ctx.lineWidth = 0.65;
+		ctx.globalAlpha = 0.65;
+		ctx.beginPath();
+		for (const x of ticksForAxis()) {
+			ctx.moveTo(toSX(x), PAD.top);
+			ctx.lineTo(toSX(x), baseY);
+		}
+		for (const value of [0.25, 0.5, 0.75, 1]) {
+			ctx.moveTo(PAD.left, toSY(value));
+			ctx.lineTo(width - PAD.right, toSY(value));
+		}
+		ctx.stroke();
+		ctx.globalAlpha = 1;
+		ctx.strokeStyle = colors.axis;
 		ctx.lineWidth = 1;
 		ctx.beginPath();
 		ctx.moveTo(PAD.left, baseY);
@@ -231,18 +251,17 @@
 		ctx.lineTo(width - PAD.right, baseY);
 		ctx.lineTo(PAD.left, baseY);
 		ctx.closePath();
-		const fill = ctx.createLinearGradient(0, PAD.top, 0, baseY);
-		fill.addColorStop(0, colors.curveFillStart);
-		fill.addColorStop(1, colors.curveFillEnd);
-		ctx.fillStyle = fill;
+		ctx.fillStyle = colors.accentCyan;
+		ctx.globalAlpha = 0.035;
 		ctx.fill();
+		ctx.globalAlpha = 1;
 
 		// Keep the opponent quiet and the target solid beneath your dashed comparison.
 		if (displayOpponent.length > 1) {
 			traceCurve(ctx, displayOpponent);
 			ctx.strokeStyle = colors.accentPurple;
-			ctx.lineWidth = 1.8;
-			ctx.globalAlpha = 0.75;
+			ctx.lineWidth = 2.25;
+			ctx.globalAlpha = 0.88;
 			ctx.setLineDash([2, 6]);
 			ctx.stroke();
 			ctx.globalAlpha = 1;
@@ -285,21 +304,27 @@
 		ctx.globalAlpha = 1;
 	}
 
-	function drawAxisLabels(ctx: CanvasRenderingContext2D, baseY: number) {
-		ctx.fillStyle = colors.text;
-		ctx.font = '11px Inter, system-ui, sans-serif';
-		ctx.textAlign = 'center';
+	function ticksForAxis() {
 		const range = level.xRange[1] - level.xRange[0];
 		const rough = range / Math.max(3, Math.floor(pw / 80));
 		const magnitude = 10 ** Math.floor(Math.log10(rough));
 		const normalized = rough / magnitude;
 		const step = (normalized < 1.5 ? 1 : normalized < 3 ? 2 : normalized < 7 ? 5 : 10) * magnitude;
-		const start = Math.ceil(level.xRange[0] / step) * step;
-		for (let x = start; x <= level.xRange[1]; x += step)
+		const ticks: number[] = [];
+		for (let x = Math.ceil(level.xRange[0] / step) * step; x <= level.xRange[1]; x += step)
+			ticks.push(x);
+		return ticks;
+	}
+
+	function drawAxisLabels(ctx: CanvasRenderingContext2D, baseY: number) {
+		ctx.fillStyle = colors.text;
+		ctx.font = `11px ${colors.fontBody}`;
+		ctx.textAlign = 'center';
+		for (const x of ticksForAxis())
 			ctx.fillText(
 				Math.abs(x) < 1e-10 ? '0' : Number(x.toFixed(2)).toString(),
 				toSX(x),
-				baseY + 22
+				baseY + PAD.bottom - 22
 			);
 	}
 
@@ -333,12 +358,12 @@
 		ctx.arc(sx, baseY, 4.5, 0, Math.PI * 2);
 		ctx.fill();
 		ctx.fillStyle = colors.text;
-		ctx.font = '11px Inter, system-ui, sans-serif';
+		ctx.font = `11px ${colors.fontBody}`;
 		ctx.textAlign = 'center';
 		ctx.fillText(
 			`x ${x.toFixed(SAMPLE_DECIMALS)}`,
 			Math.max(55, Math.min(width - 55, sx)),
-			baseY + 39
+			baseY + PAD.bottom - 6
 		);
 	}
 
@@ -375,7 +400,14 @@
 
 	function handleClick(event: MouseEvent) {
 		if (disabled) return;
-		// Native button activation from keyboards and assistive technology has no coordinates.
+		// A touch release already committed: its compatibility click must not restore the guide.
+		if (
+			suppressPointerClick &&
+			(event.detail !== 0 || ('pointerType' in event && event.pointerType !== ''))
+		) {
+			suppressPointerClick = false;
+			return;
+		}
 		if (event.detail === 0) {
 			keyboardActive = true;
 			addSample(keyboardX);
@@ -396,42 +428,87 @@
 		activePointers.add(event.pointerId);
 		if (activePointers.size > 1 || !event.isPrimary) {
 			if (gesture) gesture.cancelled = true;
+			pointerPoint = null;
 			return;
 		}
 		gesture = {
 			id: event.pointerId,
+			pointerType: event.pointerType,
 			start: { x: event.clientX, y: event.clientY },
 			cancelled: false
 		};
+		suppressPointerClick = event.pointerType !== 'mouse';
+		if (
+			event.isTrusted &&
+			event.pointerType !== 'mouse' &&
+			event.currentTarget instanceof HTMLElement
+		)
+			event.currentTarget.setPointerCapture(event.pointerId);
 		keyboardActive = false;
 		pointerPoint = eventPoint(event);
 	}
 
 	function handlePointerMove(event: PointerEvent) {
 		if (
+			event.pointerType === 'mouse' &&
 			gesture?.id === event.pointerId &&
 			!isPlotTap(gesture.start, { x: event.clientX, y: event.clientY })
 		)
 			gesture.cancelled = true;
-		if (!event.isPrimary) return;
+		if (
+			!event.isPrimary ||
+			(event.pointerType !== 'mouse' && (gesture?.id !== event.pointerId || gesture.cancelled))
+		)
+			return;
 		keyboardActive = false;
 		pointerPoint = eventPoint(event);
 	}
 
 	function handlePointerUp(event: PointerEvent) {
 		activePointers.delete(event.pointerId);
+		if (event.pointerType !== 'mouse') {
+			const currentGesture = gesture?.id === event.pointerId ? gesture : null;
+			const x = currentGesture
+				? plotReleaseSample(
+						{
+							pointerType: event.pointerType,
+							point: eventPoint(event),
+							cancelled: currentGesture.cancelled,
+							primary: event.isPrimary,
+							otherPointers: activePointers.size
+						},
+						{ width, height },
+						level.xRange,
+						PAD
+					)
+				: null;
+			if (currentGesture) gesture = null;
+			pointerPoint = null;
+			keyboardActive = false;
+			if (x !== null && !disabled) addSample(x);
+			invalidate();
+			return;
+		}
 		if (
 			gesture?.id === event.pointerId &&
 			!isPlotTap(gesture.start, { x: event.clientX, y: event.clientY })
 		)
 			gesture.cancelled = true;
-		if (event.pointerType !== 'mouse') pointerPoint = null;
+	}
+
+	function handleAdditionalPointer(event: PointerEvent) {
+		if (gesture && gesture.pointerType !== 'mouse' && gesture.id !== event.pointerId) {
+			activePointers.add(event.pointerId);
+			gesture.cancelled = true;
+			pointerPoint = null;
+		}
 	}
 
 	function handlePointerCancel(event: PointerEvent) {
 		activePointers.delete(event.pointerId);
 		if (gesture) gesture.cancelled = true;
 		pointerPoint = null;
+		keyboardActive = false;
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
@@ -454,6 +531,7 @@
 
 <svelte:window
 	onresize={invalidate}
+	onpointerdown={handleAdditionalPointer}
 	onpointerup={handlePointerUp}
 	onpointercancel={handlePointerCancel}
 />
@@ -471,6 +549,7 @@
 		onkeydown={handleKeydown}
 		onpointerdown={handlePointerDown}
 		onpointermove={handlePointerMove}
+		oncontextmenu={(event) => event.preventDefault()}
 		onpointerleave={() => {
 			pointerPoint = null;
 		}}
@@ -493,15 +572,17 @@
 					>{/if}
 			</span>
 			<span class="plot-hint"
-				>{#if disabled}Round complete{:else if keyboardActive}← → to move. Enter to add.{:else}Click
-					anywhere. Left/right sets the sample.{/if}</span
+				>{#if disabled}Round complete{:else if keyboardActive}← → to aim. Enter to place.{:else}<span
+						class="mouse-hint">Click anywhere to place a sample.</span
+					><span class="touch-hint">Drag to aim. Lift to place.</span>{/if}</span
 			>
 		</span>
 	</button>
 	<p id="{uid}-instructions" class="sr-only">
-		The solid blue curve is your target. The dashed orange curve is your shape. Click or tap
-		anywhere on the chart to place a sample at that horizontal position. Use arrow keys to choose a
-		position, Shift to move faster, Home or End for the edges, and Enter or Space to add a sample.
+		The solid curve is your target. The dashed orange curve is your shape. Click or tap anywhere on
+		the chart to place a sample at that horizontal position. Use arrow keys to choose a position,
+		Shift to move faster, Home or End for the edges, and Enter or Space to add a sample. On a
+		touchscreen, drag to aim and lift your finger to place one sample at the final position.
 	</p>
 	<p class="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</p>
 </div>
@@ -521,14 +602,16 @@
 		padding: 0;
 		border: 0;
 		border-radius: 12px;
-		background: transparent;
+		background: var(--canvas-bg);
 		cursor: crosshair;
 		text-align: left;
-		touch-action: manipulation;
+		touch-action: none;
+		user-select: none;
+		-webkit-touch-callout: none;
 	}
 	.plot-input:focus-visible {
 		outline: 2px solid var(--accent-cyan);
-		outline-offset: -3px;
+		outline-offset: -1px;
 	}
 	.plot-input:disabled {
 		cursor: default;
@@ -560,8 +643,8 @@
 	.legend-item {
 		display: inline-flex;
 		align-items: center;
-		gap: 7px;
-		color: var(--text-secondary);
+		gap: 8px;
+		color: var(--text-primary);
 		font-size: 12px;
 		font-weight: 500;
 	}
@@ -588,22 +671,41 @@
 		font-size: 11px;
 		line-height: 1.5;
 	}
+	.touch-hint {
+		display: none;
+	}
+	@media (pointer: coarse) {
+		.mouse-hint {
+			display: none;
+		}
+		.touch-hint {
+			display: inline;
+		}
+	}
 	@media (max-width: 640px) {
 		.plot-header {
 			gap: 6px;
+			top: 12px;
+			left: 16px;
+			right: 16px;
 		}
 		.plot-legend {
-			gap: 12px;
+			gap: 10px;
 		}
 		.plot-hint {
-			flex-basis: 100%;
 			font-size: 10px;
+			padding: 0;
+			background: transparent;
 		}
 		.legend-item {
 			font-size: 11px;
+			gap: 5px;
+		}
+		.legend-line {
+			width: 16px;
 		}
 		.opponent-name {
-			max-width: 80px;
+			max-width: 60px;
 		}
 	}
 </style>

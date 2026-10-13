@@ -3,6 +3,15 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<script>
+			(function () {
+				var theme = null;
+				try {
+					theme = localStorage.getItem('macmac-theme');
+				} catch (_) {}
+				if (theme === 'dark' || !theme) document.documentElement.classList.add('dark');
+			})();
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

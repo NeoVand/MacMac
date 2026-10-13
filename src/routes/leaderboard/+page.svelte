@@ -3,7 +3,7 @@
 	import RankBadge from '$lib/components/RankBadge.svelte';
 	import { computeSkillLevel, getSkillTier } from '$lib/game/rating';
 	import { getBattleTier } from '$lib/game/elo';
-	import { Sword, Swords } from 'lucide-svelte';
+	import { resolve } from '$app/paths';
 
 	let { data } = $props();
 
@@ -25,207 +25,394 @@
 	<title>Leaderboard — macmac</title>
 </svelte:head>
 
-<div class="min-h-dvh">
+<div class="leaderboard-page">
 	<AppHeader activePage="leaderboard" />
-
-	<div class="mx-auto max-w-2xl px-4 pb-12 pt-4 sm:px-6">
-		<!-- Tabs -->
-		<div class="mb-5 flex gap-1.5">
+	<main class="leaderboard-content">
+		<header class="leaderboard-heading">
+			<div>
+				<h1>Leaderboard</h1>
+				<p>Close matches. Consistent play. A place among the best.</p>
+			</div>
+			<a href={resolve('/')} class="play-link">Choose a curve</a>
+		</header>
+		<div class="leaderboard-modes" role="group" aria-label="Leaderboard mode">
 			<button
-				onclick={() => (activeTab = 'solo')}
-				class="flex cursor-pointer items-center gap-1.5 rounded-2xl px-4 py-2 text-[12px] font-medium transition"
-				style={activeTab === 'solo'
-					? 'background: var(--surface); border: 1px solid var(--border-hover); color: var(--text-primary);'
-					: 'border: 1px solid transparent; color: var(--text-tertiary);'}
+				type="button"
+				aria-pressed={activeTab === 'solo'}
+				class={{ active: activeTab === 'solo' }}
+				onclick={() => (activeTab = 'solo')}>Solo skill</button
+			><button
+				type="button"
+				aria-pressed={activeTab === 'battle'}
+				class={{ active: activeTab === 'battle' }}
+				onclick={() => (activeTab = 'battle')}>Duel Elo</button
 			>
-				<Sword class="h-3.5 w-3.5" strokeWidth={2} />
-				Solo
-			</button>
-			<button
-				onclick={() => (activeTab = 'battle')}
-				class="flex cursor-pointer items-center gap-1.5 rounded-2xl px-4 py-2 text-[12px] font-medium transition"
-				style={activeTab === 'battle'
-					? 'background: var(--surface); border: 1px solid var(--border-hover); color: var(--text-primary);'
-					: 'border: 1px solid transparent; color: var(--text-tertiary);'}
-			>
-				<Swords class="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-				Battle
-			</button>
 		</div>
+		<p class="rating-explanation">
+			{activeTab === 'solo'
+				? 'Skill reflects recent scores, adjusted for curve difficulty.'
+				: 'Elo reflects your duel results and the strength of your opponents.'}
+		</p>
 
 		{#if activeTab === 'solo'}
-			<!-- Solo leaderboard -->
-			{#if soloEntries.length === 0}
-				<div class="rounded-2xl py-14 text-center" style="background: var(--surface);">
-					<svg
-						viewBox="0 0 24 24"
-						fill="currentColor"
-						class="mx-auto mb-3 h-7 w-7"
-						style="color: var(--text-tertiary); opacity: 0.25;"
-						><path
-							d="M2 4l3 12h14l3-12-5 4-5-6-5 6-5-4zm3 14h14v2H5v-2z"
-						/></svg
-					>
-					<div class="text-sm" style="color: var(--text-tertiary);">No scores yet</div>
-					<a
-						href="/"
-						class="mt-3 inline-flex items-center gap-1.5 rounded-xl px-4 py-1.5 text-[12px] font-semibold transition hover:brightness-110"
-						style="background: color-mix(in srgb, var(--accent-cyan) 10%, transparent); border: 1px solid color-mix(in srgb, var(--accent-cyan) 25%, transparent); color: var(--accent-cyan);"
-					>
-						Play a level
-					</a>
+			{#if soloEntries.length === 0}<div class="empty-board">
+					<h2>No solo scores yet.</h2>
+					<p>Play a round, then sign in to save your result.</p>
+					<a href={resolve('/')}>Play solo</a>
 				</div>
-			{:else}
-				<div class="overflow-x-auto">
-					<table class="w-full table-fixed">
-						<colgroup>
-							<col class="w-8" />
-							<col />
-							<col class="w-20" />
-							<col class="hidden w-20 sm:table-column" />
-							<col class="w-16" />
-						</colgroup>
-						<thead>
-							<tr
-								class="text-[10px] font-medium uppercase tracking-wider"
-								style="color: var(--text-tertiary);"
-							>
-								<th class="pb-2 text-left">#</th>
-								<th class="pb-2 text-left">Player</th>
-								<th class="pb-2 text-right">Skill</th>
-								<th class="hidden pb-2 text-right sm:table-cell">Best</th>
-								<th class="pb-2 text-right">Games</th>
-							</tr>
-						</thead>
-						<tbody>
-							{#each soloEntries as entry, i}
-								{@const skillLevel = computeSkillLevel(entry.rating)}
-								{@const tier = getSkillTier(skillLevel)}
-								<tr
-									class="border-t text-sm"
-									style="border-color: var(--border); color: {i === 0
-										? 'var(--accent-cyan)'
-										: 'var(--text-primary)'}; opacity: {i === 0 ? 1 : i < 3 ? 0.75 : 0.5};"
+			{:else}<div class="table-wrap">
+					<table aria-label="Solo skill leaderboard">
+						<colgroup
+							><col class="rank-column" /><col /><col class="rating-column" /><col
+								class="best-column"
+							/><col class="games-column" /></colgroup
+						><thead
+							><tr
+								><th scope="col" class="rank-cell">Rank</th><th scope="col">Player</th><th
+									scope="col"
+									class="numeric">Skill</th
+								><th scope="col" class="numeric best-cell">Best score</th><th
+									scope="col"
+									class="numeric">Games</th
+								></tr
+							></thead
+						><tbody>
+							{#each soloEntries as entry, i (entry)}
+								{@const skillLevel = computeSkillLevel(entry.rating)}{@const tier =
+									getSkillTier(skillLevel)}
+								<tr class={{ leading: i === 0 }}
+									><td class="rank-cell">{i + 1}</td><th scope="row" class="player-cell"
+										><span class="player-identity"
+											><span aria-hidden="true"
+												><RankBadge mode="solo" value={skillLevel} size="sm" /></span
+											><span class="player-name" title={entry.playerName}>{entry.playerName}</span
+											>{#if entry.country}<span
+													class="country"
+													title={entry.country}
+													aria-hidden="true">{countryFlag(entry.country)}</span
+												>{/if}</span
+										><span class="player-tier">{tier.name}</span></th
+									><td class="numeric rating-value">{skillLevel.toLocaleString()}</td><td
+										class="numeric best-cell">{entry.bestWeightedScore.toLocaleString()}</td
+									><td class="numeric">{entry.gamesPlayed}</td></tr
 								>
-									<td class="py-3 font-mono text-xs font-bold tabular-nums">{i + 1}</td>
-									<td class="truncate py-3 pr-2 font-medium">
-										<span class="inline-flex items-center gap-1.5">
-											<RankBadge mode="solo" value={skillLevel} size="sm" />
-											{#if entry.country}<span>{countryFlag(entry.country)}</span>{/if}
-											<span class="truncate">{entry.playerName}</span>
-										</span>
-									</td>
-									<td
-										class="py-3 text-right font-mono font-bold tabular-nums"
-										style="color: {tier.color};"
-									>
-										{skillLevel.toLocaleString()}
-									</td>
-									<td
-										class="hidden py-3 text-right font-mono text-xs tabular-nums sm:table-cell"
-										style="color: var(--text-tertiary);"
-									>
-										{entry.bestWeightedScore.toLocaleString()}
-									</td>
-									<td
-										class="py-3 text-right font-mono text-xs tabular-nums"
-										style="color: var(--text-tertiary);"
-									>
-										{entry.gamesPlayed}
-									</td>
-								</tr>
 							{/each}
 						</tbody>
 					</table>
-				</div>
-			{/if}
-		{:else}
-			<!-- Battle leaderboard -->
-			{#if battleEntries.length === 0}
-				<div class="rounded-2xl py-14 text-center" style="background: var(--surface);">
-					<Swords class="mx-auto mb-3 h-7 w-7" strokeWidth={1.5} style="color: var(--text-tertiary); opacity: 0.25;" />
-					<div class="text-sm" style="color: var(--text-tertiary);">No battles yet</div>
-					<a
-						href="/?battle"
-						class="mt-3 inline-flex items-center gap-1.5 rounded-xl px-4 py-1.5 text-[12px] font-semibold transition hover:brightness-110"
-						style="background: color-mix(in srgb, var(--accent-red) 10%, transparent); border: 1px solid color-mix(in srgb, var(--accent-red) 25%, transparent); color: var(--accent-red);"
-					>
-						Start a battle
-					</a>
-				</div>
-			{:else}
-				<div class="overflow-x-auto">
-					<table class="w-full table-fixed">
-						<colgroup>
-							<col class="w-8" />
-							<col />
-							<col class="w-16" />
-							<col class="w-10" />
-							<col class="w-10" />
-							<col class="hidden w-14 sm:table-column" />
-						</colgroup>
-						<thead>
-							<tr
-								class="text-[10px] font-medium uppercase tracking-wider"
-								style="color: var(--text-tertiary);"
+				</div>{/if}
+		{:else if battleEntries.length === 0}<div class="empty-board">
+				<h2>No duels yet.</h2>
+				<p>Meet another player on the same curve and start the standings.</p>
+				<a href={resolve('/?battle')}>Play a duel</a>
+			</div>
+		{:else}<div class="table-wrap">
+				<table aria-label="Duel Elo leaderboard">
+					<colgroup
+						><col class="rank-column" /><col /><col class="rating-column" /><col
+							class="record-column"
+						/><col class="record-column" /><col class="win-column" /></colgroup
+					><thead
+						><tr
+							><th scope="col" class="rank-cell">Rank</th><th scope="col">Player</th><th
+								scope="col"
+								class="numeric">Elo</th
+							><th scope="col" class="numeric record-cell">Wins</th><th
+								scope="col"
+								class="numeric record-cell">Losses</th
+							><th scope="col" class="numeric win-cell">Win rate</th></tr
+						></thead
+					><tbody>
+						{#each battleEntries as entry, i (entry)}
+							{@const losses = entry.battlesPlayed - entry.battleWins}{@const winPct =
+								entry.battlesPlayed > 0
+									? Math.round((entry.battleWins / entry.battlesPlayed) * 100)
+									: 0}{@const tier = getBattleTier(entry.battleElo)}
+							<tr class={{ leading: i === 0 }}
+								><td class="rank-cell">{i + 1}</td><th scope="row" class="player-cell"
+									><span class="player-identity"
+										><span aria-hidden="true"
+											><RankBadge mode="battle" value={entry.battleElo} size="sm" /></span
+										><span class="player-name" title={entry.playerName}>{entry.playerName}</span
+										>{#if entry.country}<span
+												class="country"
+												title={entry.country}
+												aria-hidden="true">{countryFlag(entry.country)}</span
+											>{/if}</span
+									><span class="player-tier">{tier.name}</span></th
+								><td class="numeric rating-value">{entry.battleElo}</td><td
+									class="numeric record-cell">{entry.battleWins}</td
+								><td class="numeric record-cell">{losses}</td><td class="numeric win-cell"
+									>{winPct}%</td
+								></tr
 							>
-								<th class="pb-2 text-left">#</th>
-								<th class="pb-2 text-left">Player</th>
-								<th class="pb-2 text-right">ELO</th>
-								<th class="pb-2 text-right">W</th>
-								<th class="pb-2 text-right">L</th>
-								<th class="hidden pb-2 text-right sm:table-cell">Win%</th>
-							</tr>
-						</thead>
-						<tbody>
-							{#each battleEntries as entry, i}
-								{@const losses = entry.battlesPlayed - entry.battleWins}
-								{@const winPct = entry.battlesPlayed > 0 ? Math.round((entry.battleWins / entry.battlesPlayed) * 100) : 0}
-								{@const bTier = getBattleTier(entry.battleElo)}
-								<tr
-									class="border-t text-sm"
-									style="border-color: var(--border); color: {i === 0
-										? 'var(--accent-red)'
-										: 'var(--text-primary)'}; opacity: {i === 0 ? 1 : i < 3 ? 0.75 : 0.5};"
-								>
-									<td class="py-3 font-mono text-xs font-bold tabular-nums">{i + 1}</td>
-									<td class="truncate py-3 pr-2 font-medium">
-										<span class="inline-flex items-center gap-1.5">
-											<RankBadge mode="battle" value={entry.battleElo} size="sm" />
-											{#if entry.country}<span>{countryFlag(entry.country)}</span>{/if}
-											<span class="truncate">{entry.playerName}</span>
-										</span>
-									</td>
-									<td
-										class="py-3 text-right font-mono font-bold tabular-nums"
-										style="color: {bTier.color};"
-									>
-										{entry.battleElo}
-									</td>
-									<td
-										class="py-3 text-right font-mono text-xs tabular-nums"
-										style="color: var(--win-green);"
-									>
-										{entry.battleWins}
-									</td>
-									<td
-										class="py-3 text-right font-mono text-xs tabular-nums"
-										style="color: var(--loss-red);"
-									>
-										{losses}
-									</td>
-									<td
-										class="hidden py-3 text-right font-mono text-xs tabular-nums sm:table-cell"
-										style="color: var(--text-tertiary);"
-									>
-										{winPct}%
-									</td>
-								</tr>
-							{/each}
-						</tbody>
-					</table>
-				</div>
-			{/if}
-		{/if}
-	</div>
+						{/each}
+					</tbody>
+				</table>
+			</div>{/if}
+	</main>
 </div>
+
+<style>
+	.leaderboard-page {
+		min-height: 100dvh;
+		background: var(--bg);
+	}
+	.leaderboard-content {
+		width: min(980px, 100%);
+		padding: 44px 32px 64px;
+		margin: 0 auto;
+	}
+	.leaderboard-heading {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 24px;
+		margin-bottom: 30px;
+	}
+	.leaderboard-heading h1 {
+		margin: 0 0 10px;
+		font-family: var(--font-display);
+		font-size: 42px;
+		font-weight: 600;
+		line-height: 1.1;
+		letter-spacing: -0.065em;
+	}
+	.leaderboard-heading p {
+		margin: 0;
+		color: var(--text-secondary);
+		font-size: 14px;
+		line-height: 1.6;
+	}
+	.play-link {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 42px;
+		padding: 0 15px;
+		border: 0;
+		background: var(--surface);
+		border-radius: 6px;
+		color: var(--text-primary);
+		font-size: 12px;
+		white-space: nowrap;
+	}
+	.play-link:hover {
+		background: var(--surface);
+	}
+	.leaderboard-modes {
+		display: inline-flex;
+		gap: 3px;
+		padding: 3px;
+		border: 0;
+		border-radius: 8px;
+		background: var(--surface);
+	}
+	.leaderboard-modes button {
+		min-height: 42px;
+		min-width: 120px;
+		padding: 0 20px;
+		border: 0;
+		border-radius: 5px;
+		background: transparent;
+		color: var(--text-secondary);
+		font-size: 13px;
+		font-weight: 500;
+		cursor: pointer;
+	}
+	.leaderboard-modes button.active {
+		background: var(--surface-raised);
+		color: var(--text-primary);
+	}
+	.leaderboard-modes button:hover {
+		color: var(--text-primary);
+	}
+	.rating-explanation {
+		margin: 14px 0 28px;
+		color: var(--text-secondary);
+		font-size: 12px;
+		line-height: 1.6;
+	}
+	.table-wrap {
+		border-top: 1px solid var(--border-hover);
+	}
+	table {
+		width: 100%;
+		table-layout: fixed;
+		border-collapse: collapse;
+	}
+	.rank-column {
+		width: 58px;
+	}
+	.rating-column {
+		width: 104px;
+	}
+	.best-column {
+		width: 120px;
+	}
+	.games-column {
+		width: 78px;
+	}
+	.record-column {
+		width: 70px;
+	}
+	.win-column {
+		width: 88px;
+	}
+	thead th {
+		height: 46px;
+		padding: 0 12px;
+		text-align: left;
+		color: var(--text-secondary);
+		font-size: 11px;
+		font-weight: 500;
+	}
+	tbody tr {
+		border-top: 1px solid var(--border);
+	}
+	tbody tr.leading {
+		background: color-mix(in srgb, var(--accent-cyan) 4%, transparent);
+	}
+	tbody tr:hover {
+		background: var(--surface);
+	}
+	tbody td,
+	tbody th {
+		height: 67px;
+		padding: 10px 12px;
+		color: var(--text-primary);
+		font-size: 13px;
+		font-weight: 400;
+	}
+	tbody .rank-cell {
+		color: var(--text-secondary);
+		font-size: 12px;
+		font-variant-numeric: tabular-nums;
+	}
+	tbody .leading .rank-cell {
+		color: var(--accent-cyan);
+		font-weight: 600;
+	}
+	.numeric {
+		text-align: right;
+		font-variant-numeric: tabular-nums;
+	}
+	tbody .rating-value {
+		font-family: var(--font-display);
+		font-size: 16px;
+		font-weight: 500;
+		letter-spacing: -0.03em;
+	}
+	.player-cell {
+		text-align: left;
+	}
+	.player-identity {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		min-width: 0;
+	}
+	.player-name {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-weight: 500;
+	}
+	.country {
+		flex-shrink: 0;
+		font-size: 12px;
+	}
+	.player-tier {
+		display: block;
+		padding-left: 24px;
+		margin-top: 3px;
+		color: var(--text-secondary);
+		font-size: 10px;
+	}
+	.empty-board {
+		padding: 52px 24px;
+		text-align: center;
+	}
+	.empty-board h2 {
+		margin: 0 0 10px;
+		font-family: var(--font-display);
+		font-size: 22px;
+		font-weight: 500;
+		letter-spacing: -0.04em;
+	}
+	.empty-board p {
+		margin: 0 auto 22px;
+		max-width: 45ch;
+		color: var(--text-secondary);
+		font-size: 13px;
+		line-height: 1.6;
+	}
+	.empty-board a {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 44px;
+		padding: 0 20px;
+		border-radius: 6px;
+		background: var(--accent-cyan);
+		color: var(--on-accent);
+		font-size: 13px;
+		font-weight: 600;
+	}
+	@media (max-width: 640px) {
+		.leaderboard-content {
+			padding: 28px 16px 40px;
+		}
+		.leaderboard-heading {
+			align-items: start;
+			margin-bottom: 24px;
+		}
+		.leaderboard-heading h1 {
+			font-size: 32px;
+		}
+		.leaderboard-heading p {
+			max-width: 28ch;
+			font-size: 12px;
+		}
+		.play-link {
+			min-height: 40px;
+			padding: 0 10px;
+			font-size: 10px;
+		}
+		.rank-column {
+			width: 36px;
+		}
+		.rating-column {
+			width: 70px;
+		}
+		.games-column {
+			width: 48px;
+		}
+		.record-column {
+			width: 44px;
+		}
+		.best-column,
+		.best-cell,
+		.win-column,
+		.win-cell {
+			display: none;
+		}
+		thead th {
+			padding-inline: 5px;
+			font-size: 10px;
+		}
+		tbody td,
+		tbody th {
+			padding-inline: 5px;
+			font-size: 11px;
+		}
+		tbody .rating-value {
+			font-size: 14px;
+		}
+		.player-identity {
+			gap: 5px;
+		}
+		.player-tier {
+			padding-left: 21px;
+		}
+	}
+</style>

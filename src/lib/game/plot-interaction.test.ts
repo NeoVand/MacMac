@@ -6,6 +6,7 @@ import {
 	moveSampleX,
 	normalizeShape,
 	plotSampleX,
+	plotReleaseSample,
 	snapSampleX
 } from './plot-interaction.ts';
 
@@ -59,7 +60,7 @@ test('keyboard placement moves, accelerates and reaches either endpoint without 
 	assert.equal(moveSampleX(0, 'Tab', range), null);
 });
 
-test('touch tolerance accepts taps while rejecting scrolling and dragging', () => {
+test('mouse tolerance accepts taps while rejecting accidental drags', () => {
 	assert.equal(isPlotTap({ x: 100, y: 100 }, { x: 104, y: 103 }), true);
 	assert.equal(isPlotTap({ x: 100, y: 100 }, { x: 100, y: 130 }), false);
 	assert.equal(isPlotTap({ x: 100, y: 100 }, { x: 150, y: 100 }), false);
@@ -70,4 +71,62 @@ test('display compares shape independently of density amplitude, like the scorin
 	assert.deepEqual(normalizeShape([0, 0, 0]), [0, 0, 0]);
 	assert.deepEqual(normalizeShape([]), []);
 	assert.deepEqual(normalizeShape([NaN, Infinity, -1, 2]), [0, 0, 0, 1]);
+});
+
+test('touch aiming commits the final horizontal position after a drag', () => {
+	const start = { x: 215, y: 250 };
+	const end = { x: 585, y: 90 };
+	assert.equal(isPlotTap(start, end), false);
+	assert.equal(plotSampleX(start, size, range, padding), -2);
+	assert.equal(
+		plotReleaseSample(
+			{ pointerType: 'touch', point: end, cancelled: false, primary: true, otherPointers: 0 },
+			size,
+			range,
+			padding
+		),
+		2
+	);
+	assert.equal(
+		plotReleaseSample(
+			{ pointerType: 'pen', point: end, cancelled: false, primary: true, otherPointers: 0 },
+			size,
+			range,
+			padding
+		),
+		2
+	);
+});
+
+test('cancelled, multi-touch and out-of-chart releases never commit a sample', () => {
+	const valid = {
+		pointerType: 'touch',
+		point: { x: 585, y: 90 },
+		cancelled: false,
+		primary: true,
+		otherPointers: 0
+	};
+	for (const release of [
+		{ ...valid, cancelled: true },
+		{ ...valid, primary: false },
+		{ ...valid, otherPointers: 1 },
+		{ ...valid, point: { x: 810, y: 90 } },
+		{ ...valid, point: { x: 585, y: -1 } },
+		{ ...valid, point: null },
+		{ ...valid, pointerType: 'mouse' }
+	])
+		assert.equal(plotReleaseSample(release, size, range, padding), null);
+});
+
+test('touch release uses scaled client coordinates without falling back to the starting point', () => {
+	const point = canvasPoint(392.5, 95, { left: 100, top: 50, width: 400, height: 250 }, size);
+	assert.equal(
+		plotReleaseSample(
+			{ pointerType: 'touch', point, cancelled: false, primary: true, otherPointers: 0 },
+			size,
+			range,
+			padding
+		),
+		2
+	);
 });

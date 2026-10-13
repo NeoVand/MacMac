@@ -1,5 +1,7 @@
 <script lang="ts">
-	import { Info, Swords } from 'lucide-svelte';
+	import { ChevronLeft, ChevronRight, Info, MoreHorizontal, Swords, Trophy } from 'lucide-svelte';
+	import { resolve } from '$app/paths';
+	import type { Pathname } from '$app/types';
 	import UserAvatar from './UserAvatar.svelte';
 	import ThemeToggle from './ThemeToggle.svelte';
 	import SoundButton from './SoundButton.svelte';
@@ -13,55 +15,239 @@
 	}
 
 	let { activePage = 'none', showNav = false, prevHref = null, nextHref = null }: Props = $props();
+	const searching = $derived(
+		$battleQueue.status === 'searching' || $battleQueue.status === 'connecting'
+	);
 </script>
 
-<header class="flex shrink-0 items-center justify-between px-4 py-2 sm:px-6 sm:py-3">
-	<!-- Left: logo -->
-	<a href="/" class="inline-block transition hover:opacity-80" style="font-family: 'Believe Stronger', sans-serif;">
-		<span class="text-2xl" style="color: var(--text-primary); opacity: 0.85;">Mac</span><span class="bg-gradient-to-r from-game-cyan to-purple-400 bg-clip-text text-2xl text-transparent">Mac</span>
+<header class="game-chrome" data-searching={searching}>
+	<a href={resolve('/')} class="wordmark" aria-label="MacMac home">
+		<span style="color: var(--text-primary); opacity: 0.85;">Mac</span><span
+			class="bg-gradient-to-r from-game-cyan to-purple-400 bg-clip-text text-transparent">Mac</span
+		>
 	</a>
 
-	<!-- Right: nav + actions -->
-	<div class="flex items-center gap-2">
+	<nav class="chrome-actions" aria-label="Game navigation">
 		{#if showNav && prevHref}
-			<a href={prevHref} class="flex h-9 w-9 items-center justify-center rounded-full transition hover:opacity-70" style="background: var(--surface); color: var(--text-secondary);" aria-label="Previous">
-				<svg viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd" /></svg>
-			</a>
+			<a
+				href={resolve(prevHref as Pathname)}
+				class="chrome-control level-navigation"
+				aria-label="Previous level"
+				title="Previous level"><ChevronLeft size={18} /></a
+			>
 		{/if}
 		{#if showNav && nextHref}
-			<a href={nextHref} class="flex h-9 w-9 items-center justify-center rounded-full transition hover:opacity-70" style="background: var(--surface); color: var(--text-secondary);" aria-label="Next">
-				<svg viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5"><path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" /></svg>
-			</a>
+			<a
+				href={resolve(nextHref as Pathname)}
+				class="chrome-control level-navigation"
+				aria-label="Next level"
+				title="Next level"><ChevronRight size={18} /></a
+			>
 		{/if}
-		{#if $battleQueue.status === 'searching' || $battleQueue.status === 'connecting'}
+		{#if searching}
 			<button
+				type="button"
 				onclick={cancelQueue}
-				class="flex h-9 items-center gap-1.5 rounded-full px-3 text-[11px] font-semibold transition hover:opacity-80"
-				style="background: color-mix(in srgb, var(--accent-red) 12%, var(--surface)); color: var(--accent-red); border: 1px solid color-mix(in srgb, var(--accent-red) 25%, transparent);"
+				class="chrome-control search-control"
+				aria-label="Cancel battle search"
 				title="Cancel battle search"
 			>
-				<Swords class="h-3.5 w-3.5 animate-spin" style="animation-duration: 2s;" strokeWidth={2} />
-				<span class="hidden sm:inline">Searching...</span>
+				<Swords size={16} /><span>Finding rival</span>
 			</button>
 		{/if}
 		<a
-			href="/leaderboard"
-			class="flex h-9 w-9 items-center justify-center rounded-full transition hover:opacity-70"
-			style="background: {activePage === 'leaderboard' ? 'color-mix(in srgb, #eab308 18%, var(--surface))' : 'var(--surface)'}; {activePage === 'leaderboard' ? 'box-shadow: 0 0 0 1.5px color-mix(in srgb, #eab308 35%, transparent);' : ''}"
+			href={resolve('/leaderboard')}
+			class="chrome-control desktop-nav"
+			data-active={activePage === 'leaderboard'}
+			aria-current={activePage === 'leaderboard' ? 'page' : undefined}
 			aria-label="Leaderboard"
+			title="Leaderboard"><Trophy size={17} /></a
 		>
-			<svg viewBox="0 0 24 24" fill="#eab308" class="h-4 w-4"><path d="M2 4l3 12h14l3-12-5 4-5-6-5 6-5-4zm3 14h14v2H5v-2z" /></svg>
-		</a>
-		<SoundButton size="sm" />
 		<a
-			href="/about"
-			class="flex h-9 w-9 items-center justify-center rounded-full transition hover:opacity-70"
-			style="background: {activePage === 'about' ? 'color-mix(in srgb, var(--accent-cyan) 15%, var(--surface))' : 'var(--surface)'}; color: {activePage === 'about' ? 'var(--accent-cyan)' : 'var(--text-secondary)'}; {activePage === 'about' ? 'box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent-cyan) 35%, transparent);' : ''}"
-			aria-label="About"
+			href={resolve('/about')}
+			class="chrome-control desktop-nav"
+			data-active={activePage === 'about'}
+			aria-current={activePage === 'about' ? 'page' : undefined}
+			aria-label="How MacMac works"
+			title="How MacMac works"><Info size={17} /></a
 		>
-			<Info size={16} />
-		</a>
+		<details class="mobile-nav">
+			<summary
+				class="chrome-control"
+				aria-label={searching ? 'More navigation, battle search active' : 'More navigation'}
+				><MoreHorizontal size={18} />{#if searching}<span
+						class="search-indicator"
+						aria-hidden="true"
+					></span>{/if}</summary
+			>
+			<div class="mobile-nav-menu">
+				{#if showNav && prevHref}<a href={resolve(prevHref as Pathname)}
+						><ChevronLeft size={18} /> Previous level</a
+					>{/if}
+				{#if showNav && nextHref}<a href={resolve(nextHref as Pathname)}
+						><ChevronRight size={18} /> Next level</a
+					>{/if}
+				{#if searching}<button type="button" onclick={cancelQueue}
+						><Swords size={16} /> Cancel battle search</button
+					>{/if}
+				<a href={resolve('/leaderboard')}><Trophy size={16} /> Leaderboard</a>
+				<a href={resolve('/about')}><Info size={16} /> How MacMac works</a>
+			</div>
+		</details>
+		<SoundButton size="sm" />
 		<ThemeToggle />
-		<UserAvatar />
-	</div>
+		<div class="account-control"><UserAvatar /></div>
+	</nav>
 </header>
+
+<style>
+	.game-chrome {
+		position: relative;
+		display: flex;
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+		width: 100%;
+		padding: 15px clamp(16px, 3vw, 40px);
+	}
+	.wordmark {
+		display: inline-flex;
+		flex-shrink: 0;
+		align-items: center;
+		min-height: 44px;
+		font-family: 'Believe Stronger', sans-serif;
+		font-size: 24px;
+		font-weight: normal;
+		letter-spacing: normal;
+		text-decoration: none;
+	}
+	.wordmark:hover {
+		opacity: 0.8;
+	}
+
+	.chrome-actions {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+	.chrome-control {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 44px;
+		height: 44px;
+		flex-shrink: 0;
+
+		border-radius: 11px;
+		background: transparent;
+		color: var(--text-secondary);
+		cursor: pointer;
+	}
+	.chrome-control:hover {
+		color: var(--text-primary);
+		background: var(--surface);
+	}
+	.chrome-control[data-active='true'] {
+		background: var(--surface);
+
+		color: var(--accent-cyan);
+	}
+	.wordmark:focus-visible {
+		outline: none;
+		text-decoration: underline;
+		text-underline-offset: 5px;
+	}
+	.chrome-control:focus-visible,
+	.mobile-nav-menu a:focus-visible,
+	.mobile-nav-menu button:focus-visible {
+		outline: none;
+		background: var(--accent-cyan);
+		color: var(--on-accent);
+	}
+
+	.search-control {
+		width: auto;
+		padding: 0 12px;
+		gap: 8px;
+		color: var(--accent-orange);
+		font-size: 11px;
+		font-weight: 600;
+	}
+	.mobile-nav {
+		display: none;
+		position: static;
+	}
+	.mobile-nav summary {
+		list-style: none;
+	}
+	.mobile-nav summary::-webkit-details-marker {
+		display: none;
+	}
+	.mobile-nav-menu {
+		position: absolute;
+		right: 12px;
+		top: calc(100% + 4px);
+		z-index: 65;
+		width: 210px;
+
+		border-radius: 12px;
+		padding: 7px;
+		background: var(--surface);
+		box-shadow: 0 12px 40px #0003;
+	}
+	.mobile-nav-menu a,
+	.mobile-nav-menu button {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		min-height: 44px;
+		width: 100%;
+		border: 0;
+		background: transparent;
+		text-align: left;
+		padding: 0 10px;
+		color: var(--text-secondary);
+		font-size: 12px;
+		border-radius: 7px;
+	}
+	.mobile-nav-menu a:hover,
+	.mobile-nav-menu button:hover {
+		background: var(--surface-raised);
+		color: var(--text-primary);
+	}
+	@media (max-width: 639px) {
+		.game-chrome {
+			gap: 10px;
+			padding: 10px 12px;
+		}
+		.chrome-actions {
+			gap: 4px;
+		}
+		.desktop-nav,
+		.level-navigation,
+		.search-control {
+			display: none;
+		}
+		.mobile-nav {
+			display: block;
+		}
+	}
+	@media (max-width: 359px) {
+		.game-chrome {
+			padding-inline: 10px;
+		}
+	}
+	.search-indicator {
+		position: absolute;
+		top: 5px;
+		right: 5px;
+		width: 5px;
+		height: 5px;
+		border-radius: 50%;
+		background: var(--accent-orange);
+	}
+	.mobile-nav summary {
+		position: relative;
+	}
+</style>

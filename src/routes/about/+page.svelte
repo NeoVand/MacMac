@@ -6,8 +6,38 @@
 	import { computeMatchScore, computeTimeBonus } from '$lib/game/scoring';
 	import AppHeader from '$lib/components/AppHeader.svelte';
 
-	let canvas: HTMLCanvasElement | undefined = $state();
-	let mathContainer: HTMLDivElement | undefined = $state();
+	interface MathRenderOptions {
+		delimiters: { left: string; right: string; display: boolean }[];
+		throwOnError: boolean;
+	}
+	interface KaTeXWindow extends Window {
+		renderMathInElement?: (element: HTMLElement, options: MathRenderOptions) => void;
+	}
+	function getMathRenderer() {
+		return (window as KaTeXWindow).renderMathInElement;
+	}
+
+	let canvas: HTMLCanvasElement | undefined;
+	let mathContainer: HTMLDivElement | undefined;
+
+	function attachCanvas(element: HTMLCanvasElement) {
+		canvas = element;
+		return () => {
+			if (canvas === element) canvas = undefined;
+		};
+	}
+	function attachMath(element: HTMLDivElement) {
+		mathContainer = element;
+		return () => {
+			if (mathContainer === element) mathContainer = undefined;
+		};
+	}
+
+	const inlineMath1 = '\\(p(x)\\)';
+	const inlineMath2 = '\\(\\hat{q}(x)\\)';
+	const inlineMath3 = '\\(\\text{weighted} = \\text{raw} \\times (0.55 + 0.15d)\\)';
+	const inlineMath4 = '\\(d\\)';
+	const inlineMath5 = '\\(d \\approx 3\\)';
 
 	const mseFormula = `$$\\text{MSE} = \\frac{1}{n} \\sum_{i=1}^{n} \\left( \\frac{p(x_i)}{\\max(p)} - \\frac{\\hat{q}(x_i)}{\\max(\\hat{q})} \\right)^2$$`;
 	const scoreFormula = `$$\\text{Score} = \\underbrace{\\operatorname{round}\\left( \\frac{8000}{1 + 100 \\cdot \\text{MSE}} \\right)}_{\\text{shape match}} + \\underbrace{\\operatorname{round}\\left( 2000 \\cdot \\max\\left(0, 1 - \\frac{t}{30}\\right) \\right)}_{\\text{time bonus}}$$`;
@@ -20,7 +50,12 @@
 	const LERP_SPEED = 0.14;
 	const FADE_OUT_LERP = 0.22;
 
-	function sampleFromPdf(pdf: (x: number) => number, xMin: number, xMax: number, n: number): number[] {
+	function sampleFromPdf(
+		pdf: (x: number) => number,
+		xMin: number,
+		xMax: number,
+		n: number
+	): number[] {
 		const gridSize = 600;
 		const xs = linspace(xMin, xMax, gridSize);
 		const densities = xs.map(pdf);
@@ -85,11 +120,11 @@
 	});
 
 	async function ensureKaTeX(): Promise<void> {
-		if (typeof (window as any).renderMathInElement === 'function') return;
+		if (typeof getMathRenderer() === 'function') return;
 		return new Promise((resolve, reject) => {
 			const timeout = setTimeout(() => reject(new Error('KaTeX load timeout')), 3000);
 			const check = () => {
-				if (typeof (window as any).renderMathInElement === 'function') {
+				if (typeof getMathRenderer() === 'function') {
 					clearTimeout(timeout);
 					resolve();
 					return true;
@@ -109,7 +144,7 @@
 		if (!mathContainer) return;
 		try {
 			await ensureKaTeX();
-			const render = (window as any).renderMathInElement;
+			const render = getMathRenderer();
 			if (render && mathContainer) {
 				render(mathContainer, {
 					delimiters: [
@@ -139,8 +174,8 @@
 
 	function loadKaTeXAndRender() {
 		if (!mathContainer) return;
-		if (typeof (window as any).renderMathInElement === 'function') {
-			(window as any).renderMathInElement(mathContainer, {
+		if (typeof getMathRenderer() === 'function') {
+			getMathRenderer()?.(mathContainer, {
 				delimiters: [
 					{ left: '$$', right: '$$', display: true },
 					{ left: '\\(', right: '\\)', display: false }
@@ -163,8 +198,8 @@
 			autoRender.src = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js';
 			autoRender.crossOrigin = 'anonymous';
 			autoRender.onload = () => {
-				if (mathContainer && typeof (window as any).renderMathInElement === 'function') {
-					(window as any).renderMathInElement(mathContainer, {
+				if (mathContainer && typeof getMathRenderer() === 'function') {
+					getMathRenderer()?.(mathContainer, {
 						delimiters: [
 							{ left: '$$', right: '$$', display: true },
 							{ left: '\\(', right: '\\)', display: false }
@@ -180,7 +215,8 @@
 
 	function startVisualAnimation() {
 		if (!canvas) return;
-		const xMin = -5, xMax = 5.5;
+		const xMin = -5,
+			xMax = 5.5;
 		const pts = linspace(xMin, xMax, 200);
 		const pdf = (x: number) =>
 			0.25 * gaussian(x, -2.5, 0.6) + 0.45 * gaussian(x, 0.5, 0.9) + 0.3 * gaussian(x, 3, 0.5);
@@ -220,7 +256,10 @@
 						holdTimer = 0;
 					}
 				}
-				targetKde = animSampleIdx > 0 ? computeKDE(animOrder.slice(0, animSampleIdx), pts) : new Array(pts.length).fill(0);
+				targetKde =
+					animSampleIdx > 0
+						? computeKDE(animOrder.slice(0, animSampleIdx), pts)
+						: new Array(pts.length).fill(0);
 			} else if (phase === 'holding') {
 				holdTimer += dt * 1000;
 				if (holdTimer >= HOLD_AT_END_MS) {
@@ -228,7 +267,8 @@
 					fadeOutTimer = 0;
 					frozenStats = {
 						mse: computeMse(baseCurveKde, displayKde),
-						score: computeMatchScore(computeMse(baseCurveKde, displayKde)) + computeTimeBonus(elapsedMs),
+						score:
+							computeMatchScore(computeMse(baseCurveKde, displayKde)) + computeTimeBonus(elapsedMs),
 						elapsedMs
 					};
 				}
@@ -304,15 +344,25 @@
 		const toY = (y: number) => pad + ph - (y / yMax) * ph;
 		const baseY = toY(0);
 
-		ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--surface').trim() || '#12122a';
+		const theme = getComputedStyle(document.documentElement);
+		const themeColor = (name: string) => theme.getPropertyValue(name).trim();
+		ctx.fillStyle = themeColor('--surface');
 		ctx.fillRect(0, 0, w, h);
 
 		// Stats overlay (top left) — compact, elegant
-		const tertiary = getComputedStyle(document.documentElement).getPropertyValue('--text-tertiary').trim() || 'rgba(255,255,255,0.35)';
-		const secondary = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary').trim() || 'rgba(255,255,255,0.55)';
-		const cyan = getComputedStyle(document.documentElement).getPropertyValue('--accent-cyan').trim() || '#00d4ff';
-		const orange = getComputedStyle(document.documentElement).getPropertyValue('--accent-orange').trim() || '#ff9933';
-		ctx.font = '500 11px Inter, system-ui, sans-serif';
+		const tertiary =
+			getComputedStyle(document.documentElement).getPropertyValue('--text-tertiary').trim() ||
+			'rgba(255,255,255,0.35)';
+		const secondary =
+			getComputedStyle(document.documentElement).getPropertyValue('--text-secondary').trim() ||
+			'rgba(255,255,255,0.55)';
+		const cyan =
+			getComputedStyle(document.documentElement).getPropertyValue('--accent-cyan').trim() ||
+			'#00d4ff';
+		const orange =
+			getComputedStyle(document.documentElement).getPropertyValue('--accent-orange').trim() ||
+			'#ff9933';
+		ctx.font = '500 11px DM Sans, system-ui, sans-serif';
 		ctx.textBaseline = 'top';
 		const lineH = 15;
 		const statX = pad + 2;
@@ -325,7 +375,11 @@
 		ctx.fillStyle = tertiary;
 		ctx.fillText('Time ', statX, statY);
 		ctx.fillStyle = secondary;
-		ctx.fillText((stats.elapsedMs / 1000).toFixed(1) + 's', statX + ctx.measureText('Time ').width, statY);
+		ctx.fillText(
+			(stats.elapsedMs / 1000).toFixed(1) + 's',
+			statX + ctx.measureText('Time ').width,
+			statY
+		);
 		statY += lineH;
 		ctx.fillStyle = tertiary;
 		ctx.fillText('Score ', statX, statY);
@@ -335,9 +389,9 @@
 		// Base curve family (cyan) — KDE of all 30 samples, so it exactly matches when orange fills in
 		const scales = linspace(0.25, 1, 16);
 		const strokeGrad = ctx.createLinearGradient(toX(xMin), 0, toX(xMax), 0);
-		strokeGrad.addColorStop(0, '#00ccff');
-		strokeGrad.addColorStop(0.5, '#a855f7');
-		strokeGrad.addColorStop(1, '#00ccff');
+		strokeGrad.addColorStop(0, cyan);
+		strokeGrad.addColorStop(0.5, cyan);
+		strokeGrad.addColorStop(1, cyan);
 
 		for (let si = 0; si < scales.length; si++) {
 			const s = scales[si];
@@ -349,19 +403,19 @@
 
 			if (isMain) {
 				ctx.beginPath();
-				sp.forEach(([x, y], i) => i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y));
+				sp.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
 				ctx.lineTo(toX(xMax), baseY);
 				ctx.lineTo(toX(xMin), baseY);
 				ctx.closePath();
 				const g = ctx.createLinearGradient(0, pad, 0, pad + ph);
-				g.addColorStop(0, 'rgba(0, 200, 255, 0.08)');
-				g.addColorStop(1, 'rgba(0, 200, 255, 0.0)');
+				g.addColorStop(0, themeColor('--curve-fill-start'));
+				g.addColorStop(1, themeColor('--curve-fill-end'));
 				ctx.fillStyle = g;
 				ctx.fill();
 			}
 
 			ctx.beginPath();
-			sp.forEach(([x, y], i) => i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y));
+			sp.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
 			ctx.globalAlpha = alpha;
 			ctx.strokeStyle = strokeGrad;
 			ctx.lineWidth = lw;
@@ -376,23 +430,25 @@
 			ctx.beginPath();
 			for (let i = 0; i < pts.length; i++) {
 				const sy = toY(clamped[i]);
-				i === 0 ? ctx.moveTo(toX(pts[i]), sy) : ctx.lineTo(toX(pts[i]), sy);
+				if (i === 0) ctx.moveTo(toX(pts[i]), sy);
+				else ctx.lineTo(toX(pts[i]), sy);
 			}
 			ctx.lineTo(toX(pts[pts.length - 1]), baseY);
 			ctx.lineTo(toX(pts[0]), baseY);
 			ctx.closePath();
 			const kdeGrad = ctx.createLinearGradient(0, pad, 0, baseY);
-			kdeGrad.addColorStop(0, 'rgba(255, 130, 40, 0.2)');
-			kdeGrad.addColorStop(1, 'rgba(255, 100, 30, 0.02)');
+			kdeGrad.addColorStop(0, themeColor('--kde-fill-start'));
+			kdeGrad.addColorStop(1, themeColor('--kde-fill-end'));
 			ctx.fillStyle = kdeGrad;
 			ctx.fill();
 
 			ctx.beginPath();
 			for (let i = 0; i < pts.length; i++) {
 				const sy = toY(clamped[i]);
-				i === 0 ? ctx.moveTo(toX(pts[i]), sy) : ctx.lineTo(toX(pts[i]), sy);
+				if (i === 0) ctx.moveTo(toX(pts[i]), sy);
+				else ctx.lineTo(toX(pts[i]), sy);
 			}
-			ctx.strokeStyle = 'rgba(255, 150, 50, 0.75)';
+			ctx.strokeStyle = orange;
 			ctx.lineWidth = 1.5;
 			ctx.setLineDash([4, 3]);
 			ctx.lineCap = 'round';
@@ -409,11 +465,11 @@
 			ctx.globalAlpha = fadeFactor;
 		}
 		for (const sx of currentSamples) {
-			ctx.fillStyle = 'rgba(255, 150, 50, 0.15)';
+			ctx.fillStyle = themeColor('--sample-glow');
 			ctx.beginPath();
 			ctx.arc(toX(sx), baseY, 6, 0, Math.PI * 2);
 			ctx.fill();
-			ctx.fillStyle = 'rgba(255, 153, 51, 0.65)';
+			ctx.fillStyle = orange;
 			ctx.beginPath();
 			ctx.arc(toX(sx), baseY, 3.5, 0, Math.PI * 2);
 			ctx.fill();
@@ -429,139 +485,235 @@
 <div class="min-h-dvh">
 	<AppHeader activePage="about" />
 
-	<div bind:this={mathContainer} class="mx-auto max-w-xl px-4 sm:px-6">
-	<canvas
-		bind:this={canvas}
-		class="mt-6 h-32 min-h-[128px] w-full rounded-3xl sm:h-40 sm:min-h-[160px]"
-		style="background: var(--surface);"
-	></canvas>
+	<div {@attach attachMath} class="mx-auto max-w-xl px-4 sm:px-6">
+		<canvas
+			{@attach attachCanvas}
+			class="mt-6 h-32 min-h-[128px] w-full rounded-3xl sm:h-40 sm:min-h-[160px]"
+			style="background: var(--surface);"
+		></canvas>
 
-	<h1 class="mt-6 mb-5 text-xl font-bold" style="color: var(--text-primary);">
-		About <span style="font-family: 'Believe Stronger', sans-serif;"><span style="color: var(--text-primary); opacity: 0.8;">Mac</span><span class="bg-gradient-to-r from-game-cyan to-purple-400 bg-clip-text text-transparent">Mac</span></span>
-	</h1>
+		<h1
+			class="mt-6 mb-5 text-3xl font-semibold"
+			style="font-family: var(--font-display); color: var(--text-primary); letter-spacing: -1px;"
+		>
+			About MacMac
+		</h1>
 
-	<div class="space-y-4 text-[13px] leading-relaxed" style="color: var(--text-secondary);">
-		<p>
-			<strong style="color: var(--text-primary); opacity: 0.65;">macmac</strong> is a game that builds intuition for
-			<a href="https://en.wikipedia.org/wiki/Markov_chain_Monte_Carlo" target="_blank" rel="noopener" class="underline transition hover:opacity-80" style="color: var(--accent-cyan); opacity: 0.7; text-decoration-color: color-mix(in srgb, var(--accent-cyan) 25%, transparent);">Markov Chain Monte Carlo (MCMC)</a>
-			— one of the most important ideas in computational statistics and machine learning.
-		</p>
+		<div class="space-y-4 text-[13px] leading-relaxed" style="color: var(--text-secondary);">
+			<p>
+				<strong style="color: var(--text-primary); opacity: 0.65;">macmac</strong> is a game that
+				builds intuition for
+				<a
+					href="https://en.wikipedia.org/wiki/Markov_chain_Monte_Carlo"
+					target="_blank"
+					rel="noopener"
+					class="underline transition hover:opacity-80"
+					style="color: var(--accent-cyan); opacity: 0.7; text-decoration-color: color-mix(in srgb, var(--accent-cyan) 25%, transparent);"
+					>Markov Chain Monte Carlo (MCMC)</a
+				>
+				— one of the most important ideas in computational statistics and machine learning.
+			</p>
 
-		<p>
-			In MCMC, the goal is to draw samples from a probability distribution. The challenge is doing it
-			<em style="color: var(--text-primary); opacity: 0.75;">efficiently</em> — capturing the shape of a distribution with as few samples as possible.
-			That's exactly what you're doing in this game.
-		</p>
+			<p>
+				In MCMC, the goal is to draw samples from a probability distribution. The challenge is doing
+				it
+				<em style="color: var(--text-primary); opacity: 0.75;">efficiently</em> — capturing the shape
+				of a distribution with as few samples as possible. That's exactly what you're doing in this game.
+			</p>
 
-		<h2 class="pt-2 text-sm font-semibold" style="color: var(--text-primary); opacity: 0.6;">How it works</h2>
+			<h2
+				class="pt-2 text-sm font-semibold"
+				style="font-family: var(--font-display); color: var(--text-primary);"
+			>
+				How it works
+			</h2>
 
-		<p>
-			Each level shows a target probability density function {@html '\\(p(x)\\)'}. You click to place samples.
-			As you add points, a
-			<a href="https://en.wikipedia.org/wiki/Kernel_density_estimation" target="_blank" rel="noopener" class="underline transition hover:opacity-80" style="color: var(--accent-cyan); opacity: 0.7;">kernel density estimate</a>
-			{@html '\\(\\hat{q}(x)\\)'} builds up to show what your samples imply about the underlying distribution.
-		</p>
+			<p>
+				Each level shows a target probability density function {inlineMath1}. You click to place
+				samples. As you add points, a
+				<a
+					href="https://en.wikipedia.org/wiki/Kernel_density_estimation"
+					target="_blank"
+					rel="noopener"
+					class="underline transition hover:opacity-80"
+					style="color: var(--accent-cyan); opacity: 0.7;">kernel density estimate</a
+				>
+				{inlineMath2} builds up to show what your samples imply about the underlying distribution.
+			</p>
 
-		<h2 class="pt-2 text-sm font-semibold" style="color: var(--text-primary); opacity: 0.6;">Scoring</h2>
+			<h2
+				class="pt-2 text-sm font-semibold"
+				style="font-family: var(--font-display); color: var(--text-primary);"
+			>
+				Scoring
+			</h2>
 
-		<p>Your score is based on two factors: how accurately your samples match the target distribution, and how efficiently you placed them.</p>
+			<p>
+				Your score is based on two factors: how accurately your samples match the target
+				distribution, and how efficiently you placed them.
+			</p>
 
-		<p>
-			<strong style="color: var(--text-primary); opacity: 0.55;">Shape match</strong> is measured by the mean squared error between the target PDF and your KDE, both normalized to the same peak height. This compares the visual shape directly:
-		</p>
+			<p>
+				<strong style="color: var(--text-primary); opacity: 0.55;">Shape match</strong> is measured by
+				the mean squared error between the target PDF and your KDE, both normalized to the same peak height.
+				This compares the visual shape directly:
+			</p>
 
-		<div class="formula-box overflow-x-auto rounded-3xl px-4 py-3 sm:overflow-visible" style="background: var(--surface);">
-			{@html mseFormula}
-		</div>
-
-		<p>
-			where {@html '\\(p(x)\\)'} is the target density and {@html '\\(\\hat{q}(x)\\)'} is the KDE from your samples. Both are scaled so their peak equals 1, then compared point by point. If the curves look the same, MSE is near zero.
-		</p>
-
-		<p>
-			<strong style="color: var(--text-primary); opacity: 0.55;">Time bonus</strong> rewards speed. A fast solution earns up to 2,000 extra points, dropping continuously to zero over 30 seconds.
-		</p>
-
-		<p>The final score:</p>
-
-		<div class="formula-box overflow-x-auto rounded-3xl px-4 py-3 sm:overflow-visible" style="background: var(--surface);">
-			{@html scoreFormula}
-		</div>
-
-		<p>
-			The shape match component (up to 8,000) measures how well your curve fits the target. The time bonus (up to 2,000) rewards efficiency — there is no explicit click penalty, but more clicks take more time. The tension: speed versus precision.
-		</p>
-
-		<h2 class="pt-2 text-sm font-semibold" style="color: var(--text-primary); opacity: 0.6;">Generated levels</h2>
-
-		<p>
-			Every time you visit the home page, you see a fresh grid of procedurally generated levels.
-			Each level is created from a seed using a deterministic algorithm — the difficulty rating (1 to 10)
-			directly controls the number of peaks, how closely they overlap, how unequal they are, and how much
-			noise is added. Simple levels (1&#8211;2) have a single clean peak; hard levels (7+) have many overlapping
-			modes with noise.
-		</p>
-
-		<p>
-			The grid adapts to your skill. As you play more, levels center around your player rating so you
-			always face an appropriate challenge. You get 3 resets per level — after that, you can regenerate
-			a fresh level at the same difficulty.
-		</p>
-
-		<h2 class="pt-2 text-sm font-semibold" style="color: var(--text-primary); opacity: 0.6;">Weighted scoring</h2>
-
-		<p>
-			Your raw score (shape match + time bonus) is scaled by the level's difficulty:
-			{@html '\\(\\text{weighted} = \\text{raw} \\times (0.55 + 0.15d)\\)'}
-			where {@html '\\(d\\)'} is the difficulty rating. Medium levels ({@html '\\(d \\approx 3\\)'})
-			get a 1&#215; multiplier; harder levels reward more, but with diminishing returns.
-		</p>
-
-		<p>
-			Your <strong style="color: var(--text-primary); opacity: 0.55;">player rating</strong> is an
-			exponential moving average of your performance across difficulties — it tracks what difficulty you
-			can handle well. The leaderboard ranks players by their best weighted score and by rating.
-		</p>
-
-		<h2 class="pt-2 text-sm font-semibold" style="color: var(--text-primary); opacity: 0.6;">Battle mode</h2>
-
-		<p>
-			Battle mode is real-time 1v1. Both players receive the same generated level and have
-			<strong style="color: var(--text-primary); opacity: 0.55;">30 seconds</strong> to match the target
-			distribution. You can see your opponent's KDE building as a shadow curve — but not their click positions.
-		</p>
-
-		<p>
-			If either player reaches <strong style="color: var(--text-primary); opacity: 0.55;">90% accuracy</strong>
-			before time runs out, they trigger a jackpot and win instantly. Otherwise, the higher score wins.
-			Battle results update your
-			<a href="https://en.wikipedia.org/wiki/Elo_rating_system" target="_blank" rel="noopener" class="underline transition hover:opacity-80" style="color: var(--accent-cyan); opacity: 0.7;">ELO rating</a>
-			(K=32, starting at 1200). Matchmaking pairs players with similar ELO.
-		</p>
-
-		<h2 class="pt-2 text-sm font-semibold" style="color: var(--text-primary); opacity: 0.6;">Why it matters</h2>
-
-		<p>
-			MCMC methods are used everywhere — from
-			<a href="https://en.wikipedia.org/wiki/Bayesian_inference" target="_blank" rel="noopener" class="underline transition hover:opacity-80" style="color: var(--accent-cyan); opacity: 0.7;">Bayesian inference</a>
-			to protein folding to language models.
-			The core question is always the same: how can we represent a complex distribution with a
-			finite set of samples? This game lets you experience that question firsthand.
-		</p>
-
-		<!-- Footer -->
-		<div class="mt-10 mb-16 flex flex-col gap-4 rounded-2xl px-5 py-6 sm:px-6 sm:py-7" style="background: var(--surface); border: 1px solid var(--border);">
-			<div class="text-sm" style="color: var(--text-tertiary);">
-				Created by <span style="color: var(--text-secondary);">Neo Mohsenvand</span>
+			<div
+				class="formula-box overflow-x-auto rounded-3xl px-4 py-3 sm:overflow-visible"
+				style="background: var(--surface);"
+			>
+				{mseFormula}
 			</div>
-			<div class="flex flex-wrap gap-5">
-				<a href="https://github.com/NeoVand/MacMac" target="_blank" rel="noopener" class="flex items-center gap-2 text-sm transition hover:opacity-80" style="color: var(--text-secondary);">
-					<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M10 0C4.477 0 0 4.484 0 10.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0110 4.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.203 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0020 10.017C20 4.484 15.522 0 10 0z" clip-rule="evenodd" /></svg>
-					GitHub
-				</a>
+
+			<p>
+				where {inlineMath1} is the target density and {inlineMath2} is the KDE from your samples. Both
+				are scaled so their peak equals 1, then compared point by point. If the curves look the same,
+				MSE is near zero.
+			</p>
+
+			<p>
+				<strong style="color: var(--text-primary); opacity: 0.55;">Time bonus</strong> rewards speed.
+				A fast solution earns up to 2,000 extra points, dropping continuously to zero over 30 seconds.
+			</p>
+
+			<p>The final score:</p>
+
+			<div
+				class="formula-box overflow-x-auto rounded-3xl px-4 py-3 sm:overflow-visible"
+				style="background: var(--surface);"
+			>
+				{scoreFormula}
+			</div>
+
+			<p>
+				The shape match component (up to 8,000) measures how well your curve fits the target. The
+				time bonus (up to 2,000) rewards efficiency — there is no explicit click penalty, but more
+				clicks take more time. The tension: speed versus precision.
+			</p>
+
+			<h2
+				class="pt-2 text-sm font-semibold"
+				style="font-family: var(--font-display); color: var(--text-primary);"
+			>
+				Generated levels
+			</h2>
+
+			<p>
+				Every time you visit the home page, you see a fresh grid of procedurally generated levels.
+				Each level is created from a seed using a deterministic algorithm — the difficulty rating (1
+				to 10) directly controls the number of peaks, how closely they overlap, how unequal they
+				are, and how much noise is added. Simple levels (1&#8211;2) have a single clean peak; hard
+				levels (7+) have many overlapping modes with noise.
+			</p>
+
+			<p>
+				The grid adapts to your skill. As you play more, levels center around your player rating so
+				you always face an appropriate challenge. You get 3 resets per level — after that, you can
+				regenerate a fresh level at the same difficulty.
+			</p>
+
+			<h2
+				class="pt-2 text-sm font-semibold"
+				style="font-family: var(--font-display); color: var(--text-primary);"
+			>
+				Weighted scoring
+			</h2>
+
+			<p>
+				Your raw score (shape match + time bonus) is scaled by the level's difficulty:
+				{inlineMath3}
+				where {inlineMath4} is the difficulty rating. Medium levels ({inlineMath5}) get a 1&#215;
+				multiplier; harder levels reward more, but with diminishing returns.
+			</p>
+
+			<p>
+				Your <strong style="color: var(--text-primary); opacity: 0.55;">player rating</strong> is an exponential
+				moving average of your performance across difficulties — it tracks what difficulty you can handle
+				well. The leaderboard ranks players by their best weighted score and by rating.
+			</p>
+
+			<h2
+				class="pt-2 text-sm font-semibold"
+				style="font-family: var(--font-display); color: var(--text-primary);"
+			>
+				Battle mode
+			</h2>
+
+			<p>
+				Battle mode is real-time 1v1. Both players receive the same generated level and have
+				<strong style="color: var(--text-primary); opacity: 0.55;">30 seconds</strong> to match the
+				target distribution. Your opponent's shape appears as a dotted violet curve by default.
+				Choose
+				<strong>Hide opponent</strong> to focus on your shape, or <strong>Compare opponent</strong>
+				to bring it back. Their sample positions stay hidden during live play.
+			</p>
+
+			<p>
+				If either player reaches <strong style="color: var(--text-primary); opacity: 0.55;"
+					>90% accuracy</strong
+				>
+				before time runs out, they trigger a jackpot and win instantly. Otherwise, the higher score wins.
+				Battle results update your
+				<a
+					href="https://en.wikipedia.org/wiki/Elo_rating_system"
+					target="_blank"
+					rel="noopener"
+					class="underline transition hover:opacity-80"
+					style="color: var(--accent-cyan); opacity: 0.7;">ELO rating</a
+				>
+				(K=32, starting at 1200). Matchmaking pairs players with similar ELO.
+			</p>
+
+			<h2
+				class="pt-2 text-sm font-semibold"
+				style="font-family: var(--font-display); color: var(--text-primary);"
+			>
+				Why it matters
+			</h2>
+
+			<p>
+				MCMC methods are used everywhere — from
+				<a
+					href="https://en.wikipedia.org/wiki/Bayesian_inference"
+					target="_blank"
+					rel="noopener"
+					class="underline transition hover:opacity-80"
+					style="color: var(--accent-cyan); opacity: 0.7;">Bayesian inference</a
+				>
+				to protein folding to language models. The core question is always the same: how can we represent
+				a complex distribution with a finite set of samples? This game lets you experience that question
+				firsthand.
+			</p>
+
+			<!-- Footer -->
+			<div
+				class="mt-10 mb-16 flex flex-col gap-4 rounded-2xl px-5 py-6 sm:px-6 sm:py-7"
+				style="background: var(--surface); border: 1px solid var(--border);"
+			>
+				<div class="text-sm" style="color: var(--text-tertiary);">
+					Created by <span style="color: var(--text-secondary);">Neo Mohsenvand</span>
+				</div>
+				<div class="flex flex-wrap gap-5">
+					<a
+						href="https://github.com/NeoVand/MacMac"
+						target="_blank"
+						rel="noopener"
+						class="flex items-center gap-2 text-sm transition hover:opacity-80"
+						style="color: var(--text-secondary);"
+					>
+						<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"
+							><path
+								fill-rule="evenodd"
+								d="M10 0C4.477 0 0 4.484 0 10.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0110 4.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.203 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0020 10.017C20 4.484 15.522 0 10 0z"
+								clip-rule="evenodd"
+							/></svg
+						>
+						GitHub
+					</a>
+				</div>
 			</div>
 		</div>
-	</div>
 	</div>
 </div>
 

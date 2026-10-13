@@ -73,9 +73,33 @@ export function moveSampleX(
 	return null;
 }
 
-/** A scroll, drag or pinch must not accidentally spend a sample. */
+/** Mouse drags should not become accidental clicks; touch aiming has separate release handling. */
 export function isPlotTap(start: PlotPoint, end: PlotPoint): boolean {
 	return Math.hypot(end.x - start.x, end.y - start.y) <= 12;
+}
+
+/** Touch and pen aiming commits once at release, including after a deliberate drag. */
+export function plotReleaseSample(
+	release: {
+		pointerType: string;
+		point: PlotPoint | null;
+		cancelled: boolean;
+		primary: boolean;
+		otherPointers: number;
+	},
+	size: PlotSize,
+	range: readonly [number, number],
+	padding: { left: number; right: number }
+): number | null {
+	if (
+		release.pointerType === 'mouse' ||
+		release.cancelled ||
+		!release.primary ||
+		release.otherPointers > 0 ||
+		!release.point
+	)
+		return null;
+	return plotSampleX(release.point, size, range, padding);
 }
 
 /** The displayed curves use the same peak normalization as the shape-match score. */

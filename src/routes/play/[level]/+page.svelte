@@ -25,7 +25,7 @@
 	import GameCanvas from '$lib/components/GameCanvas.svelte';
 	import ScorePanel from '$lib/components/ScorePanel.svelte';
 	import AppHeader from '$lib/components/AppHeader.svelte';
-	import { Github } from 'lucide-svelte';
+	import { Github, Check, CircleHelp, RotateCcw, Undo2 } from 'lucide-svelte';
 	import RankBadge from '$lib/components/RankBadge.svelte';
 	import { computeSkillLevel, getSkillTier, getTierProgress } from '$lib/game/rating';
 
@@ -89,10 +89,7 @@
 
 	// Countdown
 	const timeLeftMs = $derived(Math.max(0, TIME_LIMIT_MS - elapsedMs));
-	const timerDisplay = $derived.by(() => {
-		const sec = Math.max(0, Math.ceil(timeLeftMs / 1000));
-		return `${sec}s`;
-	});
+
 	const timerPct = $derived(timeLeftMs / TIME_LIMIT_MS);
 	const timerColor = $derived.by(() => {
 		if (timerPct > 0.5) return 'var(--accent-cyan)';
@@ -457,7 +454,7 @@
 					res.status === 401
 						? 'Your session expired. Sign out and sign in again, then retry. Your game is preserved.'
 						: res.status === 409
-							? 'Your score is already saved to another account. Sign in to the original account to view it, or choose Play Again for a new attempt.'
+							? 'Your score is already saved to another account. Sign in to the original account to view it, or choose Play again for a new attempt.'
 							: 'Your score could not be saved. Your game is preserved. Check your connection and retry.'
 				);
 			}
@@ -593,7 +590,7 @@
 		const style = getComputedStyle(document.documentElement);
 		const cyan = style.getPropertyValue('--accent-cyan').trim();
 		const orange = style.getPropertyValue('--accent-orange').trim();
-		ctx.fillStyle = style.getPropertyValue('--canvas-bg').trim();
+		ctx.fillStyle = style.getPropertyValue('--surface').trim();
 		ctx.fillRect(0, 0, w, h);
 		const pad = 12;
 		const pw = w - pad * 2;
@@ -716,6 +713,12 @@
 			: `Next time, spread some samples away from the ${region} of the curve — your shape is too high there.`;
 	});
 
+	const mobileScore = $derived(
+		Math.round(
+			scoreResult.score * (generatedLevel ? 0.55 + generatedLevel.targetDifficulty * 0.15 : 1)
+		)
+	);
+
 	// Display info
 	const levelName = $derived(level ? (generatedLevel?.name ?? 'Generated') : 'Not Found');
 </script>
@@ -740,581 +743,1075 @@
 		</div>
 	</div>
 {:else}
-	<div
-		class="flex h-dvh flex-col overflow-hidden"
-		style="background: radial-gradient(ellipse at 50% 30%, var(--page-bg-center) 0%, var(--page-bg-edge) 70%);"
-	>
+	<div class="solo-game">
 		<AppHeader />
-
-		<div class="solo-guide shrink-0 px-4 pb-2 sm:px-6">
-			<div class="flex items-center justify-between gap-3">
-				<div class="min-w-0">
-					<p class="text-xs font-semibold" style="color: var(--text-primary);">
-						Shape the curve <span class="ml-1 font-normal" style="color: var(--text-tertiary);"
-							>· Solo · 30s</span
-						>
-					</p>
-					<p class="mt-0.5 text-[11px] sm:text-xs" style="color: var(--text-secondary);">
+		<main class="solo-arena">
+			<div class="arena-heading">
+				<div>
+					<h1>Solo run <span class="level-name">{levelName}</span></h1>
+					<p>
 						{samples.length === 0
-							? 'Click anywhere on the chart to start. Aim for the peaks.'
-							: 'Build your shape to match the target. Submit when it fits.'}
+							? 'Place your first sample to start the clock.'
+							: 'Shape your samples to match the target.'}
 					</p>
 				</div>
 				<button
 					type="button"
 					onclick={() => (showHelp = !showHelp)}
-					class="solo-help"
+					class="arena-help"
 					aria-expanded={showHelp}
-					aria-controls="solo-help-details">{showHelp ? 'Close' : 'How to play'}</button
+					aria-controls="solo-help-details"
+					><CircleHelp size={16} />{showHelp ? 'Close guide' : 'How to play'}</button
 				>
 			</div>
 			{#if showHelp}
 				<div id="solo-help-details" class="solo-help-details">
 					<p>
-						Each click adds one sample at that horizontal position. Taller peaks need more samples;
-						lower areas need fewer. The click height doesn't matter.
+						Click anywhere in the chart to place a sample. Higher peaks need more samples; lower
+						areas need fewer. Only the horizontal position matters.
 					</p>
 					<p>
-						The timer starts on your first sample. Improve the match, then submit early for a time
-						bonus. Undo costs no extra clicks.
+						You have 30 seconds from the first sample. Get a close match, then finish early for a
+						time bonus.
 					</p>
 					<p class="solo-keyboard">
-						Chart: <kbd>←</kbd> <kbd>→</kbd> aim · <kbd>Space</kbd> / <kbd>Enter</kbd> place ·
-						<kbd>U</kbd> undo. Use Submit to finish.
+						Chart: <kbd>←</kbd> <kbd>→</kbd> aim <span> / </span><kbd>Space</kbd> place
+						<span> / </span><kbd>U</kbd> undo
 					</p>
 				</div>
 			{/if}
-		</div>
 
-		<!-- Countdown timer -->
-		{#if timerRunning || showDialog || expired}
-			<div class="shrink-0 px-4 pt-1 sm:px-6">
-				<div class="flex items-center gap-2">
-					<div
-						class="relative h-2.5 flex-1 overflow-hidden rounded-full"
-						style="background: color-mix(in srgb, {timerColor} 12%, var(--surface));"
-					>
-						<div
-							class="absolute inset-y-0 left-0 rounded-full transition-all duration-100"
-							style="width: {timerPct *
-								100}%; background: linear-gradient(90deg, color-mix(in srgb, {timerColor} 60%, var(--bg)), {timerColor}, color-mix(in srgb, {timerColor} 50%, white)); {timerUrgent
-								? `box-shadow: 0 0 10px ${timerColor};`
-								: ''}"
-						></div>
+			<div class="arena-hud">
+				<div class="arena-score">
+					<ScorePanel
+						{scoreResult}
+						{elapsedMs}
+						showTime={false}
+						difficultyMultiplier={generatedLevel
+							? 0.55 + generatedLevel.targetDifficulty * 0.15
+							: 1}
+					/>
+				</div>
+				<div class="mobile-score">
+					<span>Score</span><strong>{mobileScore.toLocaleString()}</strong>
+				</div>
+				<div class="mobile-match">
+					<span>Match</span><strong>{scoreResult.matchPct}<small>%</small></strong>
+				</div>
+				<div
+					class="arena-timer"
+					data-urgent={timerUrgent}
+					data-critical={timerCritical}
+					style:--timer-color={timerColor}
+				>
+					<div class="arena-timer-label">
+						<span
+							>{timerRunning
+								? 'Time remaining'
+								: expired || showDialog
+									? 'Run finished'
+									: samples.length > 0
+										? 'Paused'
+										: 'Ready to play'}</span
+						><span class="timer-state-dot"></span>
 					</div>
-					<span
-						class="min-w-[2rem] text-right text-sm font-bold tabular-nums {timerCritical
-							? 'timer-critical'
-							: ''}"
-						style="color: {timerUrgent ? timerColor : 'var(--text-tertiary)'};">{timerDisplay}</span
-					>
+					<div class="arena-timer-number">{Math.ceil(timeLeftMs / 1000)}<span>s</span></div>
+					<div class="arena-time-track" aria-hidden="true">
+						<div style:width="{timerPct * 100}%"></div>
+					</div>
 				</div>
 			</div>
-		{/if}
 
-		<!-- Score panel -->
-		<div class="shrink-0 px-4 pt-1 pb-1 sm:px-6">
-			<ScorePanel
-				{scoreResult}
-				{elapsedMs}
-				difficultyMultiplier={generatedLevel ? 0.55 + generatedLevel.targetDifficulty * 0.15 : 1}
-			/>
-		</div>
+			{#if !showDialog && signInError}
+				<p role="alert" class="arena-notice">{signInError}</p>
+			{:else if !showDialog && samples.length > 0 && !timerRunning}
+				<p role="status" class="arena-notice">
+					Your run is preserved. Click the chart to continue, or finish now.
+				</p>
+			{/if}
 
-		{#if !showDialog && signInError}
-			<p
-				role="alert"
-				class="shrink-0 px-4 pb-1 text-xs sm:px-6"
-				style="color: var(--accent-orange);"
-			>
-				{signInError}
-			</p>
-		{:else if !showDialog && samples.length > 0 && !timerRunning}
-			<p
-				role="status"
-				class="shrink-0 px-4 pb-1 text-xs sm:px-6"
-				style="color: var(--text-secondary);"
-			>
-				Your game is preserved. Click anywhere on the chart to continue, or submit your score.
-			</p>
-		{/if}
-
-		<!-- Canvas -->
-		<div class="relative min-h-0 flex-1 px-2 sm:px-4">
-			<GameCanvas
-				{level}
-				{samples}
-				disabled={expired || showDialog || isSubmitting}
-				onSampleAdd={handleCanvasSample}
-			/>
-		</div>
-
-		<!-- Bottom controls -->
-		<div class="shrink-0 px-4 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 sm:pb-5">
-			<div class="solo-feedback" role="status" aria-live="polite">
-				<span
-					>{lastAction ||
-						(samples.length === 0
-							? 'Your first click starts the clock'
-							: 'Keep shaping — the match updates with every sample')}</span
-				>
-				<span class="solo-key-hint"><kbd>U</kbd> undo · <kbd>Enter</kbd> finish</span>
+			<div class="solo-stage">
+				<GameCanvas
+					{level}
+					{samples}
+					disabled={expired || showDialog || isSubmitting}
+					onSampleAdd={handleCanvasSample}
+				/>
 			</div>
-			<div class="flex items-center justify-between">
-				<div class="flex gap-2">
-					<!-- Undo -->
+
+			<div class="arena-controls">
+				<div class="arena-tools">
 					<button
+						type="button"
 						onclick={undoLast}
 						disabled={samples.length === 0 || expired || showDialog || isSubmitting}
-						class="btn-action"
-						style="--btn-color: var(--accent-purple);"
+						class="arena-tool"><Undo2 size={17} /><span>Undo</span><kbd>U</kbd></button
 					>
-						<span class="btn-action-face">
-							<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"
-								><path
-									fill-rule="evenodd"
-									d="M7.793 2.232a.75.75 0 01-.025 1.06L3.622 7.25h10.003a5.375 5.375 0 010 10.75H10.75a.75.75 0 010-1.5h2.875a3.875 3.875 0 000-7.75H3.622l4.146 3.957a.75.75 0 01-1.036 1.085l-5.5-5.25a.75.75 0 010-1.085l5.5-5.25a.75.75 0 011.06.025z"
-									clip-rule="evenodd"
-								/></svg
-							>
-							Undo
-						</span>
-					</button>
-
-					<!-- Reset / Regenerate -->
 					{#if canReset}
 						<button
+							type="button"
 							onclick={resetSamples}
 							disabled={samples.length === 0 || expired || showDialog || isSubmitting}
-							class="btn-action"
-							style="--btn-color: var(--accent-orange);"
+							class="arena-tool"
+							><RotateCcw size={16} /><span>Reset</span><span class="reset-count">{resetsLeft}</span
+							></button
 						>
-							<span class="btn-action-face">
-								<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"
-									><path
-										fill-rule="evenodd"
-										d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.451a.75.75 0 000-1.5H4.5a.75.75 0 00-.75.75v3.75a.75.75 0 001.5 0v-2.033l.364.363a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39zm-10.624-2.85a5.5 5.5 0 019.201-2.466l.312.311H11.75a.75.75 0 000 1.5H15.5a.75.75 0 00.75-.75V3.42a.75.75 0 00-1.5 0v2.033l-.364-.363A7 7 0 002.674 8.228a.75.75 0 001.449.39z"
-										clip-rule="evenodd"
-									/></svg
-								>
-								Reset&nbsp;({resetsLeft})
-							</span>
-						</button>
 					{:else}
-						<button
-							onclick={regenerateLevel}
-							class="btn-action"
-							style="--btn-color: var(--accent-orange);"
+						<button type="button" onclick={regenerateLevel} class="arena-tool"
+							><RotateCcw size={16} /><span>New curve</span></button
 						>
-							<span class="btn-action-face">
-								<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"
-									><path
-										fill-rule="evenodd"
-										d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.451a.75.75 0 000-1.5H4.5a.75.75 0 00-.75.75v3.75a.75.75 0 001.5 0v-2.033l.364.363a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39zm-10.624-2.85a5.5 5.5 0 019.201-2.466l.312.311H11.75a.75.75 0 000 1.5H15.5a.75.75 0 00.75-.75V3.42a.75.75 0 00-1.5 0v2.033l-.364-.363A7 7 0 002.674 8.228a.75.75 0 001.449.39z"
-										clip-rule="evenodd"
-									/></svg
-								>
-								Regenerate
-							</span>
-						</button>
 					{/if}
 				</div>
-
-				<!-- Submit -->
+				<div class="solo-feedback" role="status" aria-live="polite">
+					{lastAction ||
+						(samples.length === 0
+							? 'The clock starts with your first sample.'
+							: 'Every sample changes your shape.')}
+				</div>
 				<button
+					type="button"
 					onclick={openSubmit}
 					disabled={samples.length < 1 || showDialog || isSubmitting}
-					class="btn-action"
-					style="--btn-color: var(--accent-cyan);"
+					class="arena-finish"><Check size={18} />Finish run</button
 				>
-					<span class="btn-action-face">
-						<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"
-							><path
-								fill-rule="evenodd"
-								d="M10 17a.75.75 0 01-.75-.75V5.612L5.29 9.77a.75.75 0 01-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z"
-								clip-rule="evenodd"
-							/></svg
-						>
-						Submit
-					</span>
-				</button>
 			</div>
-		</div>
+		</main>
 	</div>
 
-	<!-- Submit dialog (terminal — no dismiss) -->
+	<!-- Finished-run results keep the next action beside the core summary. -->
 	{#if showDialog}
-		<div
-			class="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm"
-			style="background: var(--overlay);"
-		>
+		<div class="result-overlay" style="background: var(--overlay);">
 			<div
-				class="relative mx-4 w-full max-w-sm rounded-2xl p-5 shadow-2xl"
-				style="background: var(--bg); border: 1px solid var(--border);"
+				class="result-shell"
+				role="dialog"
+				aria-modal="true"
+				aria-labelledby="solo-result-heading"
 			>
-				<h2 class="mb-1 text-xl font-bold" style="color: var(--text-primary);">
-					{expired ? 'Time’s up!' : 'Curve complete'}
-				</h2>
-				<p class="mb-4 text-xs" style="color: var(--text-secondary);">{coachingTip}</p>
-
-				<!-- Replay -->
-				<canvas
-					{@attach attachReplayCanvas}
-					class="mb-4 h-28 w-full rounded-lg sm:h-36"
-					style="background: var(--canvas-bg);"
+				<div class="result-title-row">
+					<h2 id="solo-result-heading" class="result-heading">
+						{expired ? 'Time’s up' : 'Run complete'}
+					</h2>
+					{#if submitted}<span class="result-saved">Score saved</span>{/if}
+				</div>
+				<div class="result-score">
+					<span>Final score</span><strong
+						>{(weightedScore > 0 ? weightedScore : scoreResult.score).toLocaleString()}</strong
+					>
+				</div>
+				<canvas {@attach attachReplayCanvas} class="result-replay" style="background: transparent;"
 				></canvas>
-
-				<div
-					class="mb-4 flex justify-center gap-5 text-[10px]"
-					style="color: var(--text-secondary);"
-				>
-					<span><span style="color: var(--accent-cyan);">━</span> Target</span>
-					<span><span style="color: var(--accent-orange);">┄</span> Your shape</span>
+				<div class="result-legend" style="color: var(--text-secondary);">
+					<span><span style="color: var(--accent-cyan);">━</span> Target</span><span
+						><span style="color: var(--accent-orange);">┄</span> Your shape</span
+					>
 				</div>
-
-				<!-- Stats -->
-				<div class="mb-4 flex justify-between text-center">
+				<div class="result-stats">
 					<div>
-						<div class="text-[9px] tracking-wider uppercase" style="color: var(--text-tertiary);">
-							Score
-						</div>
-						<div class="text-lg font-bold tabular-nums" style="color: var(--text-primary);">
-							{(weightedScore > 0 ? weightedScore : scoreResult.score).toLocaleString()}
-						</div>
+						<span>Shape match</span><strong style="color: var(--accent-cyan);"
+							>{scoreResult.matchPct}<small>%</small></strong
+						>
 					</div>
+					<div><span>Clicks</span><strong>{totalClicks}</strong></div>
 					<div>
-						<div class="text-[9px] tracking-wider uppercase" style="color: var(--text-tertiary);">
-							Match
-						</div>
-						<div class="text-lg font-bold tabular-nums" style="color: #4ade80;">
-							{scoreResult.matchPct}%
-						</div>
-					</div>
-					<div>
-						<div class="text-[9px] tracking-wider uppercase" style="color: var(--text-tertiary);">
-							Clicks
-						</div>
-						<div class="text-lg font-bold tabular-nums" style="color: var(--accent-orange);">
-							{totalClicks}
-						</div>
-					</div>
-					<div>
-						<div class="text-[9px] tracking-wider uppercase" style="color: var(--text-tertiary);">
-							Time
-						</div>
-						<div class="text-lg font-bold tabular-nums" style="color: var(--accent-cyan);">
-							{(elapsedMs / 1000).toFixed(1)}s
-						</div>
+						<span>Time used</span><strong>{(elapsedMs / 1000).toFixed(1)}<small>s</small></strong>
 					</div>
 				</div>
-
-				{#if signInError || submissionError}
-					<p role="alert" class="mb-3 text-xs" style="color: var(--accent-orange);">
-						{signInError || submissionError}
-					</p>
-				{/if}
-
-				{#if !$session.data}
-					{#if anonPreviewSkillLevel !== null}
-						{@const tier = getSkillTier(anonPreviewSkillLevel)}
-						{@const progress = getTierProgress(anonPreviewSkillLevel)}
-						<div class="mb-3 flex flex-col items-center gap-1">
-							<div class="flex items-center gap-2">
-								<RankBadge skillLevel={anonPreviewSkillLevel} size="lg" />
-								<span class="text-lg font-bold tabular-nums" style="color: {tier.color};">
-									{tier.name}
-								</span>
-							</div>
-							<div class="w-full max-w-[200px]">
-								<div
-									class="flex items-center justify-between text-[9px]"
-									style="color: var(--text-tertiary);"
-								>
-									<span style="color: {tier.color};">{tier.name}</span>
-									<span>{Math.round(progress * 100)}%</span>
-								</div>
-								<div
-									class="mt-0.5 h-1.5 w-full overflow-hidden rounded-full"
-									style="background: color-mix(in srgb, {tier.color} 15%, var(--surface));"
-								>
-									<div
-										class="h-full rounded-full"
-										style="width: {progress * 100}%; background: {tier.color};"
-									></div>
-								</div>
-							</div>
-						</div>
-					{/if}
-					<p class="mb-3 text-center text-xs" style="color: var(--text-tertiary);">
-						Sign in to save this score and claim your rank. Your game will be preserved.
-					</p>
-					<div class="mb-3 flex flex-col gap-2">
+				<div class="result-actions">
+					{#if $session.data && !submitted}
 						<button
-							onclick={() => signInWith('github')}
-							disabled={isSigningIn || $session.isPending}
-							class="flex h-9 items-center justify-center gap-2 rounded-lg text-xs font-medium transition hover:opacity-80"
-							style="background: var(--surface); color: var(--text-secondary); border: 1px solid var(--border);"
-						>
-							<Github size={14} /> Continue with GitHub
-						</button>
-						<button
-							onclick={() => signInWith('google')}
-							disabled={isSigningIn || $session.isPending}
-							class="flex h-9 items-center justify-center gap-2 rounded-lg text-xs font-medium transition hover:opacity-80"
-							style="background: var(--surface); color: var(--text-secondary); border: 1px solid var(--border);"
-						>
-							<svg viewBox="0 0 24 24" class="h-3.5 w-3.5"
-								><path
-									d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
-									fill="#4285F4"
-								/><path
-									d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-									fill="#34A853"
-								/><path
-									d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-									fill="#FBBC05"
-								/><path
-									d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-									fill="#EA4335"
-								/></svg
-							>
-							Continue with Google
-						</button>
-					</div>
-					<div class="flex gap-2">
-						<a
-							href={resolve('/')}
-							class="btn-action flex-1"
-							style="--btn-color: var(--text-secondary);"
-						>
-							<span class="btn-action-face w-full justify-center">Home</span>
-						</a>
-						<button
-							onclick={playAgain}
+							type="button"
+							onclick={submitScore}
 							disabled={isSubmitting || isSigningIn}
-							class="btn-action flex-1"
-							style="--btn-color: var(--accent-cyan);"
+							class="result-button result-save"
+							>{isSubmitting ? 'Saving…' : submissionError ? 'Retry saving' : 'Save score'}</button
 						>
-							<span class="btn-action-face w-full justify-center">Play Again</span>
-						</button>
-					</div>
-				{:else if submitted}
-					<!-- Post-submit -->
-					<div class="mb-3 text-center text-sm font-semibold" style="color: #4ade80;">
-						Score submitted!
-					</div>
-
-					<!-- Skill level + rank badge + tier progress -->
-					{#if submitted && submittedSkillLevel !== null}
-						<div class="mb-4 flex flex-col items-center gap-1.5">
-							{#if submittedRankUp && submittedTierName}
-								<div
-									class="rank-up-anim mb-1 text-center text-xs font-bold tracking-wider uppercase"
-									style="color: {submittedTierColor};"
-								>
-									Rank Up! — {submittedTierName}
+					{:else}
+						<a href={resolve('/')} class="result-button result-home">Home</a>
+					{/if}
+					<button
+						type="button"
+						onclick={playAgain}
+						disabled={isSubmitting || isSigningIn}
+						class="result-button result-primary">Play again</button
+					>
+				</div>
+				<details class="result-details" open={Boolean(signInError || submissionError)}>
+					<summary
+						>{!$session.data ? 'Save score, rank & tips' : 'Rank & tips'}<span aria-hidden="true"
+							>⌄</span
+						></summary
+					>
+					<div class="result-details-body">
+						<p class="result-coaching">{coachingTip}</p>
+						{#if signInError || submissionError}<p
+								role="alert"
+								class="mb-3 text-xs"
+								style="color: var(--accent-orange);"
+							>
+								{signInError || submissionError}
+							</p>{/if}
+						{#if !$session.data}
+							{#if anonPreviewSkillLevel !== null}
+								{@const tier = getSkillTier(anonPreviewSkillLevel)}
+								{@const progress = getTierProgress(anonPreviewSkillLevel)}
+								<div class="mb-3 flex flex-col items-center gap-1">
+									<div class="flex items-center gap-2">
+										<RankBadge skillLevel={anonPreviewSkillLevel} size="lg" />
+										<span class="text-lg font-bold tabular-nums" style="color: {tier.color};">
+											{tier.name}
+										</span>
+									</div>
+									<div class="w-full max-w-[200px]">
+										<div
+											class="flex items-center justify-between text-[9px]"
+											style="color: var(--text-tertiary);"
+										>
+											<span style="color: {tier.color};">{tier.name}</span>
+											<span>{Math.round(progress * 100)}%</span>
+										</div>
+										<div
+											class="mt-0.5 h-1.5 w-full overflow-hidden rounded-full"
+											style="background: color-mix(in srgb, {tier.color} 15%, var(--surface));"
+										>
+											<div
+												class="h-full rounded-full"
+												style="width: {progress * 100}%; background: {tier.color};"
+											></div>
+										</div>
+									</div>
 								</div>
 							{/if}
-							<div class="flex items-center gap-2">
-								<RankBadge skillLevel={submittedSkillLevel} size="lg" />
-								<div class="flex flex-col">
-									<span class="text-lg font-bold tabular-nums" style="color: {submittedTierColor};">
-										{submittedSkillLevel.toLocaleString()}
-									</span>
-									{#if submittedOldSkillLevel !== null}
-										{@const delta = submittedSkillLevel - submittedOldSkillLevel}
-										<span
-											class="text-[10px] font-semibold tabular-nums"
-											style="color: {delta >= 0 ? 'var(--win-green)' : 'var(--loss-red)'};"
+							<p class="mb-3 text-center text-xs" style="color: var(--text-tertiary);">
+								Sign in to save this score and claim your rank. Your game will be preserved.
+							</p>
+							<div class="mb-3 flex flex-col gap-2">
+								<button
+									onclick={() => signInWith('github')}
+									disabled={isSigningIn || $session.isPending}
+									class="result-auth"
+									style="background: var(--surface-raised); color: var(--text-secondary);"
+								>
+									<Github size={14} /> Save with GitHub
+								</button>
+								<button
+									onclick={() => signInWith('google')}
+									disabled={isSigningIn || $session.isPending}
+									class="result-auth"
+									style="background: var(--surface-raised); color: var(--text-secondary);"
+								>
+									<svg viewBox="0 0 24 24" class="h-3.5 w-3.5"
+										><path
+											d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
+											fill="#4285F4"
+										/><path
+											d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+											fill="#34A853"
+										/><path
+											d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+											fill="#FBBC05"
+										/><path
+											d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+											fill="#EA4335"
+										/></svg
+									>
+									Save with Google
+								</button>
+							</div>
+						{:else if submitted}
+							<!-- Post-submit -->
+							<div class="mb-3 text-center text-sm font-semibold" style="color: var(--win-green);">
+								Score saved
+							</div>
+
+							<!-- Skill level + rank badge + tier progress -->
+							{#if submitted && submittedSkillLevel !== null}
+								<div class="mb-4 flex flex-col items-center gap-1.5">
+									{#if submittedRankUp && submittedTierName}
+										<div
+											class="rank-up-anim mb-1 text-center text-xs font-bold tracking-wider uppercase"
+											style="color: {submittedTierColor};"
 										>
-											{delta >= 0 ? '+' : ''}{delta}
-										</span>
+											New rank: {submittedTierName}
+										</div>
 									{/if}
+									<div class="flex items-center gap-2">
+										<RankBadge skillLevel={submittedSkillLevel} size="lg" />
+										<div class="flex flex-col">
+											<span
+												class="text-lg font-bold tabular-nums"
+												style="color: {submittedTierColor};"
+											>
+												{submittedSkillLevel.toLocaleString()}
+											</span>
+											{#if submittedOldSkillLevel !== null}
+												{@const delta = submittedSkillLevel - submittedOldSkillLevel}
+												<span
+													class="text-[10px] font-semibold tabular-nums"
+													style="color: {delta >= 0 ? 'var(--win-green)' : 'var(--loss-red)'};"
+												>
+													{delta >= 0 ? '+' : ''}{delta}
+												</span>
+											{/if}
+										</div>
+									</div>
+									<!-- Tier progress bar -->
+									<div class="mt-1 w-full max-w-[200px]">
+										<div
+											class="flex items-center justify-between text-[9px]"
+											style="color: var(--text-tertiary);"
+										>
+											<span style="color: {getSkillTier(submittedSkillLevel).color};"
+												>{getSkillTier(submittedSkillLevel).name}</span
+											>
+											<span>{Math.round(getTierProgress(submittedSkillLevel) * 100)}%</span>
+										</div>
+										<div
+											class="mt-0.5 h-1.5 w-full overflow-hidden rounded-full"
+											style="background: color-mix(in srgb, {getSkillTier(submittedSkillLevel)
+												.color} 15%, var(--surface));"
+										>
+											<div
+												class="h-full rounded-full transition-all"
+												style="width: {getTierProgress(submittedSkillLevel) *
+													100}%; background: {getSkillTier(submittedSkillLevel).color};"
+											></div>
+										</div>
+									</div>
 								</div>
-							</div>
-							<!-- Tier progress bar -->
-							<div class="mt-1 w-full max-w-[200px]">
-								<div
-									class="flex items-center justify-between text-[9px]"
-									style="color: var(--text-tertiary);"
-								>
-									<span style="color: {getSkillTier(submittedSkillLevel).color};"
-										>{getSkillTier(submittedSkillLevel).name}</span
-									>
-									<span>{Math.round(getTierProgress(submittedSkillLevel) * 100)}%</span>
-								</div>
-								<div
-									class="mt-0.5 h-1.5 w-full overflow-hidden rounded-full"
-									style="background: color-mix(in srgb, {getSkillTier(submittedSkillLevel)
-										.color} 15%, var(--surface));"
-								>
-									<div
-										class="h-full rounded-full transition-all"
-										style="width: {getTierProgress(submittedSkillLevel) *
-											100}%; background: {getSkillTier(submittedSkillLevel).color};"
-									></div>
-								</div>
-							</div>
-						</div>
-					{/if}
+							{/if}
 
-					{#if submitted && submittedRank !== null}
-						<div class="mb-3 text-center text-sm font-bold" style="color: var(--accent-cyan);">
-							Leaderboard rank: #{submittedRank}
-						</div>
-					{/if}
-					<div class="flex gap-2">
-						<a
-							href={resolve('/')}
-							class="btn-action flex-1"
-							style="--btn-color: var(--text-secondary);"
-						>
-							<span class="btn-action-face w-full justify-center">Home</span>
-						</a>
-						<button
-							onclick={playAgain}
-							disabled={isSubmitting || isSigningIn}
-							class="btn-action flex-1"
-							style="--btn-color: var(--accent-cyan);"
-						>
-							<span class="btn-action-face w-full justify-center">Play Again</span>
-						</button>
-					</div>
-				{:else}
-					<!-- Pre-submit: confirm -->
-					<!-- Skill level preview -->
-					{#if previewSkillLevel !== null && currentSkillLevel !== null}
-						{@const newTier = getSkillTier(previewSkillLevel)}
-						{@const progress = getTierProgress(previewSkillLevel)}
-						{@const delta = previewSkillLevel - currentSkillLevel}
-						<div class="mb-3 flex flex-col items-center gap-1">
-							<div class="flex items-center gap-2">
-								<RankBadge skillLevel={previewSkillLevel} size="lg" />
-								<div class="flex flex-col">
-									<span class="text-lg font-bold tabular-nums" style="color: {newTier.color};">
-										{previewSkillLevel.toLocaleString()}
-									</span>
-									<span
-										class="text-[10px] font-semibold tabular-nums"
-										style="color: {delta >= 0 ? 'var(--win-green)' : 'var(--loss-red)'};"
-									>
-										{delta >= 0 ? '+' : ''}{delta}
-									</span>
+							{#if submitted && submittedRank !== null}
+								<div class="mb-3 text-center text-sm font-bold" style="color: var(--accent-cyan);">
+									Leaderboard rank: #{submittedRank}
 								</div>
-							</div>
-							<div class="w-full max-w-[200px]">
-								<div
-									class="flex items-center justify-between text-[9px]"
-									style="color: var(--text-tertiary);"
-								>
-									<span style="color: {newTier.color};">{newTier.name}</span>
-									<span>{Math.round(progress * 100)}%</span>
+							{/if}
+						{:else}
+							<!-- Pre-submit: confirm -->
+							<!-- Skill level preview -->
+							{#if previewSkillLevel !== null && currentSkillLevel !== null}
+								{@const newTier = getSkillTier(previewSkillLevel)}
+								{@const progress = getTierProgress(previewSkillLevel)}
+								{@const delta = previewSkillLevel - currentSkillLevel}
+								<div class="mb-3 flex flex-col items-center gap-1">
+									<div class="flex items-center gap-2">
+										<RankBadge skillLevel={previewSkillLevel} size="lg" />
+										<div class="flex flex-col">
+											<span class="text-lg font-bold tabular-nums" style="color: {newTier.color};">
+												{previewSkillLevel.toLocaleString()}
+											</span>
+											<span
+												class="text-[10px] font-semibold tabular-nums"
+												style="color: {delta >= 0 ? 'var(--win-green)' : 'var(--loss-red)'};"
+											>
+												{delta >= 0 ? '+' : ''}{delta}
+											</span>
+										</div>
+									</div>
+									<div class="w-full max-w-[200px]">
+										<div
+											class="flex items-center justify-between text-[9px]"
+											style="color: var(--text-tertiary);"
+										>
+											<span style="color: {newTier.color};">{newTier.name}</span>
+											<span>{Math.round(progress * 100)}%</span>
+										</div>
+										<div
+											class="mt-0.5 h-1.5 w-full overflow-hidden rounded-full"
+											style="background: color-mix(in srgb, {newTier.color} 15%, var(--surface));"
+										>
+											<div
+												class="h-full rounded-full transition-all"
+												style="width: {progress * 100}%; background: {newTier.color};"
+											></div>
+										</div>
+									</div>
 								</div>
-								<div
-									class="mt-0.5 h-1.5 w-full overflow-hidden rounded-full"
-									style="background: color-mix(in srgb, {newTier.color} 15%, var(--surface));"
-								>
-									<div
-										class="h-full rounded-full transition-all"
-										style="width: {progress * 100}%; background: {newTier.color};"
-									></div>
-								</div>
-							</div>
-						</div>
-					{/if}
+							{/if}
 
-					<div
-						class="mb-4 flex items-center gap-3 rounded-lg px-3 py-2"
-						style="background: var(--surface); border: 1px solid var(--border);"
-					>
-						{#if $session.data.user.image}
-							<img src={$session.data.user.image} alt="" class="h-7 w-7 rounded-full" />
+							<div class="mb-4 flex items-center gap-3 rounded-lg px-3 py-2">
+								{#if $session.data.user.image}
+									<img src={$session.data.user.image} alt="" class="h-7 w-7 rounded-full" />
+								{/if}
+								<div class="text-sm font-medium" style="color: var(--text-primary); opacity: 0.7;">
+									{$session.data.user.name}
+								</div>
+							</div>
 						{/if}
-						<div class="text-sm font-medium" style="color: var(--text-primary); opacity: 0.7;">
-							{$session.data.user.name}
-						</div>
+						{#if $session.data && !submitted}<a href={resolve('/')} class="result-back-home"
+								>Back to home</a
+							>{/if}
 					</div>
-					<div class="flex gap-2">
-						<button
-							onclick={submitScore}
-							disabled={isSubmitting}
-							class="btn-action flex-1"
-							style="--btn-color: var(--accent-cyan);"
-						>
-							<span class="btn-action-face w-full justify-center"
-								>{isSubmitting ? 'Saving…' : submissionError ? 'Retry saving' : 'Submit'}</span
-							>
-						</button>
-					</div>
-				{/if}
+				</details>
 			</div>
 		</div>
 	{/if}
 {/if}
 
 <style>
-	.solo-help {
-		flex-shrink: 0;
-		padding: 7px 9px;
-		border: 1px solid var(--border);
-		border-radius: 9px;
-		color: var(--text-secondary);
-		font-size: 10px;
-		font-weight: 600;
-		cursor: pointer;
+	.mobile-score,
+	.mobile-match {
+		display: none;
 	}
-	.solo-help:hover {
-		background: var(--surface);
+	.result-title-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+	}
+	.result-saved {
+		color: var(--win-green);
+		font-size: 11px;
+	}
+	.result-actions {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 10px;
+		margin-top: 7px;
+	}
+	.result-save {
+		background: var(--surface-raised);
 		color: var(--text-primary);
 	}
-	.solo-help:focus-visible {
-		outline: 2px solid var(--accent-cyan);
-		outline-offset: 3px;
+	.result-details {
+		margin-top: 12px;
+	}
+	.result-details summary {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		min-height: 44px;
+		list-style: none;
+		color: var(--text-secondary);
+		font-size: 12px;
+		cursor: pointer;
+	}
+	.result-details summary::-webkit-details-marker {
+		display: none;
+	}
+	.result-details summary span {
+		font-size: 18px;
+	}
+	.result-details[open] summary span {
+		transform: rotate(180deg);
+	}
+	.result-details summary:focus-visible {
+		outline: none;
+		text-decoration: underline;
+		text-underline-offset: 4px;
+	}
+	.result-details-body {
+		padding-top: 3px;
+	}
+	.result-details-body .result-coaching {
+		margin: 0 0 18px;
+	}
+	.result-back-home {
+		display: block;
+		min-height: 44px;
+		padding: 13px 0;
+		color: var(--text-secondary);
+		text-align: center;
+		font-size: 12px;
+	}
+
+	.solo-game {
+		display: flex;
+		flex-direction: column;
+		height: 100dvh;
+		overflow: hidden;
+		background: var(--bg);
+	}
+	.solo-arena {
+		position: relative;
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		min-height: 0;
+		width: 100%;
+		max-width: 1440px;
+		margin: 0 auto;
+		padding: 4px clamp(16px, 3vw, 40px) max(20px, env(safe-area-inset-bottom));
+	}
+	.arena-heading {
+		display: flex;
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: space-between;
+		gap: 18px;
+		margin-bottom: 14px;
+	}
+	.arena-heading h1 {
+		margin: 0;
+		color: var(--text-primary);
+		font-family: var(--font-display);
+		font-size: 26px;
+		font-weight: 600;
+		letter-spacing: -1px;
+	}
+	.level-name {
+		display: inline-block;
+		margin-left: 12px;
+		color: var(--text-secondary);
+		font-family: var(--font-body);
+		font-size: 12px;
+		font-weight: 500;
+		letter-spacing: 0;
+	}
+	.arena-heading p {
+		margin-top: 5px;
+		font-size: 13px;
+		color: var(--text-secondary);
+	}
+	.arena-help {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		min-height: 40px;
+		flex-shrink: 0;
+		padding: 0 12px;
+		color: var(--text-secondary);
+		font-size: 12px;
+		cursor: pointer;
+		border-radius: 9px;
+	}
+	.arena-help:hover {
+		color: var(--text-primary);
+		background: var(--surface);
 	}
 	.solo-help-details {
-		margin-top: 10px;
 		display: grid;
 		gap: 8px;
-		max-width: 650px;
-		padding: 12px 14px;
-		border: 1px solid var(--border);
-		border-radius: 12px;
-		background: var(--surface);
+		padding: 4px 0 14px;
+		margin: -4px 0 14px;
+
+		background: transparent;
 		color: var(--text-secondary);
-		font-size: 11px;
-		line-height: 1.5;
+		font-size: 12px;
+		line-height: 1.6;
+	}
+	.solo-help-details p {
+		max-width: 78ch;
 	}
 	.solo-keyboard {
 		color: var(--text-tertiary);
 	}
-	.solo-feedback {
-		min-height: 23px;
+	.solo-keyboard span {
+		padding: 0 6px;
+	}
+	.arena-hud {
+		display: flex;
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: space-between;
+		gap: 28px;
+		padding: 14px 0;
+		margin-bottom: 14px;
+
+		border-radius: 0;
+		background: transparent;
+	}
+	.arena-score {
+		min-width: 0;
+	}
+	.arena-timer {
+		width: 154px;
+		flex-shrink: 0;
+		color: var(--text-primary);
+	}
+	.arena-timer-label {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: 10px;
-		padding-bottom: 7px;
+		font-size: 11px;
 		color: var(--text-secondary);
+	}
+	.timer-state-dot {
+		width: 5px;
+		height: 5px;
+		border-radius: 50%;
+		background: var(--timer-color);
+	}
+	.arena-timer-number {
+		margin-top: 2px;
+		font-family: var(--font-display);
+		font-size: 35px;
+		font-weight: 600;
+		line-height: 1.2;
+		letter-spacing: -1.5px;
+		font-variant-numeric: tabular-nums;
+	}
+	.arena-timer-number span {
+		margin-left: 4px;
+		font-size: 17px;
+		font-weight: 400;
+		letter-spacing: 0;
+		color: var(--text-tertiary);
+	}
+	.arena-time-track {
+		height: 3px;
+		margin-top: 8px;
+		overflow: hidden;
+		border-radius: 2px;
+		background: var(--border);
+	}
+	.arena-time-track div {
+		height: 100%;
+		background: var(--timer-color);
+		transition: width 100ms linear;
+	}
+	.arena-timer[data-urgent='true'] .arena-timer-number {
+		color: var(--timer-color);
+	}
+	.arena-timer[data-critical='true'] .arena-timer-label {
+		color: var(--timer-color);
+	}
+	.arena-notice {
+		margin: 0 0 10px;
+		flex-shrink: 0;
+		font-size: 12px;
+		color: var(--accent-orange);
+	}
+	.solo-stage {
+		position: relative;
+		min-height: 0;
+		flex: 1;
+	}
+	.arena-controls {
+		display: flex;
+		flex-shrink: 0;
+		align-items: center;
+		justify-content: space-between;
+		gap: 22px;
+		padding-top: 17px;
+	}
+	.arena-tools {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		flex-shrink: 0;
+	}
+	.arena-tool {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+		min-height: 45px;
+		padding: 0 14px;
+
+		border-radius: 10px;
+		color: var(--text-secondary);
+		background: transparent;
+		font-size: 12px;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.arena-tool:hover:enabled {
+		background: var(--surface);
+		color: var(--text-primary);
+	}
+	.arena-tool:disabled {
+		opacity: 0.35;
+		cursor: default;
+	}
+	.reset-count {
+		font-variant-numeric: tabular-nums;
+		padding: 0 5px;
+		border-radius: 4px;
+		background: var(--surface);
+		color: var(--text-tertiary);
 		font-size: 10px;
 	}
-	.solo-key-hint {
+	.solo-feedback {
+		color: var(--text-secondary);
+		font-size: 12px;
+		text-align: center;
+	}
+	.arena-finish {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 9px;
 		flex-shrink: 0;
+		min-height: 46px;
+		min-width: 146px;
+		padding: 0 20px;
+		border-radius: 11px;
+		background: var(--accent-cyan);
+		color: var(--on-accent);
+		font-family: var(--font-display);
+		font-size: 12px;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.arena-finish:hover:enabled {
+		filter: brightness(1.08);
+	}
+	.arena-finish:disabled {
+		background: var(--surface);
 		color: var(--text-tertiary);
+		cursor: default;
+	}
+	.arena-help:focus-visible,
+	.arena-tool:focus-visible,
+	.arena-finish:focus-visible,
+	.result-button:focus-visible,
+	.result-auth:focus-visible {
+		outline: none;
+		text-decoration: underline;
+		text-underline-offset: 4px;
 	}
 	kbd {
 		display: inline-block;
-		min-width: 14px;
-		padding: 0 3px;
-		border: 1px solid var(--border);
-		border-radius: 3px;
-		background: var(--surface);
+		min-width: 17px;
+		padding: 1px 4px;
+
+		border-radius: 4px;
+		color: var(--text-secondary);
+		font-family: var(--font-body);
+		font-size: 10px;
 		text-align: center;
-		font-family: inherit;
-		font-size: 9px;
 	}
-	@media (max-width: 500px) {
-		.solo-key-hint {
+	.result-overlay {
+		position: fixed;
+		inset: 0;
+		z-index: 80;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 16px;
+		backdrop-filter: blur(12px);
+	}
+	.result-shell {
+		position: relative;
+		width: 100%;
+		max-width: 500px;
+		max-height: calc(100dvh - 32px);
+		overflow-y: auto;
+		padding: 26px;
+
+		border-radius: 20px;
+		background: var(--surface);
+		color: var(--text-primary);
+		box-shadow: 0 30px 100px #0005;
+	}
+	.result-heading {
+		color: var(--text-primary);
+		font-family: var(--font-display);
+		font-size: 22px;
+		font-weight: 600;
+		letter-spacing: -0.8px;
+	}
+	.result-score {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 20px;
+		padding: 18px 0 22px;
+	}
+	.result-score span {
+		color: var(--text-secondary);
+		font-size: 12px;
+	}
+	.result-score strong {
+		font-family: var(--font-display);
+		font-size: 46px;
+		font-weight: 600;
+		line-height: 1;
+		letter-spacing: -2px;
+		font-variant-numeric: tabular-nums;
+	}
+	.result-replay {
+		width: 100%;
+		height: 145px;
+
+		border-radius: 0;
+	}
+	.result-legend {
+		display: flex;
+		justify-content: center;
+		gap: 24px;
+		padding: 10px 0 17px;
+		font-size: 11px;
+	}
+	.result-stats {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		padding: 17px 0;
+	}
+	.result-stats div {
+		display: grid;
+		gap: 5px;
+		text-align: center;
+	}
+	.result-stats span {
+		color: var(--text-secondary);
+		font-size: 11px;
+	}
+	.result-stats strong {
+		font-family: var(--font-display);
+		font-size: 24px;
+		font-weight: 600;
+		letter-spacing: -0.7px;
+		font-variant-numeric: tabular-nums;
+	}
+	.result-stats small {
+		margin-left: 2px;
+		font-size: 14px;
+	}
+	.result-coaching {
+		margin: 16px 0 20px;
+		color: var(--text-secondary);
+		font-size: 12px;
+		line-height: 1.6;
+	}
+	.result-auth {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 9px;
+		min-height: 42px;
+		width: 100%;
+		border-radius: 9px;
+		font-size: 12px;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.result-button {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex: 1;
+		min-height: 44px;
+		padding: 0 16px;
+		border-radius: 10px;
+		font-size: 12px;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.result-home {
+		color: var(--text-secondary);
+	}
+	.result-primary {
+		background: var(--accent-cyan);
+		color: var(--on-accent);
+	}
+	.result-button:hover:enabled,
+	.result-auth:hover:enabled {
+		filter: brightness(1.08);
+	}
+	.result-button:disabled,
+	.result-auth:disabled {
+		opacity: 0.45;
+		cursor: default;
+	}
+	@media (max-width: 640px) {
+		.solo-arena {
+			padding: 0 12px max(10px, env(safe-area-inset-bottom));
+		}
+		.arena-heading {
+			min-height: 40px;
+			margin-bottom: 6px;
+			gap: 8px;
+		}
+		.arena-heading h1 {
+			font-size: 20px;
+		}
+		.arena-heading p {
 			display: none;
+		}
+		.level-name {
+			margin-left: 8px;
+			font-size: 10px;
+		}
+		.arena-help {
+			width: 44px;
+			height: 44px;
+			min-height: 44px;
+			padding: 0;
+			font-size: 0;
+			gap: 0;
+		}
+		.arena-help :global(svg) {
+			width: 19px;
+			height: 19px;
+		}
+		.solo-help-details {
+			position: absolute;
+			z-index: 70;
+			top: 46px;
+			left: 12px;
+			right: 12px;
+			max-height: calc(100dvh - 130px);
+			overflow-y: auto;
+			margin: 0;
+			padding: 16px;
+			border-radius: 14px;
+			background: var(--surface);
+			box-shadow: 0 12px 45px #0004;
+		}
+		.arena-hud {
+			display: grid;
+			grid-template-columns: 1fr 1fr 84px;
+			align-items: center;
+			gap: 14px;
+			padding: 7px 0 11px;
+			margin-bottom: 5px;
+		}
+		.arena-score {
+			display: none;
+		}
+		.mobile-score,
+		.mobile-match {
+			display: flex;
+			flex-direction: column;
+			gap: 4px;
+			min-width: 0;
+		}
+		.mobile-score > span,
+		.mobile-match > span {
+			color: var(--text-secondary);
+			font-size: 10px;
+		}
+		.mobile-score strong {
+			font-family: var(--font-display);
+			font-size: 28px;
+			font-weight: 600;
+			line-height: 1;
+			letter-spacing: -1px;
+			font-variant-numeric: tabular-nums;
+		}
+		.mobile-match strong {
+			font-family: var(--font-display);
+			font-size: 24px;
+			font-weight: 600;
+			line-height: 1;
+			color: var(--accent-cyan);
+			font-variant-numeric: tabular-nums;
+		}
+		.mobile-match small {
+			margin-left: 2px;
+			font-size: 15px;
+		}
+		.arena-timer {
+			width: 84px;
+		}
+		.arena-timer-label {
+			font-size: 9px;
+		}
+		.arena-timer-number {
+			font-size: 30px;
+		}
+		.arena-timer-number span {
+			font-size: 14px;
+		}
+		.arena-controls {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr) 1.05fr;
+			align-items: center;
+			gap: 7px 10px;
+			padding-top: 10px;
+		}
+		.arena-tools {
+			display: grid;
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: 2px;
+			min-width: 0;
+		}
+		.arena-tool {
+			min-width: 0;
+			min-height: 46px;
+			padding: 0 3px;
+			gap: 4px;
+			font-size: 11px;
+		}
+		.arena-tool kbd {
+			display: none;
+		}
+		.reset-count {
+			padding: 0 2px;
+			font-size: 9px;
+		}
+		.arena-finish {
+			width: 100%;
+			min-width: 0;
+			min-height: 46px;
+			padding: 0 8px;
+			font-size: 12px;
+		}
+		.solo-feedback {
+			grid-column: 1 / -1;
+			grid-row: 2;
+			min-height: 12px;
+			font-size: 10px;
+			text-align: left;
+		}
+		.result-overlay {
+			padding: 10px;
+		}
+		.result-shell {
+			max-height: calc(100dvh - 20px);
+			padding: 18px;
+		}
+		.result-heading {
+			font-size: 22px;
+		}
+		.result-score {
+			padding: 14px 0 17px;
+		}
+		.result-score strong {
+			font-size: 40px;
+		}
+		.result-replay {
+			height: 112px;
+		}
+		.result-legend {
+			padding: 8px 0 10px;
+		}
+		.result-stats {
+			padding: 10px 0;
+		}
+		.result-stats strong {
+			font-size: 22px;
+		}
+		.result-actions {
+			margin-top: 9px;
+		}
+		.result-button {
+			min-height: 46px;
+			padding: 0 10px;
+			font-size: 12px;
+		}
+		.result-details {
+			margin-top: 6px;
+		}
+	}
+	@media (max-width: 640px) and (max-height: 620px) {
+		.arena-heading {
+			margin-bottom: 0;
+		}
+		.arena-hud {
+			padding-top: 3px;
+			padding-bottom: 8px;
+			margin-bottom: 3px;
+		}
+		.result-shell {
+			padding: 15px 17px;
+		}
+		.result-score {
+			padding: 10px 0 14px;
+		}
+		.result-replay {
+			height: 98px;
+		}
+		.result-stats {
+			padding: 9px 0;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.arena-time-track div {
+			transition: none;
 		}
 	}
 </style>
