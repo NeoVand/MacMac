@@ -1,4 +1,4 @@
-import { integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 /** Player profile — one row per player, holds all stats and ratings. */
 export const players = sqliteTable('players', {
@@ -41,5 +41,30 @@ export const scores = sqliteTable('scores', {
 		.notNull()
 		.$defaultFn(() => new Date())
 });
+
+/** A save receipt makes retries safe, including a lost response after a committed score. */
+export const scoreSubmissions = sqliteTable('score_submissions', {
+	id: text('id').primaryKey(),
+	userId: text('user_id').notNull(),
+	response: text('response').notNull(),
+	createdAt: integer('created_at', { mode: 'timestamp' })
+		.notNull()
+		.$defaultFn(() => new Date())
+});
+
+/** One signed participant result may be claimed once; one account gets one result per battle. */
+export const battleClaims = sqliteTable(
+	'battle_claims',
+	{
+		id: text('id').primaryKey(),
+		battleId: text('battle_id').notNull(),
+		userId: text('user_id').notNull(),
+		response: text('response').notNull(),
+		createdAt: integer('created_at', { mode: 'timestamp' })
+			.notNull()
+			.$defaultFn(() => new Date())
+	},
+	(table) => [uniqueIndex('battle_claims_user_battle').on(table.userId, table.battleId)]
+);
 
 export * from './auth.schema';

@@ -1,4 +1,5 @@
-import type * as Party from 'partykit/server';
+import { Server, type Connection } from 'partyserver';
+import type { Env } from './env';
 
 /**
  * Matchmaker — single global Durable Object managing the queue.
@@ -52,35 +53,29 @@ const BASE_ELO_RANGE = 200;
 const ELO_RANGE_EXPANSION = 100; // per 10s waiting
 const MATCH_CHECK_INTERVAL_MS = 2000;
 
-export default class Matchmaker implements Party.Server {
+export class Matchmaker extends Server<Env> {
 	private queue: Map<string, QueueEntry> = new Map();
 	private matchTimer: ReturnType<typeof setInterval> | null = null;
 
-	constructor(readonly room: Party.Room) {}
+	// Matches and queues use in-memory state and active timers.
+	static options = { hibernate: false };
 
 	/**
 	 * HTTP endpoint for lightweight polling: GET /parties/matchmaker/global
 	 * Returns { searching: <number> } — how many players are in the queue.
 	 */
-	async onRequest(req: Party.Request): Promise<Response> {
-		return new Response(
-			JSON.stringify({ searching: this.queue.size }),
-			{
-				status: 200,
-				headers: {
-					'Content-Type': 'application/json',
-					'Access-Control-Allow-Origin': '*',
-					'Cache-Control': 'no-store'
-				}
+	onRequest(): Response {
+		return new Response(JSON.stringify({ searching: this.queue.size }), {
+			status: 200,
+			headers: {
+				'Content-Type': 'application/json',
+				'Access-Control-Allow-Origin': '*',
+				'Cache-Control': 'no-store'
 			}
-		);
+		});
 	}
 
-	onConnect(conn: Party.Connection) {
-		// Wait for join_queue message
-	}
-
-	onClose(conn: Party.Connection) {
+	onClose(conn: Connection) {
 		// Remove from queue
 		for (const [id, entry] of this.queue) {
 			if (entry.connectionId === conn.id) {
@@ -91,7 +86,8 @@ export default class Matchmaker implements Party.Server {
 		this.updateMatchTimer();
 	}
 
-	onMessage(message: string, sender: Party.Connection) {
+	onMessage(sender: Connection, message: string | ArrayBuffer) {
+		if (typeof message !== 'string') return;
 		let msg: MatchmakerClientMessage;
 		try {
 			msg = JSON.parse(message);
@@ -109,7 +105,7 @@ export default class Matchmaker implements Party.Server {
 		}
 	}
 
-	private handleJoinQueue(msg: JoinQueueMessage, conn: Party.Connection) {
+	private handleJoinQueue(msg: JoinQueueMessage, conn: Connection) {
 		// Remove any existing entry for this player
 		this.queue.delete(msg.playerId);
 
@@ -123,18 +119,20 @@ export default class Matchmaker implements Party.Server {
 		});
 
 		// Send queue status
-		conn.send(JSON.stringify({
-			type: 'queue_status',
-			position: this.queue.size,
-			waitingCount: this.queue.size
-		} satisfies QueueStatusMessage));
+		conn.send(
+			JSON.stringify({
+				type: 'queue_status',
+				position: this.queue.size,
+				waitingCount: this.queue.size
+			} satisfies QueueStatusMessage)
+		);
 
 		// Try to match immediately
 		this.tryMatch();
 		this.updateMatchTimer();
 	}
 
-	private handleLeaveQueue(conn: Party.Connection) {
+	private handleLeaveQueue(conn: Connection) {
 		for (const [id, entry] of this.queue) {
 			if (entry.connectionId === conn.id) {
 				this.queue.delete(id);
@@ -191,7 +189,8 @@ export default class Matchmaker implements Party.Server {
 		const seed = Date.now();
 		const avgElo = (a.battleElo + b.battleElo) / 2;
 		// Map ELO to difficulty: 1200 → ~4, 1600 → ~7, 800 → ~2
-		const targetDifficulty = Math.round(Math.max(1, Math.min(10, 2 + (avgElo - 800) * 0.0075)) * 10) / 10;
+		const targetDifficulty =
+			Math.round(Math.max(1, Math.min(10, 2 + (avgElo - 800) * 0.0075)) * 10) / 10;
 		const battleId = `${seed}-${targetDifficulty}`;
 
 		// Send match_found to both players
@@ -199,36 +198,33 @@ export default class Matchmaker implements Party.Server {
 		const connB = this.getConnection(b.connectionId);
 
 		if (connA) {
-			connA.send(JSON.stringify({
-				type: 'match_found',
-				battleId,
-				seed,
-				targetDifficulty,
-				opponentName: b.playerName,
-				opponentElo: b.battleElo,
-				opponentCountry: b.country
-			} satisfies MatchFoundMessage));
+			connA.send(
+				JSON.stringify({
+					type: 'match_found',
+					battleId,
+					seed,
+					targetDifficulty,
+					opponentName: b.playerName,
+					opponentElo: b.battleElo,
+					opponentCountry: b.country
+				} satisfies MatchFoundMessage)
+			);
 		}
 
 		if (connB) {
-			connB.send(JSON.stringify({
-				type: 'match_found',
-				battleId,
-				seed,
-				targetDifficulty,
-				opponentName: a.playerName,
-				opponentElo: a.battleElo,
-				opponentCountry: a.country
-			} satisfies MatchFoundMessage));
+			connB.send(
+				JSON.stringify({
+					type: 'match_found',
+					battleId,
+					seed,
+					targetDifficulty,
+					opponentName: a.playerName,
+					opponentElo: a.battleElo,
+					opponentCountry: a.country
+				} satisfies MatchFoundMessage)
+			);
 		}
 
 		this.updateMatchTimer();
-	}
-
-	private getConnection(id: string): Party.Connection | undefined {
-		for (const conn of this.room.getConnections()) {
-			if (conn.id === id) return conn;
-		}
-		return undefined;
 	}
 }

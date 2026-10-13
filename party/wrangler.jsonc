@@ -1,0 +1,14 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "macmac-battle",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-10-12",
+	"compatibility_flags": ["nodejs_compat"],
+	"durable_objects": {
+		"bindings": [
+			{ "name": "Main", "class_name": "BattleServer" },
+			{ "name": "Matchmaker", "class_name": "Matchmaker" }
+		]
+	},
+	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["BattleServer", "Matchmaker"] }]
+}

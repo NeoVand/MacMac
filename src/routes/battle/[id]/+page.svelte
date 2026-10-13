@@ -1,19 +1,25 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
-	import { goto } from '$app/navigation';
+	import { afterNavigate, beforeNavigate, goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { reconstructLevel } from '$lib/game/generator';
 	import { getFullScore, type ScoreResult } from '$lib/game/scoring';
 	import { linspace } from '$lib/game/math';
 	import { computeKDE } from '$lib/game/kde';
 	import { joinBattle } from '$lib/battle/client';
-	import type { ServerMessage } from '$lib/battle/protocol';
+	import type { BattleEndMessage, ServerMessage } from '$lib/battle/protocol';
 	import type { Level } from '$lib/game/levels';
 	import GameCanvas from '$lib/components/GameCanvas.svelte';
 	import AppHeader from '$lib/components/AppHeader.svelte';
 	import RankBadge from '$lib/components/RankBadge.svelte';
 	import { getBattleTier, getBattleTierProgress } from '$lib/game/elo';
-	import { authClient } from '$lib/auth-client';
+	import { authClient, preventSignIn, signInWithProvider } from '$lib/auth-client';
+	import {
+		clearPendingBattle,
+		readPendingBattle,
+		writePendingBattle
+	} from '$lib/game/pending-battle';
 	import { resolvePlayerName } from '$lib/utils/player-name';
 	import { Github, Swords } from 'lucide-svelte';
 
@@ -52,13 +58,27 @@
 	let battleRankUp = $state(false);
 	let reportedNewElo = $state<number | null>(null);
 	let opponentSamples = $state<number[]>([]);
+	let isSigningIn = $state(false);
+	let signInError = $state('');
+	let isReporting = $state(false);
+	let reportSaved = $state(false);
+	let reportError = $state('');
+	let activeBattle = '';
+	let connectedPlayerId = '';
+	let battleSeed = 0;
+	let battleDifficulty = 0;
+	let completedResult = $state.raw<BattleEndMessage | null>(null);
+	let pendingReport = false;
+	let requestSent = false;
+	let mounted = false;
+	let connTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	// Replay state
-	let replayCanvas: HTMLCanvasElement | undefined = $state();
+	let replayCanvas: HTMLCanvasElement | undefined;
 	let replayTimer: number = 0;
 	let showYou = $state(true);
 	let showOpponent = $state(true);
-	let replayIdx = $state(0);
+	let replayIdx = 0;
 	let yourReplayKde: number[] = [];
 	let oppReplayKde: number[] = [];
 	let replayXs: number[] = [];
@@ -75,7 +95,15 @@
 	const REPLAY_FADE_LERP = 0.22;
 
 	// Score tracking
-	const emptyScore: ScoreResult = { mse: 1, clicks: 0, score: 0, matchPct: 0, matchScore: 0, timeBonus: 0, histogramData: [] };
+	const emptyScore: ScoreResult = {
+		mse: 1,
+		clicks: 0,
+		score: 0,
+		matchPct: 0,
+		matchScore: 0,
+		timeBonus: 0,
+		histogramData: []
+	};
 	let scoreResult: ScoreResult = $state({ ...emptyScore });
 
 	let socket: ReturnType<typeof joinBattle> | null = null;
@@ -104,17 +132,78 @@
 	const battleTimerCritical = $derived(timeLeftMs <= 5000);
 
 	async function signInWith(provider: 'github' | 'google') {
-		await authClient.signIn.social({ provider, callbackURL: window.location.href });
+		if (isSigningIn) return;
+		isSigningIn = true;
+		signInError = '';
+		try {
+			await signInWithProvider(provider);
+		} catch (error) {
+			signInError = error instanceof Error ? error.message : 'Sign-in failed. Please try again.';
+		} finally {
+			isSigningIn = false;
+		}
+	}
+
+	function handleBeforeSignIn(event: Event) {
+		if (phase !== 'ended' && phase !== 'expired') {
+			signInError =
+				'Finish this battle before signing in. Signing in now would disconnect you, and an active battle cannot be resumed.';
+			preventSignIn(event, signInError);
+			return;
+		}
+		if (phase !== 'ended' || reportSaved) return;
+		pendingReport = !!completedResult?.resultToken;
+		if (!persistBattleResult()) {
+			signInError =
+				'Your browser could not preserve this battle result. Enable browser storage and try again.';
+			preventSignIn(event, signInError);
+		}
+	}
+
+	function handleSignInFailed() {
+		pendingReport = false;
+		signInError = 'Sign-in could not start. Your battle result is preserved. Please try again.';
+		persistBattleResult();
+	}
+
+	function persistBattleResult(): boolean {
+		if (phase !== 'ended' || !completedResult || reportSaved) return true;
+		return writePendingBattle({
+			version: 1,
+			battleId: activeBattle,
+			playerId: connectedPlayerId,
+			seed: battleSeed,
+			targetDifficulty: battleDifficulty,
+			durationMs,
+			result: { ...completedResult, opponentSamples: [...opponentSamples] },
+			samples: [...samples],
+			opponentName,
+			opponentElo,
+			opponentCountry,
+			isJackpot,
+			jackpotMatchPct,
+			showYou,
+			showOpponent,
+			pendingReport,
+			requestSent
+		});
+	}
+
+	function toggleReplay(which: 'you' | 'opponent') {
+		if (which === 'you') showYou = !showYou;
+		else showOpponent = !showOpponent;
+		persistBattleResult();
 	}
 
 	function countryFlag(code: string | null): string {
-		if (!code || code.length !== 2) return '';
+		if (!code || !/^[a-z]{2}$/i.test(code)) return '';
 		return String.fromCodePoint(
 			...[...code.toUpperCase()].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65)
 		);
 	}
 
 	function handleMessage(msg: ServerMessage) {
+		if (phase === 'ended') return;
 		switch (msg.type) {
 			case 'waiting':
 				phase = 'waiting';
@@ -126,6 +215,8 @@
 				break;
 
 			case 'start': {
+				battleSeed = msg.seed;
+				battleDifficulty = msg.targetDifficulty;
 				const gen = reconstructLevel(msg.seed, msg.targetDifficulty);
 				level = gen;
 				opponentName = msg.opponentName;
@@ -187,9 +278,22 @@
 				}
 
 				stopCountdownTimer();
-				if (msg.resultToken) {
-					reportBattleResult(msg.resultToken);
-				}
+				completedResult = {
+					type: 'battle_end',
+					won,
+					winnerId,
+					winnerName,
+					yourScore,
+					yourMatchPct: yourMatchPct_result,
+					opponentScore,
+					opponentMatchPct: opponentMatchPct_result,
+					yourEloDelta,
+					resultToken: msg.resultToken,
+					opponentSamples: [...opponentSamples]
+				};
+				pendingReport = !!msg.resultToken;
+				persistBattleResult();
+				maybeSyncSession();
 				startBattleReplay();
 				break;
 			}
@@ -218,28 +322,72 @@
 		cancelAnimationFrame(timerHandle);
 	}
 
-	async function reportBattleResult(resultToken: string) {
-		if (isAnonymous) return;
+	async function reportBattleResult() {
+		const resultToken = completedResult?.resultToken;
+		if (
+			!resultToken ||
+			isAnonymous ||
+			$session.isPending ||
+			isReporting ||
+			reportSaved ||
+			phase !== 'ended'
+		)
+			return;
+		const requestBattle = activeBattle;
+		isReporting = true;
+		pendingReport = false;
+		requestSent = true;
+		reportError = '';
+		persistBattleResult();
 		try {
 			const res = await fetch('/api/battles/report', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ resultToken })
 			});
-			if (res.ok) {
-				const data = await res.json();
-				if (data.tierName) battleTierName = data.tierName;
-				if (data.tierColor) battleTierColor = data.tierColor;
-				if (data.rankUp) battleRankUp = true;
-				if (typeof data.newElo === 'number') reportedNewElo = data.newElo;
+			const data = await res.json();
+			if (!res.ok || data.success !== true) {
+				throw new Error(
+					res.status === 409
+						? 'Your battle result is already saved to another account. Sign in to the original account to view it.'
+						: res.status === 401
+							? 'Your session expired. Sign in again, then retry saving. Your replay is preserved.'
+							: res.status === 400 || res.status === 403
+								? 'Your battle result could not be claimed. Its signed claim may have expired. The replay is preserved; you can retry or start a new battle.'
+								: 'Your battle result could not be saved. It is preserved. Check your connection and retry saving.'
+				);
 			}
-		} catch {
-			// Non-critical — don't disrupt the results screen
+			clearPendingBattle(requestBattle, resultToken);
+			if (activeBattle !== requestBattle || completedResult?.resultToken !== resultToken) return;
+			reportSaved = true;
+			signInError = '';
+			if (data.tierName) battleTierName = data.tierName;
+			if (data.tierColor) battleTierColor = data.tierColor;
+			battleRankUp = !!data.rankUp;
+			if (typeof data.newElo === 'number') reportedNewElo = data.newElo;
+		} catch (error) {
+			if (activeBattle !== requestBattle || completedResult?.resultToken !== resultToken) return;
+			reportError =
+				error instanceof Error && error.message.startsWith('Your ')
+					? error.message
+					: 'Your battle result could not be saved. It is preserved. Check your connection and retry saving.';
+			persistBattleResult();
+		} finally {
+			if (activeBattle === requestBattle && completedResult?.resultToken === resultToken)
+				isReporting = false;
 		}
+	}
+
+	function attachReplayCanvas(canvas: HTMLCanvasElement) {
+		replayCanvas = canvas;
+		return () => {
+			if (replayCanvas === canvas) replayCanvas = undefined;
+		};
 	}
 
 	function startBattleReplay() {
 		if (!level) return;
+		cancelAnimationFrame(replayTimer);
 		const [xMin, xMax] = level.xRange;
 		replayXs = linspace(xMin, xMax, 200);
 		replayIdx = 0;
@@ -250,7 +398,6 @@
 		replayPauseTimer = 0;
 		replayFadeTimer = 0;
 		replayFadeFactor = 1;
-
 		const maxClicks = Math.max(samples.length, opponentSamples.length);
 
 		function frame() {
@@ -293,8 +440,10 @@
 			if (replayPhase !== 'fadingOut') {
 				const yourSlice = samples.slice(0, Math.min(replayIdx, samples.length));
 				const oppSlice = opponentSamples.slice(0, Math.min(replayIdx, opponentSamples.length));
-				const yourTarget = yourSlice.length > 0 ? computeKDE(yourSlice, replayXs) : new Array(200).fill(0);
-				const oppTarget = oppSlice.length > 0 ? computeKDE(oppSlice, replayXs) : new Array(200).fill(0);
+				const yourTarget =
+					yourSlice.length > 0 ? computeKDE(yourSlice, replayXs) : new Array(200).fill(0);
+				const oppTarget =
+					oppSlice.length > 0 ? computeKDE(oppSlice, replayXs) : new Array(200).fill(0);
 				for (let i = 0; i < 200; i++) {
 					yourReplayKde[i] += (yourTarget[i] - yourReplayKde[i]) * 0.12;
 					oppReplayKde[i] += (oppTarget[i] - oppReplayKde[i]) * 0.12;
@@ -327,7 +476,8 @@
 		ctx.fillRect(0, 0, w, h);
 
 		const pad = 12;
-		const pw = w - pad * 2, ph = h - pad * 2;
+		const pw = w - pad * 2,
+			ph = h - pad * 2;
 		const [xMin, xMax] = level.xRange;
 		const pdfVals = replayXs.map((x) => level!.pdf(x));
 		const pdfMax = Math.max(...pdfVals) || 1;
@@ -356,7 +506,8 @@
 			ctx.beginPath();
 			for (let i = 0; i < replayXs.length; i++) {
 				const sy = toY(pdfVals[i] * scale);
-				i === 0 ? ctx.moveTo(toX(replayXs[i]), sy) : ctx.lineTo(toX(replayXs[i]), sy);
+				if (i === 0) ctx.moveTo(toX(replayXs[i]), sy);
+				else ctx.lineTo(toX(replayXs[i]), sy);
 			}
 			ctx.globalAlpha = alpha;
 			ctx.strokeStyle = accentCyan;
@@ -365,8 +516,6 @@
 			ctx.globalAlpha = 1;
 		}
 
-		const maxClicks = Math.max(samples.length, opponentSamples.length);
-
 		// Your KDE + samples (orange)
 		if (showYou && replayIdx > 0 && replayFadeFactor > 0.01) {
 			ctx.globalAlpha = replayFadeFactor;
@@ -374,7 +523,8 @@
 			ctx.beginPath();
 			for (let i = 0; i < replayXs.length; i++) {
 				const sy = toY(Math.min(yourReplayKde[i], yMax * 0.99));
-				i === 0 ? ctx.moveTo(toX(replayXs[i]), sy) : ctx.lineTo(toX(replayXs[i]), sy);
+				if (i === 0) ctx.moveTo(toX(replayXs[i]), sy);
+				else ctx.lineTo(toX(replayXs[i]), sy);
 			}
 			ctx.lineTo(toX(replayXs[replayXs.length - 1]), baseY);
 			ctx.lineTo(toX(replayXs[0]), baseY);
@@ -391,17 +541,25 @@
 			ctx.setLineDash([4, 3]);
 			for (let i = 0; i < replayXs.length; i++) {
 				const sy = toY(Math.min(yourReplayKde[i], yMax * 0.99));
-				i === 0 ? ctx.moveTo(toX(replayXs[i]), sy) : ctx.lineTo(toX(replayXs[i]), sy);
+				if (i === 0) ctx.moveTo(toX(replayXs[i]), sy);
+				else ctx.lineTo(toX(replayXs[i]), sy);
 			}
 			ctx.stroke();
 			ctx.setLineDash([]);
 			// Dots
-			const yourSlice = replayPhase === 'fadingOut' ? samples : samples.slice(0, Math.min(replayIdx, samples.length));
+			const yourSlice =
+				replayPhase === 'fadingOut'
+					? samples
+					: samples.slice(0, Math.min(replayIdx, samples.length));
 			for (const sp of yourSlice) {
 				ctx.fillStyle = 'rgba(251,146,60,0.25)';
-				ctx.beginPath(); ctx.arc(toX(sp), baseY, 5, 0, Math.PI * 2); ctx.fill();
+				ctx.beginPath();
+				ctx.arc(toX(sp), baseY, 5, 0, Math.PI * 2);
+				ctx.fill();
 				ctx.fillStyle = 'rgba(251,146,60,0.9)';
-				ctx.beginPath(); ctx.arc(toX(sp), baseY, 3, 0, Math.PI * 2); ctx.fill();
+				ctx.beginPath();
+				ctx.arc(toX(sp), baseY, 3, 0, Math.PI * 2);
+				ctx.fill();
 			}
 			ctx.globalAlpha = 1;
 		}
@@ -413,7 +571,8 @@
 			ctx.beginPath();
 			for (let i = 0; i < replayXs.length; i++) {
 				const sy = toY(Math.min(oppReplayKde[i], yMax * 0.99));
-				i === 0 ? ctx.moveTo(toX(replayXs[i]), sy) : ctx.lineTo(toX(replayXs[i]), sy);
+				if (i === 0) ctx.moveTo(toX(replayXs[i]), sy);
+				else ctx.lineTo(toX(replayXs[i]), sy);
 			}
 			ctx.lineTo(toX(replayXs[replayXs.length - 1]), baseY);
 			ctx.lineTo(toX(replayXs[0]), baseY);
@@ -430,17 +589,25 @@
 			ctx.setLineDash([4, 3]);
 			for (let i = 0; i < replayXs.length; i++) {
 				const sy = toY(Math.min(oppReplayKde[i], yMax * 0.99));
-				i === 0 ? ctx.moveTo(toX(replayXs[i]), sy) : ctx.lineTo(toX(replayXs[i]), sy);
+				if (i === 0) ctx.moveTo(toX(replayXs[i]), sy);
+				else ctx.lineTo(toX(replayXs[i]), sy);
 			}
 			ctx.stroke();
 			ctx.setLineDash([]);
 			// Dots
-			const oppSlice = replayPhase === 'fadingOut' ? opponentSamples : opponentSamples.slice(0, Math.min(replayIdx, opponentSamples.length));
+			const oppSlice =
+				replayPhase === 'fadingOut'
+					? opponentSamples
+					: opponentSamples.slice(0, Math.min(replayIdx, opponentSamples.length));
 			for (const sp of oppSlice) {
 				ctx.fillStyle = 'rgba(236,72,153,0.25)';
-				ctx.beginPath(); ctx.arc(toX(sp), baseY, 5, 0, Math.PI * 2); ctx.fill();
+				ctx.beginPath();
+				ctx.arc(toX(sp), baseY, 5, 0, Math.PI * 2);
+				ctx.fill();
 				ctx.fillStyle = 'rgba(236,72,153,0.9)';
-				ctx.beginPath(); ctx.arc(toX(sp), baseY, 3, 0, Math.PI * 2); ctx.fill();
+				ctx.beginPath();
+				ctx.arc(toX(sp), baseY, 3, 0, Math.PI * 2);
+				ctx.fill();
 			}
 			ctx.globalAlpha = 1;
 		}
@@ -456,36 +623,114 @@
 		scoreResult = { ...getFullScore(samples, level, elapsed), clicks: samples.length };
 	}
 
+	afterNavigate(() => initializeBattle(battleId));
+	beforeNavigate(() => {
+		persistBattleResult();
+	});
 	onMount(() => {
-		// Small delay to ensure session is loaded
-		const timeout = setTimeout(() => {
-			socket = joinBattle(
-				battleId,
-				myPlayerId,
-				myName,
-				1200, // default ELO, server has actual value
-				null, // country not available on battle page (set via matchmaker)
-				handleMessage,
-				(err) => console.error('Battle connection error:', err)
-			);
-		}, 100);
-
-		// Safety timeout: if stuck on connecting for too long, show expired
-		const connTimeout = setTimeout(() => {
-			if (phase === 'connecting') {
-				phase = 'expired';
-			}
-		}, 8000);
-
+		mounted = true;
+		const unsubscribe = session.subscribe(() => queueMicrotask(maybeSyncSession));
 		return () => {
-			clearTimeout(timeout);
+			mounted = false;
+			unsubscribe();
+			persistBattleResult();
 			clearTimeout(connTimeout);
 			stopCountdownTimer();
 			cancelAnimationFrame(replayTimer);
 			socket?.close();
 		};
 	});
+
+	function initializeBattle(nextBattle: string) {
+		if (activeBattle === nextBattle) return;
+		persistBattleResult();
+		socket?.close();
+		socket = null;
+		stopCountdownTimer();
+		cancelAnimationFrame(replayTimer);
+		clearTimeout(connTimeout);
+		activeBattle = nextBattle;
+		const saved = readPendingBattle(nextBattle);
+		completedResult = saved?.result ?? null;
+		connectedPlayerId = saved?.playerId ?? '';
+		battleSeed = saved?.seed ?? 0;
+		battleDifficulty = saved?.targetDifficulty ?? 0;
+		level = saved ? reconstructLevel(saved.seed, saved.targetDifficulty) : null;
+		samples = saved?.samples ?? [];
+		opponentSamples = saved?.result.opponentSamples ?? [];
+		opponentName = saved?.opponentName ?? 'Opponent';
+		opponentElo = saved?.opponentElo ?? 1200;
+		opponentCountry = saved?.opponentCountry ?? null;
+		durationMs = saved?.durationMs ?? 20000;
+		timeLeftMs = saved ? 0 : durationMs;
+		showYou = saved?.showYou ?? true;
+		showOpponent = saved?.showOpponent ?? true;
+		isJackpot = saved?.isJackpot ?? false;
+		jackpotMatchPct = saved?.jackpotMatchPct ?? 0;
+		won = saved?.result.won ?? false;
+		winnerId = saved?.result.winnerId ?? '';
+		winnerName = saved?.result.winnerName ?? '';
+		yourScore = saved?.result.yourScore ?? 0;
+		yourMatchPct_result = saved?.result.yourMatchPct ?? 0;
+		opponentScore = saved?.result.opponentScore ?? 0;
+		opponentMatchPct_result = saved?.result.opponentMatchPct ?? 0;
+		yourEloDelta = saved?.result.yourEloDelta ?? 0;
+		pendingReport = saved?.pendingReport ?? false;
+		requestSent = saved?.requestSent ?? false;
+		isReporting = false;
+		reportSaved = false;
+		reportedNewElo = null;
+		battleTierName = null;
+		battleTierColor = null;
+		battleRankUp = false;
+		reportError = requestSent
+			? 'Your battle result has not been confirmed. Retry saving to check it.'
+			: '';
+		signInError = page.url.searchParams.has('error')
+			? 'Sign-in was cancelled or failed. Your battle result is preserved. Try again.'
+			: '';
+		phase = saved ? 'ended' : 'connecting';
+		if (saved) startBattleReplay();
+		else
+			connTimeout = setTimeout(() => {
+				if (phase === 'connecting') phase = 'expired';
+			}, 8000);
+		queueMicrotask(maybeSyncSession);
+	}
+
+	function maybeSyncSession() {
+		if (!mounted || $session.isPending) return;
+		if (phase === 'ended') {
+			if (pendingReport && !isAnonymous) void reportBattleResult();
+			return;
+		}
+		if (phase !== 'connecting' || socket || !activeBattle) return;
+		const connectingBattle = activeBattle;
+		connectedPlayerId = myPlayerId;
+		socket = joinBattle(
+			connectingBattle,
+			connectedPlayerId,
+			myName,
+			1200,
+			null,
+			(msg) => {
+				if (activeBattle === connectingBattle) handleMessage(msg);
+			},
+			(err) => console.error('Battle connection error:', err)
+		);
+	}
 </script>
+
+<svelte:window
+	onmacmacbeforesignin={handleBeforeSignIn}
+	onmacmacsigninfailed={handleSignInFailed}
+	onpagehide={() => {
+		persistBattleResult();
+	}}
+	onbeforeunload={() => {
+		persistBattleResult();
+	}}
+/>
 
 <svelte:head>
 	<title>Battle — macmac</title>
@@ -493,18 +738,27 @@
 
 {#if phase === 'connecting' || phase === 'waiting'}
 	<!-- Waiting for opponent -->
-	<div class="flex h-dvh flex-col" style="background: radial-gradient(ellipse at 50% 30%, var(--page-bg-center) 0%, var(--page-bg-edge) 70%);">
-		<AppHeader  />
+	<div
+		class="flex h-dvh flex-col"
+		style="background: radial-gradient(ellipse at 50% 30%, var(--page-bg-center) 0%, var(--page-bg-edge) 70%);"
+	>
+		<AppHeader />
 		<div class="flex flex-1 flex-col items-center justify-center gap-4">
 			<div class="relative flex h-14 w-14 items-center justify-center">
-				<div class="absolute inset-0 animate-spin rounded-full" style="border: 2px solid transparent; border-top-color: var(--accent-red); animation-duration: 1.2s;"></div>
+				<div
+					class="absolute inset-0 animate-spin rounded-full"
+					style="border: 2px solid transparent; border-top-color: var(--accent-red); animation-duration: 1.2s;"
+				></div>
 				<Swords class="h-6 w-6" style="color: var(--accent-red);" strokeWidth={2} />
 			</div>
 			<div class="text-sm font-medium" style="color: var(--text-secondary);">
 				{phase === 'connecting' ? 'Connecting...' : 'Waiting for opponent...'}
 			</div>
 			<button
-				onclick={() => { socket?.close(); goto('/'); }}
+				onclick={() => {
+					socket?.close();
+					goto(resolve('/'));
+				}}
 				class="btn-action mt-2"
 				style="--btn-color: var(--text-tertiary);"
 			>
@@ -512,15 +766,22 @@
 			</button>
 		</div>
 	</div>
-
 {:else if phase === 'countdown'}
 	<!-- Countdown overlay -->
-	<div class="flex h-dvh flex-col" style="background: radial-gradient(ellipse at 50% 30%, var(--page-bg-center) 0%, var(--page-bg-edge) 70%);">
-		<AppHeader  />
+	<div
+		class="flex h-dvh flex-col"
+		style="background: radial-gradient(ellipse at 50% 30%, var(--page-bg-center) 0%, var(--page-bg-edge) 70%);"
+	>
+		<AppHeader />
 		<div class="flex flex-1 flex-col items-center justify-center gap-3">
 			<div class="text-sm font-medium" style="color: var(--text-secondary);">
-				vs <span style="color: var(--text-primary);">{#if opponentCountry}{countryFlag(opponentCountry)} {/if}{opponentName}</span>
-				<span class="ml-1 text-[10px] tabular-nums" style="color: var(--accent-purple);">ELO {opponentElo}</span>
+				vs <span style="color: var(--text-primary);"
+					>{#if opponentCountry}{countryFlag(opponentCountry)}
+					{/if}{opponentName}</span
+				>
+				<span class="ml-1 text-[10px] tabular-nums" style="color: var(--accent-purple);"
+					>ELO {opponentElo}</span
+				>
 			</div>
 			<div
 				class="text-8xl font-black tabular-nums sm:text-9xl"
@@ -530,25 +791,43 @@
 			</div>
 		</div>
 	</div>
-
 {:else if phase === 'playing' && level}
 	<!-- Battle gameplay -->
-	<div class="flex h-dvh flex-col overflow-hidden" style="background: radial-gradient(ellipse at 50% 30%, var(--page-bg-center) 0%, var(--page-bg-edge) 70%);">
-		<AppHeader  />
+	<div
+		class="flex h-dvh flex-col overflow-hidden"
+		style="background: radial-gradient(ellipse at 50% 30%, var(--page-bg-center) 0%, var(--page-bg-edge) 70%);"
+	>
+		<AppHeader />
 
 		<!-- Battle HUD -->
 		<div class="flex shrink-0 items-center justify-between px-4 pb-1.5 sm:px-6">
 			<!-- Your score -->
 			<div class="flex items-center gap-3">
 				<div>
-					<div class="text-[9px] font-medium uppercase tracking-wider" style="color: var(--text-tertiary);">You</div>
-					<div class="text-lg font-bold tabular-nums leading-none" style="color: var(--accent-cyan);">
+					<div
+						class="text-[9px] font-medium tracking-wider uppercase"
+						style="color: var(--text-tertiary);"
+					>
+						You
+					</div>
+					<div
+						class="text-lg leading-none font-bold tabular-nums"
+						style="color: var(--accent-cyan);"
+					>
 						{scoreResult.matchPct}%
 					</div>
 				</div>
 				<div>
-					<div class="text-[9px] font-medium uppercase tracking-wider" style="color: var(--text-tertiary);">Score</div>
-					<div class="text-lg font-bold tabular-nums leading-none" style="color: var(--text-primary);">
+					<div
+						class="text-[9px] font-medium tracking-wider uppercase"
+						style="color: var(--text-tertiary);"
+					>
+						Score
+					</div>
+					<div
+						class="text-lg leading-none font-bold tabular-nums"
+						style="color: var(--text-primary);"
+					>
 						{scoreResult.score.toLocaleString()}
 					</div>
 				</div>
@@ -567,14 +846,23 @@
 			<!-- Opponent -->
 			<div class="flex items-center gap-3 text-right">
 				<div>
-					<div class="text-[9px] font-medium uppercase tracking-wider" style="color: var(--text-tertiary);">Match</div>
-					<div class="text-lg font-bold tabular-nums leading-none" style="color: rgba(236,72,153,0.8);">
+					<div
+						class="text-[9px] font-medium tracking-wider uppercase"
+						style="color: var(--text-tertiary);"
+					>
+						Match
+					</div>
+					<div
+						class="text-lg leading-none font-bold tabular-nums"
+						style="color: rgba(236,72,153,0.8);"
+					>
 						{opponentMatchPct}%
 					</div>
 				</div>
 				<div>
-					<div class="text-sm font-semibold leading-none" style="color: var(--text-primary);">
-						{#if opponentCountry}{countryFlag(opponentCountry)} {/if}{opponentName}
+					<div class="text-sm leading-none font-semibold" style="color: var(--text-primary);">
+						{#if opponentCountry}{countryFlag(opponentCountry)}
+						{/if}{opponentName}
 					</div>
 					<div class="mt-0.5 text-[10px] tabular-nums" style="color: var(--accent-purple);">
 						ELO {opponentElo}
@@ -584,10 +872,16 @@
 		</div>
 
 		<!-- Time progress bar -->
-		<div class="mx-4 mb-1 overflow-hidden rounded-full sm:mx-6" style="height: 10px; background: color-mix(in srgb, {battleTimerColor} 12%, var(--surface));">
+		<div
+			class="mx-4 mb-1 overflow-hidden rounded-full sm:mx-6"
+			style="height: 10px; background: color-mix(in srgb, {battleTimerColor} 12%, var(--surface));"
+		>
 			<div
 				class="h-full rounded-full transition-all duration-200"
-				style="width: {battleTimerPct * 100}%; background: linear-gradient(90deg, color-mix(in srgb, {battleTimerColor} 60%, var(--bg)), {battleTimerColor}, color-mix(in srgb, {battleTimerColor} 50%, white)); {battleTimerUrgent ? `box-shadow: 0 0 10px ${battleTimerColor};` : ''}"
+				style="width: {battleTimerPct *
+					100}%; background: linear-gradient(90deg, color-mix(in srgb, {battleTimerColor} 60%, var(--bg)), {battleTimerColor}, color-mix(in srgb, {battleTimerColor} 50%, white)); {battleTimerUrgent
+					? `box-shadow: 0 0 10px ${battleTimerColor};`
+					: ''}"
 			></div>
 		</div>
 
@@ -597,7 +891,7 @@
 		</div>
 
 		<!-- Bottom: click count + undo -->
-		<div class="shrink-0 px-4 pb-4 pt-2 sm:px-6 sm:pb-5">
+		<div class="shrink-0 px-4 pt-2 pb-4 sm:px-6 sm:pb-5">
 			<div class="flex items-center justify-between">
 				<div class="flex items-center gap-3">
 					<span class="text-sm font-bold tabular-nums" style="color: var(--accent-orange);">
@@ -605,13 +899,23 @@
 					</span>
 				</div>
 				<button
-					onclick={() => { if (samples.length > 0) { samples = samples.slice(0, -1); } }}
+					onclick={() => {
+						if (samples.length > 0) {
+							samples = samples.slice(0, -1);
+						}
+					}}
 					disabled={samples.length === 0}
 					class="btn-action"
 					style="--btn-color: var(--accent-purple);"
 				>
 					<span class="btn-action-face">
-						<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path fill-rule="evenodd" d="M7.793 2.232a.75.75 0 01-.025 1.06L3.622 7.25h10.003a5.375 5.375 0 010 10.75H10.75a.75.75 0 010-1.5h2.875a3.875 3.875 0 000-7.75H3.622l4.146 3.957a.75.75 0 01-1.036 1.085l-5.5-5.25a.75.75 0 010-1.085l5.5-5.25a.75.75 0 011.06.025z" clip-rule="evenodd" /></svg>
+						<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"
+							><path
+								fill-rule="evenodd"
+								d="M7.793 2.232a.75.75 0 01-.025 1.06L3.622 7.25h10.003a5.375 5.375 0 010 10.75H10.75a.75.75 0 010-1.5h2.875a3.875 3.875 0 000-7.75H3.622l4.146 3.957a.75.75 0 01-1.036 1.085l-5.5-5.25a.75.75 0 010-1.085l5.5-5.25a.75.75 0 011.06.025z"
+								clip-rule="evenodd"
+							/></svg
+						>
 						Undo
 					</span>
 				</button>
@@ -621,9 +925,15 @@
 
 	<!-- Jackpot flash overlay -->
 	{#if isJackpot && phase === 'playing'}
-		<div class="fixed inset-0 z-50 flex items-center justify-center" style="background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);">
+		<div
+			class="fixed inset-0 z-50 flex items-center justify-center"
+			style="background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);"
+		>
 			<div class="text-center">
-				<div class="mb-2 text-6xl font-black sm:text-8xl" style="color: #eab308; text-shadow: 0 0 60px rgba(234,179,8,0.5);">
+				<div
+					class="mb-2 text-6xl font-black sm:text-8xl"
+					style="color: #eab308; text-shadow: 0 0 60px rgba(234,179,8,0.5);"
+				>
 					JACKPOT!
 				</div>
 				<div class="text-lg font-medium" style="color: var(--text-secondary);">
@@ -632,17 +942,25 @@
 			</div>
 		</div>
 	{/if}
-
 {:else if phase === 'ended'}
 	<!-- Results -->
-	<div class="flex h-dvh flex-col" style="background: radial-gradient(ellipse at 50% 30%, var(--page-bg-center) 0%, var(--page-bg-edge) 70%);">
-		<AppHeader  />
+	<div
+		class="flex h-dvh flex-col"
+		style="background: radial-gradient(ellipse at 50% 30%, var(--page-bg-center) 0%, var(--page-bg-edge) 70%);"
+	>
+		<AppHeader />
 
 		<div class="flex flex-1 flex-col items-center justify-center px-4">
-			<div class="w-full max-w-sm rounded-2xl p-6 shadow-2xl" style="background: var(--bg); border: 1px solid var(--border);">
+			<div
+				class="w-full max-w-sm rounded-2xl p-6 shadow-2xl"
+				style="background: var(--bg); border: 1px solid var(--border);"
+			>
 				<!-- Result header -->
 				{#if isJackpot}
-					<div class="mb-4 text-center text-3xl font-black" style="color: #eab308; text-shadow: 0 0 30px rgba(234,179,8,0.3);">
+					<div
+						class="mb-4 text-center text-3xl font-black"
+						style="color: #eab308; text-shadow: 0 0 30px rgba(234,179,8,0.3);"
+					>
 						JACKPOT!
 					</div>
 				{/if}
@@ -650,33 +968,60 @@
 				<div class="mb-4 text-center">
 					<div
 						class="bg-clip-text text-5xl tracking-tight text-transparent sm:text-6xl"
-						style="font-family: 'Believe Stronger', sans-serif; background-image: linear-gradient(to right, {isWinner ? 'var(--accent-cyan), #a78bfa' : '#ef4444, #f97316'});"
+						style="font-family: 'Believe Stronger', sans-serif; background-image: linear-gradient(to right, {isWinner
+							? 'var(--accent-cyan), #a78bfa'
+							: '#ef4444, #f97316'});"
 					>
 						{isWinner ? 'You Won' : 'You Lost'}
 					</div>
 					<div class="mt-1 text-sm" style="color: var(--text-tertiary);">
-						vs {#if opponentCountry}{countryFlag(opponentCountry)} {/if}{opponentName}
+						vs {#if opponentCountry}{countryFlag(opponentCountry)}
+						{/if}{opponentName}
 					</div>
 				</div>
 
 				<!-- Replay canvas -->
-				<canvas bind:this={replayCanvas} class="mb-2 h-28 w-full rounded-lg sm:h-36" style="background: var(--canvas-bg);"></canvas>
+				<canvas
+					{@attach attachReplayCanvas}
+					class="mb-2 h-28 w-full rounded-lg sm:h-36"
+					style="background: var(--canvas-bg);"
+				></canvas>
 				<!-- Toggle controls -->
 				<div class="mb-4 flex justify-center gap-2">
 					<button
-						onclick={() => showYou = !showYou}
+						onclick={() => toggleReplay('you')}
 						class="flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-semibold transition"
-						style="background: {showYou ? 'rgba(251,146,60,0.15)' : 'var(--surface)'}; border: 1px solid {showYou ? 'rgba(251,146,60,0.3)' : 'var(--border)'}; color: {showYou ? 'rgb(251,146,60)' : 'var(--text-tertiary)'};"
+						style="background: {showYou
+							? 'rgba(251,146,60,0.15)'
+							: 'var(--surface)'}; border: 1px solid {showYou
+							? 'rgba(251,146,60,0.3)'
+							: 'var(--border)'}; color: {showYou ? 'rgb(251,146,60)' : 'var(--text-tertiary)'};"
 					>
-						<span class="inline-block h-2 w-2 rounded-full" style="background: {showYou ? 'rgb(251,146,60)' : 'var(--text-tertiary)'}; opacity: {showYou ? 1 : 0.3};"></span>
+						<span
+							class="inline-block h-2 w-2 rounded-full"
+							style="background: {showYou
+								? 'rgb(251,146,60)'
+								: 'var(--text-tertiary)'}; opacity: {showYou ? 1 : 0.3};"
+						></span>
 						You
 					</button>
 					<button
-						onclick={() => showOpponent = !showOpponent}
+						onclick={() => toggleReplay('opponent')}
 						class="flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-semibold transition"
-						style="background: {showOpponent ? 'rgba(236,72,153,0.15)' : 'var(--surface)'}; border: 1px solid {showOpponent ? 'rgba(236,72,153,0.3)' : 'var(--border)'}; color: {showOpponent ? 'rgb(236,72,153)' : 'var(--text-tertiary)'};"
+						style="background: {showOpponent
+							? 'rgba(236,72,153,0.15)'
+							: 'var(--surface)'}; border: 1px solid {showOpponent
+							? 'rgba(236,72,153,0.3)'
+							: 'var(--border)'}; color: {showOpponent
+							? 'rgb(236,72,153)'
+							: 'var(--text-tertiary)'};"
 					>
-						<span class="inline-block h-2 w-2 rounded-full" style="background: {showOpponent ? 'rgb(236,72,153)' : 'var(--text-tertiary)'}; opacity: {showOpponent ? 1 : 0.3};"></span>
+						<span
+							class="inline-block h-2 w-2 rounded-full"
+							style="background: {showOpponent
+								? 'rgb(236,72,153)'
+								: 'var(--text-tertiary)'}; opacity: {showOpponent ? 1 : 0.3};"
+						></span>
 						{opponentName}
 					</button>
 				</div>
@@ -684,10 +1029,16 @@
 				<!-- Score comparison -->
 				<div class="mb-5 flex justify-between rounded-xl p-3" style="background: var(--surface);">
 					<div class="text-center">
-						<div class="text-[9px] font-medium uppercase tracking-wider" style="color: var(--text-tertiary);">
+						<div
+							class="text-[9px] font-medium tracking-wider uppercase"
+							style="color: var(--text-tertiary);"
+						>
 							Your Score
 						</div>
-						<div class="text-xl font-bold tabular-nums" style="color: {isWinner ? 'var(--win-green)' : 'var(--loss-red)'};">
+						<div
+							class="text-xl font-bold tabular-nums"
+							style="color: {isWinner ? 'var(--win-green)' : 'var(--loss-red)'};"
+						>
 							{yourScore.toLocaleString()}
 						</div>
 						<div class="text-xs tabular-nums" style="color: var(--text-tertiary);">
@@ -698,10 +1049,16 @@
 						<span class="text-lg font-bold" style="color: var(--text-tertiary);">vs</span>
 					</div>
 					<div class="text-center">
-						<div class="text-[9px] font-medium uppercase tracking-wider" style="color: var(--text-tertiary);">
+						<div
+							class="text-[9px] font-medium tracking-wider uppercase"
+							style="color: var(--text-tertiary);"
+						>
 							Opponent
 						</div>
-						<div class="text-xl font-bold tabular-nums" style="color: {isWinner ? 'var(--loss-red)' : 'var(--win-green)'};">
+						<div
+							class="text-xl font-bold tabular-nums"
+							style="color: {isWinner ? 'var(--loss-red)' : 'var(--win-green)'};"
+						>
 							{opponentScore.toLocaleString()}
 						</div>
 						<div class="text-xs tabular-nums" style="color: var(--text-tertiary);">
@@ -713,7 +1070,10 @@
 				<!-- ELO change + Battle rank -->
 				<div class="mb-5 text-center">
 					{#if battleRankUp && battleTierName}
-						<div class="rank-up-anim mb-1 text-center text-xs font-bold uppercase tracking-wider" style="color: {battleTierColor};">
+						<div
+							class="rank-up-anim mb-1 text-center text-xs font-bold tracking-wider uppercase"
+							style="color: {battleTierColor};"
+						>
 							Rank Up! — {battleTierName}
 						</div>
 					{/if}
@@ -722,18 +1082,30 @@
 						{@const bProgress = getBattleTierProgress(reportedNewElo)}
 						<div class="mb-1 flex items-center justify-center gap-2">
 							<RankBadge mode="battle" value={reportedNewElo} size="lg" />
-							<span class="text-lg font-bold tabular-nums" style="color: {battleTierColor ?? 'var(--accent-red)'};">
+							<span
+								class="text-lg font-bold tabular-nums"
+								style="color: {battleTierColor ?? 'var(--accent-red)'};"
+							>
 								{reportedNewElo}
 							</span>
 						</div>
 						<!-- Tier progress bar -->
 						<div class="mx-auto mt-1 mb-2 w-full max-w-[200px]">
-							<div class="flex items-center justify-between text-[9px]" style="color: var(--text-tertiary);">
+							<div
+								class="flex items-center justify-between text-[9px]"
+								style="color: var(--text-tertiary);"
+							>
 								<span style="color: {bTier.color};">{bTier.name}</span>
 								<span>{Math.round(bProgress * 100)}%</span>
 							</div>
-							<div class="mt-0.5 h-1.5 w-full overflow-hidden rounded-full" style="background: color-mix(in srgb, {bTier.color} 15%, var(--surface));">
-								<div class="h-full rounded-full transition-all" style="width: {bProgress * 100}%; background: {bTier.color};"></div>
+							<div
+								class="mt-0.5 h-1.5 w-full overflow-hidden rounded-full"
+								style="background: color-mix(in srgb, {bTier.color} 15%, var(--surface));"
+							>
+								<div
+									class="h-full rounded-full transition-all"
+									style="width: {bProgress * 100}%; background: {bTier.color};"
+								></div>
 							</div>
 						</div>
 					{:else if isAnonymous}
@@ -749,16 +1121,30 @@
 						</div>
 						<!-- Tier progress bar (anonymous) -->
 						<div class="mx-auto mt-1 mb-2 w-full max-w-[200px]">
-							<div class="flex items-center justify-between text-[9px]" style="color: var(--text-tertiary);">
+							<div
+								class="flex items-center justify-between text-[9px]"
+								style="color: var(--text-tertiary);"
+							>
 								<span style="color: {anonTier.color};">{anonTier.name}</span>
 								<span>{Math.round(aProgress * 100)}%</span>
 							</div>
-							<div class="mt-0.5 h-1.5 w-full overflow-hidden rounded-full" style="background: color-mix(in srgb, {anonTier.color} 15%, var(--surface));">
-								<div class="h-full rounded-full transition-all" style="width: {aProgress * 100}%; background: {anonTier.color};"></div>
+							<div
+								class="mt-0.5 h-1.5 w-full overflow-hidden rounded-full"
+								style="background: color-mix(in srgb, {anonTier.color} 15%, var(--surface));"
+							>
+								<div
+									class="h-full rounded-full transition-all"
+									style="width: {aProgress * 100}%; background: {anonTier.color};"
+								></div>
 							</div>
 						</div>
 					{/if}
-					<div class="text-[9px] font-medium uppercase tracking-wider" style="color: var(--text-tertiary);">ELO Change</div>
+					<div
+						class="text-[9px] font-medium tracking-wider uppercase"
+						style="color: var(--text-tertiary);"
+					>
+						ELO Change
+					</div>
 					<div
 						class="text-2xl font-bold tabular-nums"
 						style="color: {yourEloDelta >= 0 ? 'var(--win-green)' : 'var(--loss-red)'};"
@@ -767,15 +1153,67 @@
 					</div>
 				</div>
 
+				{#if signInError || reportError}
+					<p role="alert" class="mb-3 text-center text-xs" style="color: var(--accent-orange);">
+						{signInError || reportError}
+					</p>
+				{/if}
+				{#if isReporting}
+					<p role="status" class="mb-3 text-center text-xs" style="color: var(--text-secondary);">
+						Saving battle result…
+					</p>
+				{:else if reportSaved}
+					<p role="status" class="mb-3 text-center text-xs" style="color: var(--win-green);">
+						Battle result saved!
+					</p>
+				{:else if !isAnonymous && completedResult?.resultToken}
+					<button
+						onclick={reportBattleResult}
+						class="btn-action mb-3 w-full"
+						style="--btn-color: var(--accent-cyan);"
+						><span class="btn-action-face w-full justify-center"
+							>{reportError ? 'Retry saving' : 'Save battle result'}</span
+						></button
+					>
+				{/if}
+
 				<!-- Sign-in prompt for anonymous users -->
 				{#if isAnonymous}
-					<div class="mb-3 text-center text-xs font-medium" style="color: var(--text-tertiary);">Sign in to save your ranking</div>
+					<div class="mb-3 text-center text-xs font-medium" style="color: var(--text-tertiary);">
+						{completedResult?.resultToken
+							? 'Sign in to save this result and ranking. Your replay will be preserved.'
+							: 'Sign in for your next battle. This replay is preserved; its ranking cannot be claimed.'}
+					</div>
 					<div class="mb-4 flex flex-col gap-2">
-						<button onclick={() => signInWith('github')} class="flex h-9 items-center justify-center gap-2 rounded-lg text-xs font-medium transition hover:opacity-80" style="background: var(--surface); color: var(--text-secondary); border: 1px solid var(--border);">
+						<button
+							onclick={() => signInWith('github')}
+							disabled={isSigningIn || $session.isPending}
+							class="flex h-9 items-center justify-center gap-2 rounded-lg text-xs font-medium transition hover:opacity-80"
+							style="background: var(--surface); color: var(--text-secondary); border: 1px solid var(--border);"
+						>
 							<Github size={14} /> Continue with GitHub
 						</button>
-						<button onclick={() => signInWith('google')} class="flex h-9 items-center justify-center gap-2 rounded-lg text-xs font-medium transition hover:opacity-80" style="background: var(--surface); color: var(--text-secondary); border: 1px solid var(--border);">
-							<svg viewBox="0 0 24 24" class="h-3.5 w-3.5"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+						<button
+							onclick={() => signInWith('google')}
+							disabled={isSigningIn || $session.isPending}
+							class="flex h-9 items-center justify-center gap-2 rounded-lg text-xs font-medium transition hover:opacity-80"
+							style="background: var(--surface); color: var(--text-secondary); border: 1px solid var(--border);"
+						>
+							<svg viewBox="0 0 24 24" class="h-3.5 w-3.5"
+								><path
+									d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
+									fill="#4285F4"
+								/><path
+									d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+									fill="#34A853"
+								/><path
+									d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+									fill="#FBBC05"
+								/><path
+									d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+									fill="#EA4335"
+								/></svg
+							>
 							Continue with Google
 						</button>
 					</div>
@@ -783,21 +1221,31 @@
 
 				<!-- Actions -->
 				<div class="flex gap-2">
-					<a href="/" class="btn-action flex-1" style="--btn-color: var(--text-secondary);">
+					<a
+						href={resolve('/')}
+						class="btn-action flex-1"
+						style="--btn-color: var(--text-secondary);"
+					>
 						<span class="btn-action-face w-full justify-center">Home</span>
 					</a>
-					<a href="/?battle" class="btn-action flex-1" style="--btn-color: var(--accent-red);">
+					<a
+						href={resolve('/?battle')}
+						class="btn-action flex-1"
+						style="--btn-color: var(--accent-red);"
+					>
 						<span class="btn-action-face w-full justify-center">Rematch</span>
 					</a>
 				</div>
 			</div>
 		</div>
 	</div>
-
 {:else if phase === 'expired'}
 	<!-- Battle expired / no longer available -->
-	<div class="flex h-dvh flex-col" style="background: radial-gradient(ellipse at 50% 30%, var(--page-bg-center) 0%, var(--page-bg-edge) 70%);">
-		<AppHeader  />
+	<div
+		class="flex h-dvh flex-col"
+		style="background: radial-gradient(ellipse at 50% 30%, var(--page-bg-center) 0%, var(--page-bg-edge) 70%);"
+	>
+		<AppHeader />
 		<div class="flex flex-1 flex-col items-center justify-center gap-4 px-4">
 			<div class="text-lg font-semibold" style="color: var(--text-secondary);">
 				This battle has ended
@@ -806,10 +1254,10 @@
 				The battle is no longer available. Start a new one!
 			</div>
 			<div class="mt-2 flex gap-3">
-				<a href="/" class="btn-action" style="--btn-color: var(--text-secondary);">
+				<a href={resolve('/')} class="btn-action" style="--btn-color: var(--text-secondary);">
 					<span class="btn-action-face">Home</span>
 				</a>
-				<a href="/?battle" class="btn-action" style="--btn-color: var(--accent-red);">
+				<a href={resolve('/?battle')} class="btn-action" style="--btn-color: var(--accent-red);">
 					<span class="btn-action-face">New Battle</span>
 				</a>
 			</div>

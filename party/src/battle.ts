@@ -1,5 +1,13 @@
-import type * as Party from 'partykit/server';
-import type { ClientMessage, ServerMessage, StartMessage, OpponentKdeMessage, BattleEndMessage, JackpotMessage } from './shared/protocol';
+import { Server, type Connection } from 'partyserver';
+import type { Env } from './env';
+import type {
+	ClientMessage,
+	ServerMessage,
+	StartMessage,
+	OpponentKdeMessage,
+	BattleEndMessage,
+	JackpotMessage
+} from './shared/protocol';
 import type { PlayerInfo } from './shared/types';
 import { signBattleResult } from './shared/crypto';
 
@@ -54,7 +62,9 @@ function gaussian(x: number, mean: number, std: number): number {
 // Minimal seeded PRNG (Mulberry32) — matches client exactly
 class SeededRandom {
 	private state: number;
-	constructor(seed: number) { this.state = seed | 0; }
+	constructor(seed: number) {
+		this.state = seed | 0;
+	}
 	next(): number {
 		this.state |= 0;
 		this.state = (this.state + 0x6d2b79f5) | 0;
@@ -62,8 +72,12 @@ class SeededRandom {
 		t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
 		return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 	}
-	range(min: number, max: number): number { return min + this.next() * (max - min); }
-	int(min: number, max: number): number { return Math.floor(this.range(min, max + 1)); }
+	range(min: number, max: number): number {
+		return min + this.next() * (max - min);
+	}
+	int(min: number, max: number): number {
+		return Math.floor(this.range(min, max + 1));
+	}
 	gaussian(mean = 0, std = 1): number {
 		const u1 = this.next() || 1e-10;
 		const u2 = this.next();
@@ -73,7 +87,10 @@ class SeededRandom {
 }
 
 // Minimal level generation (matches client generateLevel exactly)
-function generateHiddenClicks(seed: number, targetDifficulty: number): { hiddenClicks: number[]; xRange: [number, number] } {
+function generateHiddenClicks(
+	seed: number,
+	targetDifficulty: number
+): { hiddenClicks: number[]; xRange: [number, number] } {
 	const d = Math.max(1, Math.min(10, targetDifficulty));
 	const rng = new SeededRandom(seed);
 	const nModes = Math.max(1, Math.min(7, Math.round(0.5 + d * 0.65)));
@@ -90,7 +107,7 @@ function generateHiddenClicks(seed: number, targetDifficulty: number): { hiddenC
 		do {
 			center = rng.range(centers[0] - spread, centers[0] + spread);
 			attempts++;
-		} while (attempts < 50 && centers.some(c => Math.abs(c - center) < minSep));
+		} while (attempts < 50 && centers.some((c) => Math.abs(c - center) < minSep));
 		centers.push(center);
 	}
 	centers.sort((a, b) => a - b);
@@ -98,13 +115,19 @@ function generateHiddenClicks(seed: number, targetDifficulty: number): { hiddenC
 	const weights = centers.map(() => Math.max(0.1, rng.range(1 - hVar, 1 + hVar)));
 	const weightSum = weights.reduce((a, b) => a + b, 0);
 	const mainClicks = Math.max(nClicks - Math.floor(noise * nClicks), nModes);
-	const clicksPerMode = weights.map(w => Math.max(1, Math.round((mainClicks * w) / weightSum)));
+	const clicksPerMode = weights.map((w) => Math.max(1, Math.round((mainClicks * w) / weightSum)));
 
 	let currentTotal = clicksPerMode.reduce((a, b) => a + b, 0);
-	while (currentTotal < mainClicks) { clicksPerMode[rng.int(0, clicksPerMode.length - 1)]++; currentTotal++; }
+	while (currentTotal < mainClicks) {
+		clicksPerMode[rng.int(0, clicksPerMode.length - 1)]++;
+		currentTotal++;
+	}
 	while (currentTotal > mainClicks) {
 		const idx = rng.int(0, clicksPerMode.length - 1);
-		if (clicksPerMode[idx] > 1) { clicksPerMode[idx]--; currentTotal--; }
+		if (clicksPerMode[idx] > 1) {
+			clicksPerMode[idx]--;
+			currentTotal--;
+		}
 	}
 
 	const hiddenClicks: number[] = [];
@@ -144,10 +167,14 @@ function kernelTargetPdf(hiddenClicks: number[]): (x: number) => number {
 	};
 }
 
-function computeMatchPct(samples: number[], hiddenClicks: number[], xRange: [number, number]): number {
+function computeMatchPct(
+	samples: number[],
+	hiddenClicks: number[],
+	xRange: [number, number]
+): number {
 	const xs = linspace(xRange[0], xRange[1], 200);
 	const pdf = kernelTargetPdf(hiddenClicks);
-	const pVals = xs.map(x => pdf(x));
+	const pVals = xs.map((x) => pdf(x));
 	const qVals = computeKDE(samples, xs);
 	const pMax = Math.max(...pVals);
 	const qMax = Math.max(...qVals);
@@ -182,7 +209,7 @@ interface PlayerState {
 
 type BattlePhase = 'waiting' | 'countdown' | 'playing' | 'ended';
 
-export default class BattleServer implements Party.Server {
+export class BattleServer extends Server<Env> {
 	private phase: BattlePhase = 'waiting';
 	private players: Map<string, PlayerState> = new Map();
 	private seed = 0;
@@ -196,13 +223,10 @@ export default class BattleServer implements Party.Server {
 	private endTimer: ReturnType<typeof setTimeout> | null = null;
 	private disconnectTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
-	constructor(readonly room: Party.Room) {}
+	// Matches and queues use in-memory state and active timers.
+	static options = { hibernate: false };
 
-	onConnect(conn: Party.Connection) {
-		// Connection established, wait for join message
-	}
-
-	onClose(conn: Party.Connection) {
+	onClose(conn: Connection) {
 		// Find which player disconnected
 		for (const [id, player] of this.players) {
 			if (player.connectionId === conn.id) {
@@ -221,7 +245,8 @@ export default class BattleServer implements Party.Server {
 		}
 	}
 
-	onMessage(message: string, sender: Party.Connection) {
+	onMessage(sender: Connection, message: string | ArrayBuffer) {
+		if (typeof message !== 'string') return;
 		let msg: ClientMessage;
 		try {
 			msg = JSON.parse(message);
@@ -239,7 +264,7 @@ export default class BattleServer implements Party.Server {
 		}
 	}
 
-	private handleJoin(msg: ClientMessage & { type: 'join' }, conn: Party.Connection) {
+	private handleJoin(msg: ClientMessage & { type: 'join' }, conn: Connection) {
 		const existing = this.players.get(msg.playerId);
 
 		if (existing) {
@@ -256,16 +281,18 @@ export default class BattleServer implements Party.Server {
 
 			// Send current state
 			if (this.phase === 'playing') {
-				const opponent = [...this.players.values()].find(p => p.info.playerId !== msg.playerId);
-				conn.send(JSON.stringify({
-					type: 'start',
-					seed: this.seed,
-					targetDifficulty: this.targetDifficulty,
-					opponentName: opponent?.info.playerName ?? 'Opponent',
-					opponentElo: opponent?.info.battleElo ?? 1200,
-					opponentCountry: opponent?.info.country,
-					durationMs: Math.max(0, BATTLE_DURATION_MS - (Date.now() - this.startTime))
-				} satisfies StartMessage));
+				const opponent = [...this.players.values()].find((p) => p.info.playerId !== msg.playerId);
+				conn.send(
+					JSON.stringify({
+						type: 'start',
+						seed: this.seed,
+						targetDifficulty: this.targetDifficulty,
+						opponentName: opponent?.info.playerName ?? 'Opponent',
+						opponentElo: opponent?.info.battleElo ?? 1200,
+						opponentCountry: opponent?.info.country,
+						durationMs: Math.max(0, BATTLE_DURATION_MS - (Date.now() - this.startTime))
+					} satisfies StartMessage)
+				);
 			} else if (this.phase === 'ended') {
 				conn.send(JSON.stringify({ type: 'error', message: 'Battle has ended' }));
 			}
@@ -283,7 +310,12 @@ export default class BattleServer implements Party.Server {
 		}
 
 		this.players.set(msg.playerId, {
-			info: { playerId: msg.playerId, playerName: msg.playerName, battleElo: msg.battleElo, country: msg.country },
+			info: {
+				playerId: msg.playerId,
+				playerName: msg.playerName,
+				battleElo: msg.battleElo,
+				country: msg.country
+			},
 			connectionId: conn.id,
 			samples: [],
 			lastKde: new Array(KDE_EVAL_POINTS).fill(0),
@@ -302,7 +334,7 @@ export default class BattleServer implements Party.Server {
 
 	private initBattle() {
 		// Parse battle config from room id: "seed-difficulty"
-		const parts = this.room.id.split('-');
+		const parts = this.name.split('-');
 		this.seed = parseInt(parts[0], 10) || Date.now();
 		this.targetDifficulty = parseFloat(parts[1]) || 5.0;
 
@@ -318,12 +350,12 @@ export default class BattleServer implements Party.Server {
 		this.phase = 'countdown';
 		let remaining = COUNTDOWN_SECONDS;
 
-		this.broadcast({ type: 'countdown', seconds: remaining });
+		this.broadcastMessage({ type: 'countdown', seconds: remaining });
 
 		this.countdownTimer = setInterval(() => {
 			remaining--;
 			if (remaining > 0) {
-				this.broadcast({ type: 'countdown', seconds: remaining });
+				this.broadcastMessage({ type: 'countdown', seconds: remaining });
 			} else {
 				if (this.countdownTimer) clearInterval(this.countdownTimer);
 				this.countdownTimer = null;
@@ -340,18 +372,20 @@ export default class BattleServer implements Party.Server {
 
 		// Send start message to each player with their opponent's info
 		for (const player of playerList) {
-			const opponent = playerList.find(p => p.info.playerId !== player.info.playerId);
+			const opponent = playerList.find((p) => p.info.playerId !== player.info.playerId);
 			const conn = this.getConnection(player.connectionId);
 			if (conn) {
-				conn.send(JSON.stringify({
-					type: 'start',
-					seed: this.seed,
-					targetDifficulty: this.targetDifficulty,
-					opponentName: opponent?.info.playerName ?? 'Opponent',
-					opponentElo: opponent?.info.battleElo ?? 1200,
-					opponentCountry: opponent?.info.country,
-					durationMs: BATTLE_DURATION_MS
-				} satisfies StartMessage));
+				conn.send(
+					JSON.stringify({
+						type: 'start',
+						seed: this.seed,
+						targetDifficulty: this.targetDifficulty,
+						opponentName: opponent?.info.playerName ?? 'Opponent',
+						opponentElo: opponent?.info.battleElo ?? 1200,
+						opponentCountry: opponent?.info.country,
+						durationMs: BATTLE_DURATION_MS
+					} satisfies StartMessage)
+				);
 			}
 		}
 
@@ -366,11 +400,11 @@ export default class BattleServer implements Party.Server {
 		}, BATTLE_DURATION_MS);
 	}
 
-	private handleAddSample(msg: ClientMessage & { type: 'add_sample' }, conn: Party.Connection) {
+	private handleAddSample(msg: ClientMessage & { type: 'add_sample' }, conn: Connection) {
 		if (this.phase !== 'playing') return;
 
 		// Find the player
-		const player = [...this.players.values()].find(p => p.connectionId === conn.id);
+		const player = [...this.players.values()].find((p) => p.connectionId === conn.id);
 		if (!player) return;
 
 		// Validate sample value
@@ -406,7 +440,7 @@ export default class BattleServer implements Party.Server {
 		const mse = this.computeMse(winner.samples);
 		const score = computeScore(mse, elapsed);
 
-		this.broadcast({
+		this.broadcastMessage({
 			type: 'jackpot',
 			winnerId: winner.info.playerId,
 			winnerName: winner.info.playerName,
@@ -415,7 +449,7 @@ export default class BattleServer implements Party.Server {
 		} satisfies JackpotMessage);
 
 		// Send results (client reports ELO via signed token)
-		const loser = [...this.players.values()].find(p => p.info.playerId !== winner.info.playerId);
+		const loser = [...this.players.values()].find((p) => p.info.playerId !== winner.info.playerId);
 		if (loser) {
 			const loserMse = this.computeMse(loser.samples);
 			const loserScore = computeScore(loserMse, elapsed);
@@ -429,16 +463,18 @@ export default class BattleServer implements Party.Server {
 
 		const playerList = [...this.players.values()];
 		for (const player of playerList) {
-			const opponent = playerList.find(p => p.info.playerId !== player.info.playerId);
+			const opponent = playerList.find((p) => p.info.playerId !== player.info.playerId);
 			if (!opponent) continue;
 
 			const conn = this.getConnection(player.connectionId);
 			if (conn && player.connected) {
-				conn.send(JSON.stringify({
-					type: 'opponent_kde',
-					kde: opponent.lastKde,
-					matchPct: opponent.matchPct
-				} satisfies OpponentKdeMessage));
+				conn.send(
+					JSON.stringify({
+						type: 'opponent_kde',
+						kde: opponent.lastKde,
+						matchPct: opponent.matchPct
+					} satisfies OpponentKdeMessage)
+				);
 			}
 		}
 	}
@@ -468,15 +504,20 @@ export default class BattleServer implements Party.Server {
 	}
 
 	private async sendEndMessages(
-		winner: PlayerState, winnerScore: number, winnerMatchPct: number,
-		loser: PlayerState, loserScore: number, loserMatchPct: number
+		winner: PlayerState,
+		winnerScore: number,
+		winnerMatchPct: number,
+		loser: PlayerState,
+		loserScore: number,
+		loserMatchPct: number
 	) {
 		// Compute ELO deltas
-		const expectedWin = 1 / (1 + Math.pow(10, (loser.info.battleElo - winner.info.battleElo) / 400));
+		const expectedWin =
+			1 / (1 + Math.pow(10, (loser.info.battleElo - winner.info.battleElo) / 400));
 		const winnerDelta = Math.round(32 * (1 - expectedWin));
 		const loserDelta = -Math.round(32 * expectedWin);
 
-		const secret = this.room.env.PARTYKIT_SECRET as string | undefined;
+		const secret = this.env.PARTYKIT_SECRET as string | undefined;
 
 		for (const player of this.players.values()) {
 			const isWinner = player.info.playerId === winner.info.playerId;
@@ -487,32 +528,37 @@ export default class BattleServer implements Party.Server {
 				let resultToken: string | undefined;
 				if (secret) {
 					try {
-						resultToken = await signBattleResult({
-							battleId: this.room.id,
-							playerId: player.info.playerId,
-							won: isWinner,
-							eloDelta,
-							ts: Date.now()
-						}, secret);
+						resultToken = await signBattleResult(
+							{
+								battleId: this.name,
+								playerId: player.info.playerId,
+								won: isWinner,
+								eloDelta,
+								ts: Date.now()
+							},
+							secret
+						);
 					} catch {
 						// Non-critical — player can still see results
 					}
 				}
 
 				const opponent = isWinner ? loser : winner;
-				conn.send(JSON.stringify({
-					type: 'battle_end',
-					won: isWinner,
-					winnerId: winner.info.playerId,
-					winnerName: winner.info.playerName,
-					yourScore: isWinner ? winnerScore : loserScore,
-					yourMatchPct: isWinner ? winnerMatchPct : loserMatchPct,
-					opponentScore: isWinner ? loserScore : winnerScore,
-					opponentMatchPct: isWinner ? loserMatchPct : winnerMatchPct,
-					yourEloDelta: eloDelta,
-					resultToken,
-					opponentSamples: opponent.samples
-				} satisfies BattleEndMessage));
+				conn.send(
+					JSON.stringify({
+						type: 'battle_end',
+						won: isWinner,
+						winnerId: winner.info.playerId,
+						winnerName: winner.info.playerName,
+						yourScore: isWinner ? winnerScore : loserScore,
+						yourMatchPct: isWinner ? winnerMatchPct : loserMatchPct,
+						opponentScore: isWinner ? loserScore : winnerScore,
+						opponentMatchPct: isWinner ? loserMatchPct : winnerMatchPct,
+						yourEloDelta: eloDelta,
+						resultToken,
+						opponentSamples: opponent.samples
+					} satisfies BattleEndMessage)
+				);
 			}
 		}
 	}
@@ -523,7 +569,7 @@ export default class BattleServer implements Party.Server {
 		this.cleanup();
 
 		const loser = this.players.get(disconnectedPlayerId);
-		const winner = [...this.players.values()].find(p => p.info.playerId !== disconnectedPlayerId);
+		const winner = [...this.players.values()].find((p) => p.info.playerId !== disconnectedPlayerId);
 
 		if (winner && loser) {
 			const elapsed = Date.now() - this.startTime;
@@ -540,7 +586,7 @@ export default class BattleServer implements Party.Server {
 		if (samples.length === 0) return 1;
 		const pdf = kernelTargetPdf(this.hiddenClicks);
 		const xs = this.evalPoints;
-		const pVals = xs.map(x => pdf(x));
+		const pVals = xs.map((x) => pdf(x));
 		const qVals = computeKDE(samples, xs);
 		const pMax = Math.max(...pVals);
 		const qMax = Math.max(...qVals);
@@ -553,24 +599,26 @@ export default class BattleServer implements Party.Server {
 		return mse / xs.length;
 	}
 
-	private broadcast(msg: ServerMessage) {
+	private broadcastMessage(msg: ServerMessage) {
 		const data = JSON.stringify(msg);
-		for (const conn of this.room.getConnections()) {
+		for (const conn of this.getConnections()) {
 			conn.send(data);
 		}
 	}
 
-	private getConnection(id: string): Party.Connection | undefined {
-		for (const conn of this.room.getConnections()) {
-			if (conn.id === id) return conn;
-		}
-		return undefined;
-	}
-
 	private cleanup() {
-		if (this.countdownTimer) { clearInterval(this.countdownTimer); this.countdownTimer = null; }
-		if (this.kdeTimer) { clearInterval(this.kdeTimer); this.kdeTimer = null; }
-		if (this.endTimer) { clearTimeout(this.endTimer); this.endTimer = null; }
+		if (this.countdownTimer) {
+			clearInterval(this.countdownTimer);
+			this.countdownTimer = null;
+		}
+		if (this.kdeTimer) {
+			clearInterval(this.kdeTimer);
+			this.kdeTimer = null;
+		}
+		if (this.endTimer) {
+			clearTimeout(this.endTimer);
+			this.endTimer = null;
+		}
 		for (const timer of this.disconnectTimers.values()) clearTimeout(timer);
 		this.disconnectTimers.clear();
 	}

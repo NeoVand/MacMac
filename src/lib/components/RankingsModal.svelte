@@ -2,7 +2,7 @@
 	import RankBadge from './RankBadge.svelte';
 	import { SKILL_TIERS, getSkillTier, getTierProgress, computeSkillLevel } from '$lib/game/rating';
 	import { BATTLE_TIERS, getBattleTier, getBattleTierProgress } from '$lib/game/elo';
-	import { authClient } from '$lib/auth-client';
+	import { signInWithProvider } from '$lib/auth-client';
 	import { Github } from 'lucide-svelte';
 
 	let {
@@ -25,6 +25,8 @@
 
 	let tab = $state<'solo' | 'battle'>('solo');
 	let selectedTier = $state<number | null>(null);
+	let isSigningIn = $state(false);
+	let signInError = $state('');
 
 	const skillLevel = $derived(playerRating !== null ? computeSkillLevel(playerRating) : 0);
 	const soloTier = $derived(getSkillTier(skillLevel));
@@ -43,18 +45,14 @@
 	/** Progress track fill for solo */
 	const soloCurrentIdx = $derived(hasSoloData ? soloTierIdx : -1);
 	const soloFillPct = $derived(
-		soloCurrentIdx >= 0
-			? ((soloCurrentIdx + soloProgress) / (SKILL_TIERS.length - 1)) * 100
-			: 0
+		soloCurrentIdx >= 0 ? ((soloCurrentIdx + soloProgress) / (SKILL_TIERS.length - 1)) * 100 : 0
 	);
 	const soloFillColor = $derived(soloCurrentIdx >= 0 ? soloTier.color : 'transparent');
 
 	/** Progress track fill for battle */
 	const battleCurrentIdx = $derived(hasBattleData ? bTierIdx : -1);
 	const battleFillPct = $derived(
-		battleCurrentIdx >= 0
-			? ((battleCurrentIdx + bProgress) / (BATTLE_TIERS.length - 1)) * 100
-			: 0
+		battleCurrentIdx >= 0 ? ((battleCurrentIdx + bProgress) / (BATTLE_TIERS.length - 1)) * 100 : 0
 	);
 	const battleFillColor = $derived(battleCurrentIdx >= 0 ? bTier.color : 'transparent');
 
@@ -68,7 +66,16 @@
 	}
 
 	async function signInWith(provider: 'github' | 'google') {
-		await authClient.signIn.social({ provider, callbackURL: window.location.href });
+		if (isSigningIn) return;
+		isSigningIn = true;
+		signInError = '';
+		try {
+			await signInWithProvider(provider);
+		} catch (error) {
+			signInError = error instanceof Error ? error.message : 'Sign-in failed. Please try again.';
+		} finally {
+			isSigningIn = false;
+		}
 	}
 </script>
 
@@ -80,10 +87,25 @@
 		onclick={handleBackdrop}
 		onkeydown={(e) => e.key === 'Escape' && onclose()}
 	>
-		<div class="relative w-full max-w-sm overflow-hidden rounded-2xl shadow-2xl" style="background: var(--bg); border: 1px solid var(--border); max-height: 85dvh;">
+		<div
+			class="relative w-full max-w-sm overflow-hidden rounded-2xl shadow-2xl"
+			style="background: var(--bg); border: 1px solid var(--border); max-height: 85dvh;"
+		>
 			<!-- Close button -->
-			<button onclick={onclose} class="absolute top-3 right-3 z-10 flex h-7 w-7 items-center justify-center rounded-full transition hover:opacity-70" style="background: var(--surface); color: var(--text-tertiary);" aria-label="Close">
-				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="h-3.5 w-3.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+			<button
+				onclick={onclose}
+				class="absolute top-3 right-3 z-10 flex h-7 w-7 items-center justify-center rounded-full transition hover:opacity-70"
+				style="background: var(--surface); color: var(--text-tertiary);"
+				aria-label="Close"
+			>
+				<svg
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					class="h-3.5 w-3.5"><path d="M18 6L6 18M6 6l12 12" /></svg
+				>
 			</button>
 
 			<div class="overflow-y-auto" style="max-height: 85dvh;">
@@ -93,6 +115,11 @@
 					<p class="mt-0.5 text-[11px]" style="color: var(--text-tertiary);">
 						Earn ranks by playing games and climbing the tiers
 					</p>
+					{#if signInError}
+						<p role="alert" class="mt-2 text-xs" style="color: var(--accent-orange);">
+							{signInError}
+						</p>
+					{/if}
 				</div>
 
 				<!-- Tab switcher -->
@@ -100,14 +127,24 @@
 					<button
 						onclick={() => switchTab('solo')}
 						class="flex-1 rounded-lg py-1.5 text-xs font-semibold transition"
-						style="background: {tab === 'solo' ? 'var(--bg)' : 'transparent'}; color: {tab === 'solo' ? 'var(--accent-cyan)' : 'var(--text-tertiary)'}; {tab === 'solo' ? 'box-shadow: 0 1px 3px rgba(0,0,0,0.1);' : ''}"
+						style="background: {tab === 'solo' ? 'var(--bg)' : 'transparent'}; color: {tab ===
+						'solo'
+							? 'var(--accent-cyan)'
+							: 'var(--text-tertiary)'}; {tab === 'solo'
+							? 'box-shadow: 0 1px 3px rgba(0,0,0,0.1);'
+							: ''}"
 					>
 						Solo Skill
 					</button>
 					<button
 						onclick={() => switchTab('battle')}
 						class="flex-1 rounded-lg py-1.5 text-xs font-semibold transition"
-						style="background: {tab === 'battle' ? 'var(--bg)' : 'transparent'}; color: {tab === 'battle' ? 'var(--accent-red)' : 'var(--text-tertiary)'}; {tab === 'battle' ? 'box-shadow: 0 1px 3px rgba(0,0,0,0.1);' : ''}"
+						style="background: {tab === 'battle' ? 'var(--bg)' : 'transparent'}; color: {tab ===
+						'battle'
+							? 'var(--accent-red)'
+							: 'var(--text-tertiary)'}; {tab === 'battle'
+							? 'box-shadow: 0 1px 3px rgba(0,0,0,0.1);'
+							: ''}"
 					>
 						Battle ELO
 					</button>
@@ -120,19 +157,35 @@
 							<div class="mb-1 flex items-center justify-center gap-2">
 								<RankBadge mode="solo" value={skillLevel} size="lg" />
 								<div class="text-left">
-									<div class="text-lg font-bold tabular-nums leading-none" style="color: {soloTier.color};">{skillLevel.toLocaleString()}</div>
-									<div class="text-[10px] font-semibold" style="color: {soloTier.color};">{soloTier.name}</div>
+									<div
+										class="text-lg leading-none font-bold tabular-nums"
+										style="color: {soloTier.color};"
+									>
+										{skillLevel.toLocaleString()}
+									</div>
+									<div class="text-[10px] font-semibold" style="color: {soloTier.color};">
+										{soloTier.name}
+									</div>
 								</div>
 							</div>
 							{#if soloTierIdx < SKILL_TIERS.length - 1}
 								{@const nextTier = SKILL_TIERS[soloTierIdx + 1]}
 								<div class="mt-2">
-									<div class="mb-1 flex justify-between text-[9px] font-medium" style="color: var(--text-tertiary);">
+									<div
+										class="mb-1 flex justify-between text-[9px] font-medium"
+										style="color: var(--text-tertiary);"
+									>
 										<span>{soloTier.name}</span>
 										<span>{nextTier.name}</span>
 									</div>
-									<div class="h-1.5 overflow-hidden rounded-full" style="background: var(--border);">
-										<div class="h-full rounded-full transition-all" style="width: {soloProgress * 100}%; background: {soloTier.color};"></div>
+									<div
+										class="h-1.5 overflow-hidden rounded-full"
+										style="background: var(--border);"
+									>
+										<div
+											class="h-full rounded-full transition-all"
+											style="width: {soloProgress * 100}%; background: {soloTier.color};"
+										></div>
 									</div>
 								</div>
 							{/if}
@@ -143,15 +196,43 @@
 					{:else}
 						<div class="mx-5 mb-4 rounded-xl p-3 text-center" style="background: var(--surface);">
 							{#if isAuthenticated}
-								<div class="text-xs font-medium" style="color: var(--text-secondary);">Play solo games to earn a skill rating</div>
+								<div class="text-xs font-medium" style="color: var(--text-secondary);">
+									Play solo games to earn a skill rating
+								</div>
 							{:else}
-								<div class="mb-2.5 text-xs font-medium" style="color: var(--text-secondary);">Sign in to track your rank</div>
+								<div class="mb-2.5 text-xs font-medium" style="color: var(--text-secondary);">
+									Sign in to track your rank
+								</div>
 								<div class="flex flex-col gap-2">
-									<button onclick={() => signInWith('github')} class="flex h-9 items-center justify-center gap-2 rounded-lg text-xs font-medium transition hover:opacity-80" style="background: var(--bg); border: 1px solid var(--border); color: var(--text-secondary);">
+									<button
+										onclick={() => signInWith('github')}
+										disabled={isSigningIn}
+										class="flex h-9 items-center justify-center gap-2 rounded-lg text-xs font-medium transition hover:opacity-80"
+										style="background: var(--bg); border: 1px solid var(--border); color: var(--text-secondary);"
+									>
 										<Github size={14} /> Continue with GitHub
 									</button>
-									<button onclick={() => signInWith('google')} class="flex h-9 items-center justify-center gap-2 rounded-lg text-xs font-medium transition hover:opacity-80" style="background: var(--bg); border: 1px solid var(--border); color: var(--text-secondary);">
-										<svg viewBox="0 0 24 24" class="h-3.5 w-3.5"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+									<button
+										onclick={() => signInWith('google')}
+										disabled={isSigningIn}
+										class="flex h-9 items-center justify-center gap-2 rounded-lg text-xs font-medium transition hover:opacity-80"
+										style="background: var(--bg); border: 1px solid var(--border); color: var(--text-secondary);"
+									>
+										<svg viewBox="0 0 24 24" class="h-3.5 w-3.5"
+											><path
+												fill="#4285F4"
+												d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
+											/><path
+												fill="#34A853"
+												d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+											/><path
+												fill="#FBBC05"
+												d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+											/><path
+												fill="#EA4335"
+												d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+											/></svg
+										>
 										Continue with Google
 									</button>
 								</div>
@@ -163,37 +244,54 @@
 					<div class="px-5 pb-5">
 						<!-- Badges row -->
 						<div class="flex items-end justify-between">
-							{#each SKILL_TIERS as tier, i}
+							{#each SKILL_TIERS as tier, i (tier.name)}
 								{@const isCurrent = soloCurrentIdx === i}
 								{@const isPast = soloCurrentIdx > i}
 								{@const noData = soloCurrentIdx < 0}
-								{@const nextThreshold = i < SKILL_TIERS.length - 1 ? SKILL_TIERS[i + 1].threshold : null}
+								{@const nextThreshold =
+									i < SKILL_TIERS.length - 1 ? SKILL_TIERS[i + 1].threshold : null}
 								<button
 									class="flex flex-col items-center border-none bg-transparent p-0 transition-all"
-									style="opacity: {noData ? 0.7 : isCurrent ? 1 : isPast ? 0.7 : 0.35}; {isCurrent ? `filter: drop-shadow(0 0 6px ${tier.color});` : ''}"
-									onclick={() => selectedTier = selectedTier === i ? null : i}
+									style="opacity: {noData ? 0.7 : isCurrent ? 1 : isPast ? 0.7 : 0.35}; {isCurrent
+										? `filter: drop-shadow(0 0 6px ${tier.color});`
+										: ''}"
+									onclick={() => (selectedTier = selectedTier === i ? null : i)}
 								>
-									<div class="transition-transform" style="{isCurrent ? 'transform: scale(1.3);' : ''}">
+									<div
+										class="transition-transform"
+										style={isCurrent ? 'transform: scale(1.3);' : ''}
+									>
 										<RankBadge mode="solo" value={tier.threshold} size={isCurrent ? 'lg' : 'md'} />
 									</div>
 									<span
-										class="mt-1 text-[9px] font-bold leading-none"
+										class="mt-1 text-[9px] leading-none font-bold"
 										style="color: {isCurrent ? tier.color : 'var(--text-tertiary)'};"
-									>{tier.name}</span>
+										>{tier.name}</span
+									>
 									{#if selectedTier === i}
-										<span class="mt-0.5 text-[8px] tabular-nums leading-none" style="color: var(--text-tertiary);">
-											{tier.threshold.toLocaleString()}{nextThreshold !== null ? `–${(nextThreshold - 1).toLocaleString()}` : '+'}
+										<span
+											class="mt-0.5 text-[8px] leading-none tabular-nums"
+											style="color: var(--text-tertiary);"
+										>
+											{tier.threshold.toLocaleString()}{nextThreshold !== null
+												? `–${(nextThreshold - 1).toLocaleString()}`
+												: '+'}
 										</span>
 									{/if}
 								</button>
 							{/each}
 						</div>
 						<!-- Progress track -->
-						<div class="relative mx-auto mt-3 h-1 overflow-hidden rounded-full" style="background: var(--border); width: calc(100% - 16px);">
-							<div class="absolute inset-y-0 left-0 rounded-full transition-all" style="width: {soloFillPct}%; background: {soloFillColor};"></div>
+						<div
+							class="relative mx-auto mt-3 h-1 overflow-hidden rounded-full"
+							style="background: var(--border); width: calc(100% - 16px);"
+						>
+							<div
+								class="absolute inset-y-0 left-0 rounded-full transition-all"
+								style="width: {soloFillPct}%; background: {soloFillColor};"
+							></div>
 						</div>
 					</div>
-
 				{:else}
 					{#if hasBattleData}
 						<!-- Battle stats card -->
@@ -201,19 +299,35 @@
 							<div class="mb-1 flex items-center justify-center gap-2">
 								<RankBadge mode="battle" value={elo} size="lg" />
 								<div class="text-left">
-									<div class="text-lg font-bold tabular-nums leading-none" style="color: {bTier.color};">{elo}</div>
-									<div class="text-[10px] font-semibold" style="color: {bTier.color};">{bTier.name}</div>
+									<div
+										class="text-lg leading-none font-bold tabular-nums"
+										style="color: {bTier.color};"
+									>
+										{elo}
+									</div>
+									<div class="text-[10px] font-semibold" style="color: {bTier.color};">
+										{bTier.name}
+									</div>
 								</div>
 							</div>
 							{#if bTierIdx < BATTLE_TIERS.length - 1}
 								{@const nextTier = BATTLE_TIERS[bTierIdx + 1]}
 								<div class="mt-2">
-									<div class="mb-1 flex justify-between text-[9px] font-medium" style="color: var(--text-tertiary);">
+									<div
+										class="mb-1 flex justify-between text-[9px] font-medium"
+										style="color: var(--text-tertiary);"
+									>
 										<span>{bTier.name}</span>
 										<span>{nextTier.name}</span>
 									</div>
-									<div class="h-1.5 overflow-hidden rounded-full" style="background: var(--border);">
-										<div class="h-full rounded-full transition-all" style="width: {bProgress * 100}%; background: {bTier.color};"></div>
+									<div
+										class="h-1.5 overflow-hidden rounded-full"
+										style="background: var(--border);"
+									>
+										<div
+											class="h-full rounded-full transition-all"
+											style="width: {bProgress * 100}%; background: {bTier.color};"
+										></div>
 									</div>
 								</div>
 							{/if}
@@ -224,15 +338,43 @@
 					{:else}
 						<div class="mx-5 mb-4 rounded-xl p-3 text-center" style="background: var(--surface);">
 							{#if isAuthenticated}
-								<div class="text-xs font-medium" style="color: var(--text-secondary);">Play battles to earn an ELO rating</div>
+								<div class="text-xs font-medium" style="color: var(--text-secondary);">
+									Play battles to earn an ELO rating
+								</div>
 							{:else}
-								<div class="mb-2.5 text-xs font-medium" style="color: var(--text-secondary);">Sign in to track your rank</div>
+								<div class="mb-2.5 text-xs font-medium" style="color: var(--text-secondary);">
+									Sign in to track your rank
+								</div>
 								<div class="flex flex-col gap-2">
-									<button onclick={() => signInWith('github')} class="flex h-9 items-center justify-center gap-2 rounded-lg text-xs font-medium transition hover:opacity-80" style="background: var(--bg); border: 1px solid var(--border); color: var(--text-secondary);">
+									<button
+										onclick={() => signInWith('github')}
+										disabled={isSigningIn}
+										class="flex h-9 items-center justify-center gap-2 rounded-lg text-xs font-medium transition hover:opacity-80"
+										style="background: var(--bg); border: 1px solid var(--border); color: var(--text-secondary);"
+									>
 										<Github size={14} /> Continue with GitHub
 									</button>
-									<button onclick={() => signInWith('google')} class="flex h-9 items-center justify-center gap-2 rounded-lg text-xs font-medium transition hover:opacity-80" style="background: var(--bg); border: 1px solid var(--border); color: var(--text-secondary);">
-										<svg viewBox="0 0 24 24" class="h-3.5 w-3.5"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+									<button
+										onclick={() => signInWith('google')}
+										disabled={isSigningIn}
+										class="flex h-9 items-center justify-center gap-2 rounded-lg text-xs font-medium transition hover:opacity-80"
+										style="background: var(--bg); border: 1px solid var(--border); color: var(--text-secondary);"
+									>
+										<svg viewBox="0 0 24 24" class="h-3.5 w-3.5"
+											><path
+												fill="#4285F4"
+												d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
+											/><path
+												fill="#34A853"
+												d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+											/><path
+												fill="#FBBC05"
+												d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+											/><path
+												fill="#EA4335"
+												d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+											/></svg
+										>
 										Continue with Google
 									</button>
 								</div>
@@ -244,34 +386,56 @@
 					<div class="px-5 pb-5">
 						<!-- Badges row -->
 						<div class="flex items-end justify-between">
-							{#each BATTLE_TIERS as tier, i}
+							{#each BATTLE_TIERS as tier, i (tier.name)}
 								{@const isCurrent = battleCurrentIdx === i}
 								{@const isPast = battleCurrentIdx > i}
 								{@const noData = battleCurrentIdx < 0}
-								{@const nextThreshold = i < BATTLE_TIERS.length - 1 ? BATTLE_TIERS[i + 1].threshold : null}
+								{@const nextThreshold =
+									i < BATTLE_TIERS.length - 1 ? BATTLE_TIERS[i + 1].threshold : null}
 								<button
 									class="flex flex-col items-center border-none bg-transparent p-0 transition-all"
-									style="opacity: {noData ? 0.7 : isCurrent ? 1 : isPast ? 0.7 : 0.35}; {isCurrent ? `filter: drop-shadow(0 0 6px ${tier.color});` : ''}"
-									onclick={() => selectedTier = selectedTier === i ? null : i}
+									style="opacity: {noData ? 0.7 : isCurrent ? 1 : isPast ? 0.7 : 0.35}; {isCurrent
+										? `filter: drop-shadow(0 0 6px ${tier.color});`
+										: ''}"
+									onclick={() => (selectedTier = selectedTier === i ? null : i)}
 								>
-									<div class="transition-transform" style="{isCurrent ? 'transform: scale(1.3);' : ''}">
-										<RankBadge mode="battle" value={tier.threshold} size={isCurrent ? 'lg' : 'md'} />
+									<div
+										class="transition-transform"
+										style={isCurrent ? 'transform: scale(1.3);' : ''}
+									>
+										<RankBadge
+											mode="battle"
+											value={tier.threshold}
+											size={isCurrent ? 'lg' : 'md'}
+										/>
 									</div>
 									<span
-										class="mt-1 text-[9px] font-bold leading-none"
+										class="mt-1 text-[9px] leading-none font-bold"
 										style="color: {isCurrent ? tier.color : 'var(--text-tertiary)'};"
-									>{tier.name}</span>
+										>{tier.name}</span
+									>
 									{#if selectedTier === i}
-										<span class="mt-0.5 text-[8px] tabular-nums leading-none" style="color: var(--text-tertiary);">
-											ELO {tier.threshold.toLocaleString()}{nextThreshold !== null ? `–${(nextThreshold - 1).toLocaleString()}` : '+'}
+										<span
+											class="mt-0.5 text-[8px] leading-none tabular-nums"
+											style="color: var(--text-tertiary);"
+										>
+											ELO {tier.threshold.toLocaleString()}{nextThreshold !== null
+												? `–${(nextThreshold - 1).toLocaleString()}`
+												: '+'}
 										</span>
 									{/if}
 								</button>
 							{/each}
 						</div>
 						<!-- Progress track -->
-						<div class="relative mx-auto mt-3 h-1 overflow-hidden rounded-full" style="background: var(--border); width: calc(100% - 16px);">
-							<div class="absolute inset-y-0 left-0 rounded-full transition-all" style="width: {battleFillPct}%; background: {battleFillColor};"></div>
+						<div
+							class="relative mx-auto mt-3 h-1 overflow-hidden rounded-full"
+							style="background: var(--border); width: calc(100% - 16px);"
+						>
+							<div
+								class="absolute inset-y-0 left-0 rounded-full transition-all"
+								style="width: {battleFillPct}%; background: {battleFillColor};"
+							></div>
 						</div>
 					</div>
 				{/if}
