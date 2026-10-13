@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { playSample, playUndo, playReset, playCountdown, playSuccess } from '$lib/audio';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import { afterNavigate, beforeNavigate, goto } from '$app/navigation';
@@ -63,6 +64,9 @@
 	let elapsedMs = $state(0);
 	let timerRunning = $state(false);
 	let timerHandle = 0;
+	let lastCountdownSecond = 0;
+	let showHelp = $state(false);
+	let lastAction = $state('');
 
 	let isSubmitting = $state(false);
 	let showDialog = $state(false);
@@ -155,6 +159,9 @@
 		submittedTierColor = null;
 		submittedRankUp = false;
 		startTime = 0;
+		lastCountdownSecond = 0;
+		lastAction = '';
+		showHelp = false;
 		scoreResult = { ...emptyScore };
 		recalcScore();
 		if (showDialog) {
@@ -263,6 +270,11 @@
 			openSubmit();
 			return;
 		}
+		const secondsLeft = Math.ceil((TIME_LIMIT_MS - elapsedMs) / 1000);
+		if (secondsLeft <= 5 && secondsLeft !== lastCountdownSecond) {
+			lastCountdownSecond = secondsLeft;
+			playCountdown(secondsLeft);
+		}
 		if (samples.length > 0) recalcScore(false);
 		timerHandle = requestAnimationFrame(tickTimer);
 	}
@@ -302,9 +314,18 @@
 	function addSample(x: number) {
 		if (!level || expired || showDialog || isSubmitting) return;
 		if (!timerRunning) startTimer();
+		const previousMatch = scoreResult.matchPct;
 		samples = [...samples, x];
 		totalClicks++;
 		recalcScore();
+		const delta = scoreResult.matchPct - previousMatch;
+		lastAction =
+			delta > 0
+				? `Match +${delta} points`
+				: delta < 0
+					? `Match ${delta} points · Undo to try again`
+					: 'Sample added';
+		playSample((x - level.xRange[0]) / (level.xRange[1] - level.xRange[0]));
 		persistAttempt();
 	}
 
@@ -317,11 +338,16 @@
 		if (!timerRunning) startTimer();
 		samples = samples.slice(0, -1);
 		recalcScore();
+		lastAction = 'Last sample removed';
+		playUndo();
 		persistAttempt();
 	}
 
 	function resetSamples() {
-		if (isSubmitting || !canReset) return;
+		if (isSubmitting || showDialog || expired || samples.length === 0 || !canReset) return;
+		playReset();
+		lastAction = '';
+		lastCountdownSecond = 0;
 		stopTimer();
 		clearPendingGame(activeLevel, submissionId);
 		submissionId = newSubmissionId();
@@ -355,9 +381,10 @@
 	}
 
 	function openSubmit() {
-		if (samples.length < 1) return;
+		if (samples.length < 1 || showDialog) return;
 		stopTimer();
 		showDialog = true;
+		playSuccess();
 		markCompleted(activeLevel);
 		startReplay();
 		persistAttempt();
@@ -446,6 +473,7 @@
 			submittedTierName = result.tierName ?? null;
 			submittedTierColor = result.tierColor ?? null;
 			submittedRankUp = !!result.rankUp;
+			if (submittedRankUp) playSuccess();
 		} catch (error) {
 			if (activeLevel !== requestLevel || submissionId !== requestId) return;
 			submissionError =
@@ -474,6 +502,7 @@
 
 	function attachReplayCanvas(canvas: HTMLCanvasElement) {
 		replayCanvas = canvas;
+		drawReplay();
 		return () => {
 			if (replayCanvas === canvas) replayCanvas = undefined;
 		};
@@ -491,6 +520,12 @@
 		replayPauseTimer = 0;
 		replayFadeTimer = 0;
 		replayFadeFactor = 1;
+		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+			replayIdx = samples.length;
+			replayKde = computeKDE(samples, replayXs);
+			drawReplay();
+			return;
+		}
 
 		function frame() {
 			if (!showDialog) return;
@@ -547,161 +582,146 @@
 		if (!replayCanvas || !level) return;
 		const ctx = replayCanvas.getContext('2d');
 		if (!ctx) return;
-
 		const w = replayCanvas.clientWidth;
 		const h = replayCanvas.clientHeight;
 		const dpr = window.devicePixelRatio || 1;
-		replayCanvas.width = w * dpr;
-		replayCanvas.height = h * dpr;
-		ctx.scale(dpr, dpr);
-
-		const s = getComputedStyle(document.documentElement);
-		const canvasBg = s.getPropertyValue('--canvas-bg').trim();
-		const axis = s.getPropertyValue('--canvas-axis').trim();
-		const accentCyan = s.getPropertyValue('--accent-cyan').trim();
-		const curveGlow = s.getPropertyValue('--curve-glow').trim();
-		const curveFillStart = s.getPropertyValue('--curve-fill-start').trim();
-		const curveFillEnd = s.getPropertyValue('--curve-fill-end').trim();
-		const kdeStroke = s.getPropertyValue('--kde-stroke').trim();
-		const kdeFillStart = s.getPropertyValue('--kde-fill-start').trim();
-		const kdeFillEnd = s.getPropertyValue('--kde-fill-end').trim();
-		const sampleGlow = s.getPropertyValue('--sample-glow').trim();
-		const sampleDot = s.getPropertyValue('--sample-dot').trim();
-
-		ctx.fillStyle = canvasBg;
+		if (replayCanvas.width !== Math.round(w * dpr) || replayCanvas.height !== Math.round(h * dpr)) {
+			replayCanvas.width = Math.round(w * dpr);
+			replayCanvas.height = Math.round(h * dpr);
+		}
+		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+		const style = getComputedStyle(document.documentElement);
+		const cyan = style.getPropertyValue('--accent-cyan').trim();
+		const orange = style.getPropertyValue('--accent-orange').trim();
+		ctx.fillStyle = style.getPropertyValue('--canvas-bg').trim();
 		ctx.fillRect(0, 0, w, h);
-
 		const pad = 12;
-		const pw = w - pad * 2,
-			ph = h - pad * 2;
+		const pw = w - pad * 2;
+		const ph = h - pad * 2;
 		const [xMin, xMax] = level.xRange;
-		const pdfVals = replayXs.map((x) => level.pdf(x));
-		const pdfMax = pdfVals.length > 0 ? Math.max(...pdfVals) : 0;
-		const kdeMax = replayKde.length > 0 ? Math.max(...replayKde) : 0;
-		const yMax = Math.max(pdfMax, kdeMax) * 1.15 || 1;
-
+		const target = replayXs.map((x) => level.pdf(x));
+		const targetMax = Math.max(...target) || 1;
+		const estimateMax = Math.max(...replayKde) || 1;
 		const toX = (x: number) => pad + ((x - xMin) / (xMax - xMin)) * pw;
-		const toY = (y: number) => pad + ph - (y / yMax) * ph;
+		const toY = (value: number) => pad + ph - value * ph * 0.88;
 		const baseY = toY(0);
-
-		// Axis
-		ctx.strokeStyle = axis;
+		ctx.strokeStyle = style.getPropertyValue('--canvas-axis').trim();
 		ctx.lineWidth = 1;
 		ctx.beginPath();
 		ctx.moveTo(pad, baseY);
 		ctx.lineTo(pad + pw, baseY);
 		ctx.stroke();
 
-		// KDE curve (lerped)
+		// Both peaks use the same display height, matching the shape-based score.
+		ctx.beginPath();
+		for (let i = 0; i < replayXs.length; i++) {
+			if (i === 0) ctx.moveTo(toX(replayXs[i]), toY(target[i] / targetMax));
+			else ctx.lineTo(toX(replayXs[i]), toY(target[i] / targetMax));
+		}
+		ctx.strokeStyle = cyan;
+		ctx.lineWidth = 2.3;
+		ctx.lineJoin = 'round';
+		ctx.stroke();
+		ctx.lineTo(toX(xMax), baseY);
+		ctx.lineTo(toX(xMin), baseY);
+		ctx.closePath();
+		ctx.globalAlpha = 0.06;
+		ctx.fillStyle = cyan;
+		ctx.fill();
+		ctx.globalAlpha = 1;
+
 		if (replayIdx > 0 && replayFadeFactor > 0.01) {
 			ctx.globalAlpha = replayFadeFactor;
-			const clampedKde = replayKde.map((v) => Math.min(v, yMax * 0.99));
-
 			ctx.beginPath();
 			for (let i = 0; i < replayXs.length; i++) {
-				const sy = toY(clampedKde[i]);
-				if (i === 0) ctx.moveTo(toX(replayXs[i]), sy);
-				else ctx.lineTo(toX(replayXs[i]), sy);
+				if (i === 0) ctx.moveTo(toX(replayXs[i]), toY(replayKde[i] / estimateMax));
+				else ctx.lineTo(toX(replayXs[i]), toY(replayKde[i] / estimateMax));
 			}
-			ctx.lineTo(toX(replayXs[replayXs.length - 1]), baseY);
-			ctx.lineTo(toX(replayXs[0]), baseY);
-			ctx.closePath();
-			const kdeGradient = ctx.createLinearGradient(0, pad, 0, baseY);
-			kdeGradient.addColorStop(0, kdeFillStart);
-			kdeGradient.addColorStop(1, kdeFillEnd);
-			ctx.fillStyle = kdeGradient;
-			ctx.fill();
-
-			ctx.beginPath();
-			ctx.strokeStyle = kdeStroke;
-			ctx.lineWidth = 1.5;
-			ctx.setLineDash([4, 3]);
-			ctx.lineCap = 'round';
-			ctx.lineJoin = 'round';
-			for (let i = 0; i < replayXs.length; i++) {
-				const sy = toY(clampedKde[i]);
-				if (i === 0) ctx.moveTo(toX(replayXs[i]), sy);
-				else ctx.lineTo(toX(replayXs[i]), sy);
-			}
+			ctx.strokeStyle = orange;
+			ctx.lineWidth = 2;
+			ctx.setLineDash([5, 4]);
 			ctx.stroke();
 			ctx.setLineDash([]);
-			ctx.lineCap = 'butt';
-			ctx.lineJoin = 'miter';
-			ctx.globalAlpha = 1;
-		}
-
-		if (replayIdx > 0 && replayFadeFactor > 0.01) {
-			ctx.globalAlpha = replayFadeFactor;
-		}
-		const replaySamples = replayPhase === 'fadingOut' ? samples : samples.slice(0, replayIdx);
-		for (const sp of replaySamples) {
-			ctx.fillStyle = sampleGlow;
-			ctx.beginPath();
-			ctx.arc(toX(sp), baseY, 6, 0, Math.PI * 2);
-			ctx.fill();
-			ctx.fillStyle = sampleDot;
-			ctx.beginPath();
-			ctx.arc(toX(sp), baseY, 3.5, 0, Math.PI * 2);
-			ctx.fill();
-		}
-		if (replayFadeFactor < 1) ctx.globalAlpha = 1;
-
-		// PDF curve — family of curves
-		const pdfFamilyScales = linspace(0.08, 1, 28);
-		const dimFactor = 0.55;
-
-		for (let si = 0; si < pdfFamilyScales.length; si++) {
-			const scale = pdfFamilyScales[si];
-			const isMain = si === pdfFamilyScales.length - 1;
-			const alpha = (isMain ? 1.0 : 0.03 + (si / (pdfFamilyScales.length - 1)) * 0.35) * dimFactor;
-			const lineW = isMain ? 2 : 0.45 + (si / (pdfFamilyScales.length - 1)) * 0.3;
-
-			if (isMain) {
+			const replaySamples = replayPhase === 'fadingOut' ? samples : samples.slice(0, replayIdx);
+			for (const sample of replaySamples) {
+				ctx.fillStyle = orange;
 				ctx.beginPath();
-				for (let i = 0; i < replayXs.length; i++) {
-					const sy = toY(pdfVals[i]);
-					if (i === 0) ctx.moveTo(toX(replayXs[i]), sy);
-					else ctx.lineTo(toX(replayXs[i]), sy);
-				}
-				ctx.lineTo(toX(replayXs[replayXs.length - 1]), baseY);
-				ctx.lineTo(toX(replayXs[0]), baseY);
-				ctx.closePath();
-				const pdfGradient = ctx.createLinearGradient(0, pad, 0, baseY);
-				pdfGradient.addColorStop(0, curveFillStart);
-				pdfGradient.addColorStop(1, curveFillEnd);
-				ctx.fillStyle = pdfGradient;
+				ctx.arc(toX(sample), baseY, 2.5, 0, Math.PI * 2);
 				ctx.fill();
-
-				ctx.beginPath();
-				for (let i = 0; i < replayXs.length; i++) {
-					const sy = toY(pdfVals[i]);
-					if (i === 0) ctx.moveTo(toX(replayXs[i]), sy);
-					else ctx.lineTo(toX(replayXs[i]), sy);
-				}
-				ctx.strokeStyle = curveGlow;
-				ctx.lineWidth = 8;
-				ctx.stroke();
 			}
-
-			ctx.beginPath();
-			for (let i = 0; i < replayXs.length; i++) {
-				const sy = toY(pdfVals[i] * scale);
-				if (i === 0) ctx.moveTo(toX(replayXs[i]), sy);
-				else ctx.lineTo(toX(replayXs[i]), sy);
-			}
-			ctx.globalAlpha = alpha;
-			ctx.strokeStyle = accentCyan;
-			ctx.lineWidth = lineW;
-			ctx.stroke();
 			ctx.globalAlpha = 1;
 		}
 	}
+
+	function handleKeyboard(event: KeyboardEvent) {
+		if (
+			event.defaultPrevented ||
+			event.repeat ||
+			event.altKey ||
+			showDialog ||
+			expired ||
+			isSubmitting
+		)
+			return;
+		const target = event.target;
+		const fromChart = target instanceof Element && target.closest('[data-game-chart]');
+		if (
+			target instanceof Element &&
+			!fromChart &&
+			target.closest('input, textarea, select, button, a, [contenteditable="true"]')
+		)
+			return;
+		if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && !event.shiftKey) {
+			event.preventDefault();
+			undoLast();
+		} else if (!event.ctrlKey && !event.metaKey && event.key.toLowerCase() === 'u') {
+			event.preventDefault();
+			undoLast();
+		} else if (
+			!event.ctrlKey &&
+			!event.metaKey &&
+			event.key === 'Enter' &&
+			!fromChart &&
+			samples.length > 0
+		) {
+			event.preventDefault();
+			openSubmit();
+		} else if (!event.ctrlKey && !event.metaKey && event.key === '?') {
+			showHelp = !showHelp;
+		}
+	}
+
+	const coachingTip = $derived.by(() => {
+		if (!showDialog || !level || samples.length === 0) return '';
+		const xs = linspace(level.xRange[0], level.xRange[1], 100);
+		const target = xs.map((x) => level.pdf(x));
+		const estimate = computeKDE(samples, xs);
+		const targetMax = Math.max(...target);
+		const estimateMax = Math.max(...estimate);
+		let biggestGap = 0;
+		let gapIndex = 0;
+		for (let i = 0; i < xs.length; i++) {
+			const gap = target[i] / (targetMax || 1) - estimate[i] / (estimateMax || 1);
+			if (Math.abs(gap) > Math.abs(biggestGap)) {
+				biggestGap = gap;
+				gapIndex = i;
+			}
+		}
+		if (Math.abs(biggestGap) < 0.12)
+			return 'A close fit. Next time, finish sooner to earn a bigger time bonus.';
+		const region =
+			gapIndex < xs.length / 3 ? 'left' : gapIndex > (xs.length * 2) / 3 ? 'right' : 'middle';
+		return biggestGap > 0
+			? `Next time, try more samples around the ${region} of the curve — your shape is too low there.`
+			: `Next time, spread some samples away from the ${region} of the curve — your shape is too high there.`;
+	});
 
 	// Display info
 	const levelName = $derived(level ? (generatedLevel?.name ?? 'Generated') : 'Not Found');
 </script>
 
 <svelte:window
+	onkeydown={handleKeyboard}
 	onmacmacbeforesignin={handleBeforeSignIn}
 	onmacmacsigninfailed={handleSignInFailed}
 	onpagehide={pauseAndPersist}
@@ -725,6 +745,46 @@
 		style="background: radial-gradient(ellipse at 50% 30%, var(--page-bg-center) 0%, var(--page-bg-edge) 70%);"
 	>
 		<AppHeader />
+
+		<div class="solo-guide shrink-0 px-4 pb-2 sm:px-6">
+			<div class="flex items-center justify-between gap-3">
+				<div class="min-w-0">
+					<p class="text-xs font-semibold" style="color: var(--text-primary);">
+						Shape the curve <span class="ml-1 font-normal" style="color: var(--text-tertiary);"
+							>· Solo · 30s</span
+						>
+					</p>
+					<p class="mt-0.5 text-[11px] sm:text-xs" style="color: var(--text-secondary);">
+						{samples.length === 0
+							? 'Click anywhere on the chart to start. Aim for the peaks.'
+							: 'Build your shape to match the target. Submit when it fits.'}
+					</p>
+				</div>
+				<button
+					type="button"
+					onclick={() => (showHelp = !showHelp)}
+					class="solo-help"
+					aria-expanded={showHelp}
+					aria-controls="solo-help-details">{showHelp ? 'Close' : 'How to play'}</button
+				>
+			</div>
+			{#if showHelp}
+				<div id="solo-help-details" class="solo-help-details">
+					<p>
+						Each click adds one sample at that horizontal position. Taller peaks need more samples;
+						lower areas need fewer. The click height doesn't matter.
+					</p>
+					<p>
+						The timer starts on your first sample. Improve the match, then submit early for a time
+						bonus. Undo costs no extra clicks.
+					</p>
+					<p class="solo-keyboard">
+						Chart: <kbd>←</kbd> <kbd>→</kbd> aim · <kbd>Space</kbd> / <kbd>Enter</kbd> place ·
+						<kbd>U</kbd> undo. Use Submit to finish.
+					</p>
+				</div>
+			{/if}
+		</div>
 
 		<!-- Countdown timer -->
 		{#if timerRunning || showDialog || expired}
@@ -775,23 +835,37 @@
 				class="shrink-0 px-4 pb-1 text-xs sm:px-6"
 				style="color: var(--text-secondary);"
 			>
-				Your game is preserved. Click the curve to continue, or submit your score.
+				Your game is preserved. Click anywhere on the chart to continue, or submit your score.
 			</p>
 		{/if}
 
 		<!-- Canvas -->
 		<div class="relative min-h-0 flex-1 px-2 sm:px-4">
-			<GameCanvas {level} {samples} onSampleAdd={handleCanvasSample} />
+			<GameCanvas
+				{level}
+				{samples}
+				disabled={expired || showDialog || isSubmitting}
+				onSampleAdd={handleCanvasSample}
+			/>
 		</div>
 
 		<!-- Bottom controls -->
 		<div class="shrink-0 px-4 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 sm:pb-5">
+			<div class="solo-feedback" role="status" aria-live="polite">
+				<span
+					>{lastAction ||
+						(samples.length === 0
+							? 'Your first click starts the clock'
+							: 'Keep shaping — the match updates with every sample')}</span
+				>
+				<span class="solo-key-hint"><kbd>U</kbd> undo · <kbd>Enter</kbd> finish</span>
+			</div>
 			<div class="flex items-center justify-between">
 				<div class="flex gap-2">
 					<!-- Undo -->
 					<button
 						onclick={undoLast}
-						disabled={samples.length === 0}
+						disabled={samples.length === 0 || expired || showDialog || isSubmitting}
 						class="btn-action"
 						style="--btn-color: var(--accent-purple);"
 					>
@@ -811,7 +885,7 @@
 					{#if canReset}
 						<button
 							onclick={resetSamples}
-							disabled={samples.length === 0}
+							disabled={samples.length === 0 || expired || showDialog || isSubmitting}
 							class="btn-action"
 							style="--btn-color: var(--accent-orange);"
 						>
@@ -849,7 +923,7 @@
 				<!-- Submit -->
 				<button
 					onclick={openSubmit}
-					disabled={samples.length < 1}
+					disabled={samples.length < 1 || showDialog || isSubmitting}
 					class="btn-action"
 					style="--btn-color: var(--accent-cyan);"
 				>
@@ -878,12 +952,25 @@
 				class="relative mx-4 w-full max-w-sm rounded-2xl p-5 shadow-2xl"
 				style="background: var(--bg); border: 1px solid var(--border);"
 			>
+				<h2 class="mb-1 text-xl font-bold" style="color: var(--text-primary);">
+					{expired ? 'Time’s up!' : 'Curve complete'}
+				</h2>
+				<p class="mb-4 text-xs" style="color: var(--text-secondary);">{coachingTip}</p>
+
 				<!-- Replay -->
 				<canvas
 					{@attach attachReplayCanvas}
 					class="mb-4 h-28 w-full rounded-lg sm:h-36"
 					style="background: var(--canvas-bg);"
 				></canvas>
+
+				<div
+					class="mb-4 flex justify-center gap-5 text-[10px]"
+					style="color: var(--text-secondary);"
+				>
+					<span><span style="color: var(--accent-cyan);">━</span> Target</span>
+					<span><span style="color: var(--accent-orange);">┄</span> Your shape</span>
+				</div>
 
 				<!-- Stats -->
 				<div class="mb-4 flex justify-between text-center">
@@ -1164,3 +1251,70 @@
 		</div>
 	{/if}
 {/if}
+
+<style>
+	.solo-help {
+		flex-shrink: 0;
+		padding: 7px 9px;
+		border: 1px solid var(--border);
+		border-radius: 9px;
+		color: var(--text-secondary);
+		font-size: 10px;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.solo-help:hover {
+		background: var(--surface);
+		color: var(--text-primary);
+	}
+	.solo-help:focus-visible {
+		outline: 2px solid var(--accent-cyan);
+		outline-offset: 3px;
+	}
+	.solo-help-details {
+		margin-top: 10px;
+		display: grid;
+		gap: 8px;
+		max-width: 650px;
+		padding: 12px 14px;
+		border: 1px solid var(--border);
+		border-radius: 12px;
+		background: var(--surface);
+		color: var(--text-secondary);
+		font-size: 11px;
+		line-height: 1.5;
+	}
+	.solo-keyboard {
+		color: var(--text-tertiary);
+	}
+	.solo-feedback {
+		min-height: 23px;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px;
+		padding-bottom: 7px;
+		color: var(--text-secondary);
+		font-size: 10px;
+	}
+	.solo-key-hint {
+		flex-shrink: 0;
+		color: var(--text-tertiary);
+	}
+	kbd {
+		display: inline-block;
+		min-width: 14px;
+		padding: 0 3px;
+		border: 1px solid var(--border);
+		border-radius: 3px;
+		background: var(--surface);
+		text-align: center;
+		font-family: inherit;
+		font-size: 9px;
+	}
+	@media (max-width: 500px) {
+		.solo-key-hint {
+			display: none;
+		}
+	}
+</style>

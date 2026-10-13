@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto, replaceState } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { gaussian, linspace } from '$lib/game/math';
 	import { generateGrid, generateReplacement, gridConfigForRating } from '$lib/game/grid';
@@ -33,7 +34,9 @@
 			if (active) setTimeout(poll, 10_000);
 		}
 		poll();
-		return () => { active = false; };
+		return () => {
+			active = false;
+		};
 	});
 
 	// --- Battle queue (global store) ---
@@ -52,19 +55,32 @@
 	// When the user leaves the queue (cancel, match, etc.), the polled
 	// battleSearching still includes them until the next HTTP cycle.
 	// Immediately decrement to avoid the "ghost self" badge.
-	let wasInQueue = false;
-	$effect(() => {
-		const inQueue = $battleQueue.status !== 'idle' && $battleQueue.status !== 'match_found';
-		if (wasInQueue && !inQueue) {
-			battleSearching = Math.max(0, battleSearching - 1);
-			setTimeout(() => fetchBattleQueueCount().then(c => { battleSearching = c; }), 1500);
-		}
-		wasInQueue = inQueue;
+	onMount(() => {
+		let active = true;
+		let wasInQueue = false;
+		let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+		const unsubscribe = battleQueue.subscribe((queue) => {
+			const inQueue = queue.status !== 'idle' && queue.status !== 'match_found';
+			if (wasInQueue && !inQueue) {
+				battleSearching = Math.max(0, battleSearching - 1);
+				clearTimeout(refreshTimer);
+				refreshTimer = setTimeout(async () => {
+					const count = await fetchBattleQueueCount();
+					if (active) battleSearching = count;
+				}, 1500);
+			}
+			wasInQueue = inQueue;
+		});
+		return () => {
+			active = false;
+			clearTimeout(refreshTimer);
+			unsubscribe();
+		};
 	});
 
 	// --- Grid state ---
-	const GRID_KEY = 'macmac_grid_seed';
 	const COMPLETED_KEY = 'macmac_completed';
+	const skeletonIds = Array.from({ length: 12 }, (_, slot) => `skeleton-${slot}`);
 
 	let gridLevels = $state<GeneratedLevel[]>([]);
 	let mounted = $state(false);
@@ -82,11 +98,6 @@
 		} catch {
 			return new Set();
 		}
-	}
-
-	function saveCompletedSeeds(seeds: Set<number>) {
-		if (typeof sessionStorage === 'undefined') return;
-		sessionStorage.setItem(COMPLETED_KEY, JSON.stringify([...seeds]));
 	}
 
 	function buildGrid() {
@@ -111,7 +122,7 @@
 	function playSolo() {
 		if (gridLevels.length === 0) return;
 		const pick = gridLevels[Math.floor(Math.random() * gridLevels.length)];
-		goto(`/play/${pick.id}`);
+		goto(resolve('/play/[level]', { level: String(pick.id) }));
 	}
 
 	onMount(() => {
@@ -120,13 +131,13 @@
 
 		// Auto-start battle queue if navigated with ?battle
 		if (page.url.searchParams.has('battle')) {
-			replaceState('/', {});
+			replaceState(resolve('/'), {});
 			handleBattleClick();
 		}
 	});
 
 	// --- Hero animation ---
-	let heroCanvas: HTMLCanvasElement | undefined = $state();
+	let heroCanvas: HTMLCanvasElement | undefined;
 	let animFrame = 0;
 	let heroColors = {
 		accentCyan: '#00d4ff',
@@ -148,8 +159,8 @@
 		};
 	}
 
-	onMount(() => {
-		if (!heroCanvas) return;
+	function attachHeroCanvas(node: HTMLCanvasElement) {
+		heroCanvas = node;
 		refreshHeroColors();
 
 		const observer = new MutationObserver(() => refreshHeroColors());
@@ -170,9 +181,10 @@
 		return () => {
 			running = false;
 			cancelAnimationFrame(animFrame);
+			heroCanvas = undefined;
 			observer.disconnect();
 		};
-	});
+	}
 
 	function drawHero(t: number, isMobile = false) {
 		if (!heroCanvas) return;
@@ -182,7 +194,7 @@
 		const w = heroCanvas.clientWidth;
 		const h = heroCanvas.clientHeight;
 		if (w <= 0 || h <= 0) return;
-		const dpr = isMobile ? Math.min(window.devicePixelRatio || 1, 2) : (window.devicePixelRatio || 1);
+		const dpr = isMobile ? Math.min(window.devicePixelRatio || 1, 2) : window.devicePixelRatio || 1;
 		heroCanvas.width = w * dpr;
 		heroCanvas.height = h * dpr;
 		ctx.scale(dpr, dpr);
@@ -209,7 +221,11 @@
 		const amplitude = 0.25 + 0.75 * (0.5 + 0.5 * Math.sin(t * 0.18));
 		const pdf = (x: number) =>
 			amplitude *
-			(0.18 * gaussian(x, m1, s1) + 0.22 * gaussian(x, m2, s2) + 0.25 * gaussian(x, m3, s3) + 0.20 * gaussian(x, m4, s4) + 0.15 * gaussian(x, m5, s5));
+			(0.18 * gaussian(x, m1, s1) +
+				0.22 * gaussian(x, m2, s2) +
+				0.25 * gaussian(x, m3, s3) +
+				0.2 * gaussian(x, m4, s4) +
+				0.15 * gaussian(x, m5, s5));
 
 		const xMin = -4,
 			xMax = 4;
@@ -233,10 +249,8 @@
 
 		for (let si = 0; si < scales.length; si++) {
 			const s = scales[si];
-			const alpha =
-				si === scales.length - 1 ? 1.0 : 0.12 + (si / (scales.length - 1)) * 0.5;
-			const lineW =
-				si === scales.length - 1 ? 2.5 : 0.8 + (si / (scales.length - 1)) * 0.6;
+			const alpha = si === scales.length - 1 ? 1.0 : 0.12 + (si / (scales.length - 1)) * 0.5;
+			const lineW = si === scales.length - 1 ? 2.5 : 0.8 + (si / (scales.length - 1)) * 0.6;
 			const scaledPts: [number, number][] = pts.map((x, i) => [toX(x), toY(vals[i] * s)]);
 
 			if (si === scales.length - 1) {
@@ -308,19 +322,14 @@
 	<!-- Main content -->
 	<div class="flex w-full flex-1 flex-col items-center justify-center">
 		<!-- Hero: animation + logo + subtext -->
-		<div
-			class="relative flex h-[180px] w-full flex-col items-center justify-end pb-2 sm:h-[220px]"
-		>
+		<div class="relative flex h-[180px] w-full flex-col items-center justify-end pb-2 sm:h-[220px]">
 			<canvas
-				bind:this={heroCanvas}
+				{@attach attachHeroCanvas}
 				class="absolute inset-0 h-full w-full opacity-50"
 				style="pointer-events: none;"
 			></canvas>
 			<div class="relative z-10 flex flex-col items-center justify-center px-4">
-				<h1
-					class="mb-1 text-center sm:mb-2"
-					style="font-family: 'Believe Stronger', sans-serif;"
-				>
+				<h1 class="mb-1 text-center sm:mb-2" style="font-family: 'Believe Stronger', sans-serif;">
 					<span
 						class="text-8xl tracking-tight sm:text-9xl"
 						style="color: var(--text-primary); opacity: 0.85;">Mac</span
@@ -330,7 +339,7 @@
 					>
 				</h1>
 				<p
-					class="mb-0 text-center text-[10px] font-semibold uppercase tracking-[0.3em] sm:text-xs"
+					class="mb-0 text-center text-[10px] font-semibold tracking-[0.3em] uppercase sm:text-xs"
 					style="color: var(--text-tertiary);"
 				>
 					the sampling game
@@ -340,25 +349,39 @@
 
 		<!-- Rank badges for signed-in players (clickable → opens rankings modal) -->
 		{#if (data.gamesPlayed > 0 && data.playerRating !== null) || (data.battlesPlayed > 0 && data.battleElo !== null)}
-			<button onclick={() => showRankings = true} class="flex cursor-pointer items-center justify-center gap-4 rounded-xl px-4 py-1 transition hover:opacity-80" style="background: transparent;" title="View Rankings">
+			<button
+				onclick={() => (showRankings = true)}
+				class="flex cursor-pointer items-center justify-center gap-4 rounded-xl px-4 py-1 transition hover:opacity-80"
+				style="background: transparent;"
+				title="View Rankings"
+			>
 				{#if data.gamesPlayed > 0 && data.playerRating !== null}
 					{@const skillLevel = computeSkillLevel(data.playerRating)}
 					{@const tier = getSkillTier(skillLevel)}
 					<div class="flex items-center gap-1.5">
 						<RankBadge mode="solo" value={skillLevel} size="md" />
-						<span class="text-sm font-bold tabular-nums" style="color: {tier.color};">{skillLevel.toLocaleString()}</span>
+						<span class="text-sm font-bold tabular-nums" style="color: {tier.color};"
+							>{skillLevel.toLocaleString()}</span
+						>
 					</div>
 				{/if}
 				{#if data.battlesPlayed > 0 && data.battleElo !== null}
 					{@const bTier = getBattleTier(data.battleElo)}
 					<div class="flex items-center gap-1.5">
 						<RankBadge mode="battle" value={data.battleElo} size="md" />
-						<span class="text-sm font-bold tabular-nums" style="color: {bTier.color};">{data.battleElo}</span>
+						<span class="text-sm font-bold tabular-nums" style="color: {bTier.color};"
+							>{data.battleElo}</span
+						>
 					</div>
 				{/if}
 			</button>
 		{:else if !$session.data?.user}
-			<button onclick={() => showRankings = true} class="cursor-pointer rounded-lg px-3 py-1 text-[11px] font-medium transition hover:opacity-70" style="color: var(--text-tertiary); background: transparent;" title="View Rankings">
+			<button
+				onclick={() => (showRankings = true)}
+				class="cursor-pointer rounded-lg px-3 py-1 text-[11px] font-medium transition hover:opacity-70"
+				style="color: var(--text-tertiary); background: transparent;"
+				title="View Rankings"
+			>
 				Sign in to get ranked
 			</button>
 		{/if}
@@ -366,7 +389,12 @@
 		<!-- Buttons: Solo + Battle + Leaderboard (uses .btn-action from layout.css) -->
 		<div class="flex w-full justify-center px-4 pt-3 pb-6">
 			<div class="flex flex-nowrap items-center justify-center gap-3 sm:gap-3">
-				<button onclick={playSolo} class="btn-action" style="--btn-color: var(--accent-cyan);" title="Play a random level">
+				<button
+					onclick={playSolo}
+					class="btn-action"
+					style="--btn-color: var(--accent-cyan);"
+					title="Play a random level"
+				>
 					<span class="btn-action-face">
 						<Sword class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" strokeWidth={2} />
 						Solo
@@ -375,26 +403,43 @@
 				{#if $battleQueue.status !== 'idle' && $battleQueue.status !== 'match_found'}
 					<button onclick={handleCancelQueue} class="btn-action btn-battle" title="Cancel search">
 						<span class="btn-action-face btn-battle-pulse">
-							<Swords class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4 animate-spin" style="animation-duration: 2s;" strokeWidth={2} />
+							<Swords
+								class="h-3.5 w-3.5 shrink-0 animate-spin sm:h-4 sm:w-4"
+								style="animation-duration: 2s;"
+								strokeWidth={2}
+							/>
 							Searching...
 						</span>
 					</button>
 				{:else}
-					<button onclick={handleBattleClick} class="btn-action btn-battle" title="Find an opponent">
-						<span class={"btn-action-face" + (battleSearching > 0 ? ' btn-battle-pulse' : '')}>
+					<button
+						onclick={handleBattleClick}
+						class="btn-action btn-battle"
+						title="Find an opponent"
+					>
+						<span class={'btn-action-face' + (battleSearching > 0 ? ' btn-battle-pulse' : '')}>
 							<Swords class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" strokeWidth={2} />
 							Battle
 						</span>
 						{#if battleSearching > 0}
-							<span class="absolute -top-2 -right-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[9px] font-bold" style="background: var(--accent-red); color: var(--bg);">{battleSearching}</span>
+							<span
+								class="absolute -top-2 -right-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[9px] font-bold"
+								style="background: var(--accent-red); color: var(--bg);">{battleSearching}</span
+							>
 						{/if}
 					</button>
 				{/if}
-				<a href="/leaderboard" class="btn-action btn-gold cursor-pointer !rounded-full">
-					<span class="btn-action-face !rounded-full h-10 w-10 sm:h-[46px] sm:w-[46px] !p-0 items-center justify-center">
-						<svg viewBox="0 0 24 24" fill="#eab308" class="h-[18px] w-[18px] sm:h-5 sm:w-5"
-						><path d="M2 4l3 12h14l3-12-5 4-5-6-5 6-5-4zm3 14h14v2H5v-2z" /></svg
+				<a
+					href={resolve('/leaderboard')}
+					aria-label="Leaderboard"
+					class="btn-action btn-gold cursor-pointer !rounded-full"
+				>
+					<span
+						class="btn-action-face h-10 w-10 items-center justify-center !rounded-full !p-0 sm:h-[46px] sm:w-[46px]"
 					>
+						<svg viewBox="0 0 24 24" fill="#eab308" class="h-[18px] w-[18px] sm:h-5 sm:w-5"
+							><path d="M2 4l3 12h14l3-12-5 4-5-6-5 6-5-4zm3 14h14v2H5v-2z" /></svg
+						>
 					</span>
 				</a>
 				<SoundButton size="lg" />
@@ -412,8 +457,11 @@
 			{:else}
 				<!-- Skeleton grid while loading -->
 				<div class="grid grid-cols-3 gap-2 sm:grid-cols-4">
-					{#each Array(12) as _}
-						<div class="h-[76px] animate-pulse rounded-2xl" style="background: var(--surface);"></div>
+					{#each skeletonIds as skeletonId (skeletonId)}
+						<div
+							class="h-[76px] animate-pulse rounded-2xl"
+							style="background: var(--surface);"
+						></div>
 					{/each}
 				</div>
 			{/if}
@@ -452,7 +500,7 @@
 
 <RankingsModal
 	open={showRankings}
-	onclose={() => showRankings = false}
+	onclose={() => (showRankings = false)}
 	isAuthenticated={!!$session.data?.user}
 	playerRating={data.playerRating}
 	battleElo={data.battleElo}
