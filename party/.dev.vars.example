@@ -1,0 +1,2 @@
+# Use the same value as PARTYKIT_SECRET on the SvelteKit app.
+PARTYKIT_SECRET=replace-with-a-random-secret

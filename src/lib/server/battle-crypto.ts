@@ -12,6 +12,11 @@ export interface BattleResultPayload {
 }
 
 const TOKEN_MAX_AGE_MS = 5 * 60 * 1000; // 5 minutes
+const GUEST_TOKEN_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+export function isGuestPlayerId(playerId: string): boolean {
+	return /^anon-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(playerId);
+}
 
 function fromBase64Url(str: string): Uint8Array {
 	const base64 = str.replace(/-/g, '+').replace(/_/g, '/');
@@ -63,11 +68,25 @@ export async function verifyBattleResult(
 		const payloadStr = new TextDecoder().decode(payloadBytes);
 		const payload: BattleResultPayload = JSON.parse(payloadStr);
 
-		// Check expiry
-		if (Date.now() - payload.ts > TOKEN_MAX_AGE_MS) return null;
+		if (
+			typeof payload.playerId !== 'string' ||
+			!payload.playerId ||
+			payload.playerId.length > 200 ||
+			typeof payload.battleId !== 'string' ||
+			!payload.battleId ||
+			payload.battleId.length > 200 ||
+			typeof payload.won !== 'boolean' ||
+			!Number.isSafeInteger(payload.eloDelta) ||
+			Math.abs(payload.eloDelta) > 50 ||
+			!Number.isFinite(payload.ts) ||
+			payload.ts < 0
+		)
+			return null;
 
-		// Sanity: eloDelta must be within reasonable bounds (K=32 max)
-		if (typeof payload.eloDelta !== 'number' || Math.abs(payload.eloDelta) > 50) return null;
+		// A guest may need time to complete OAuth. Database receipts prevent replay.
+		const maxAge = isGuestPlayerId(payload.playerId) ? GUEST_TOKEN_MAX_AGE_MS : TOKEN_MAX_AGE_MS;
+		const age = Date.now() - payload.ts;
+		if (age < -60000 || age > maxAge) return null;
 
 		return payload;
 	} catch {

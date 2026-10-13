@@ -13,7 +13,7 @@ export interface BattleResultPayload {
 
 const TOKEN_MAX_AGE_MS = 5 * 60 * 1000; // 5 minutes
 
-function toBase64Url(buf: ArrayBuffer): string {
+function toBase64Url(buf: ArrayBufferLike): string {
 	const bytes = new Uint8Array(buf);
 	let binary = '';
 	for (let i = 0; i < bytes.length; i++) {
@@ -53,7 +53,7 @@ export async function signBattleResult(
 	secret: string
 ): Promise<string> {
 	const payloadStr = JSON.stringify(payload);
-	const payloadB64 = toBase64Url(new TextEncoder().encode(payloadStr));
+	const payloadB64 = toBase64Url(new TextEncoder().encode(payloadStr).buffer);
 	const key = await getKey(secret);
 	const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payloadB64));
 	const sigB64 = toBase64Url(sig);

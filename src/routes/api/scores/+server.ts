@@ -3,15 +3,19 @@ import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import { players } from '$lib/server/db/schema';
 import { eq, gt, count } from 'drizzle-orm';
-import { reconstructLevel } from '$lib/game/generator';
+import { reconstructLevel, parseGeneratedId } from '$lib/game/generator';
 import { computeShapeMatch, computeScore } from '$lib/game/scoring';
-import { computeWeightedScore, computeNewRating, computeSkillLevel, getSkillTier } from '$lib/game/rating';
+import {
+	computeWeightedScore,
+	computeNewRating,
+	computeSkillLevel,
+	getSkillTier
+} from '$lib/game/rating';
 import { resolvePlayerName } from '$lib/utils/player-name';
+import { saveScoreOnce, type ScoreDatabase } from '$lib/server/score-submission';
 
 function resolveCountry(request: Request): string | null {
-	return request.headers.get('x-vercel-ip-country')
-		|| request.headers.get('cf-ipcountry')
-		|| null;
+	return request.headers.get('x-vercel-ip-country') || request.headers.get('cf-ipcountry') || null;
 }
 
 // Tier ordering for rank-up detection
@@ -23,18 +27,31 @@ const SKILL_TIERS_ORDER = ['Iron', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diam
  * Updates the unified players table.
  */
 async function handleSubmission(
+	db: ScoreDatabase,
 	request: Request,
 	userId: string,
 	userName: string,
 	body: Record<string, unknown>
 ) {
-	const { seed, targetDifficulty, samples, duration, clicks: clientClicks } = body;
+	const { seed, targetDifficulty, samples, duration } = body;
 
-	if (typeof seed !== 'number' || typeof targetDifficulty !== 'number') {
-		return json({ success: false, error: 'Missing seed or difficulty' }, { status: 400 });
+	const parsed = typeof body.levelId === 'string' ? parseGeneratedId(body.levelId) : null;
+	if (
+		!parsed ||
+		typeof seed !== 'number' ||
+		!Number.isSafeInteger(seed) ||
+		seed < 0 ||
+		typeof targetDifficulty !== 'number' ||
+		!Number.isFinite(targetDifficulty) ||
+		targetDifficulty < 1 ||
+		targetDifficulty > 10 ||
+		parsed.seed !== seed ||
+		parsed.targetDifficulty !== targetDifficulty
+	) {
+		return json({ success: false, error: 'Invalid seed or difficulty' }, { status: 400 });
 	}
-	if (!Array.isArray(samples) || samples.length < 1) {
-		return json({ success: false, error: 'Need at least 1 sample' }, { status: 400 });
+	if (!Array.isArray(samples) || samples.length < 1 || samples.length > 10000) {
+		return json({ success: false, error: 'Need between 1 and 10000 samples' }, { status: 400 });
 	}
 	if (samples.some((s: unknown) => typeof s !== 'number' || !isFinite(s as number))) {
 		return json({ success: false, error: 'Invalid samples' }, { status: 400 });
@@ -43,10 +60,10 @@ async function handleSubmission(
 	// Reconstruct level server-side (deterministic verification)
 	const level = reconstructLevel(seed, targetDifficulty);
 
-	const durationMs = typeof duration === 'number' && duration > 0 && duration < 3600000
-		? Math.round(duration) : 300000;
-	const totalClicks = typeof clientClicks === 'number' && clientClicks > 0
-		? clientClicks : samples.length;
+	const durationMs =
+		typeof duration === 'number' && duration >= 0 && duration < 3600000
+			? Math.round(duration)
+			: 300000;
 
 	// Recompute score server-side (anti-cheat)
 	const { mse } = computeShapeMatch(samples as number[], level);
@@ -58,11 +75,7 @@ async function handleSubmission(
 	const country = resolveCountry(request);
 
 	// Upsert player record
-	const existing = await db
-		.select()
-		.from(players)
-		.where(eq(players.userId, userId))
-		.limit(1);
+	const existing = await db.select().from(players).where(eq(players.userId, userId)).limit(1);
 
 	if (existing.length === 0) {
 		// Create new player
@@ -138,7 +151,9 @@ async function handleSubmission(
 		oldSkillLevel,
 		tierName: newTier.name,
 		tierColor: newTier.color,
-		rankUp: newTier.name !== oldTier.name && SKILL_TIERS_ORDER.indexOf(newTier.name) > SKILL_TIERS_ORDER.indexOf(oldTier.name)
+		rankUp:
+			newTier.name !== oldTier.name &&
+			SKILL_TIERS_ORDER.indexOf(newTier.name) > SKILL_TIERS_ORDER.indexOf(oldTier.name)
 	});
 }
 
@@ -148,16 +163,31 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			return json({ success: false, error: 'Sign in to submit scores' }, { status: 401 });
 		}
 
-		const body = await request.json();
+		let body: Record<string, unknown>;
+		try {
+			body = await request.json();
+		} catch {
+			return json({ success: false, error: 'Invalid JSON' }, { status: 400 });
+		}
+		if (!body || typeof body !== 'object' || Array.isArray(body)) {
+			return json({ success: false, error: 'Invalid score' }, { status: 400 });
+		}
+		const submissionId = body.submissionId;
+		if (
+			submissionId !== undefined &&
+			(typeof submissionId !== 'string' ||
+				!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(submissionId))
+		) {
+			return json({ success: false, error: 'Invalid submission ID' }, { status: 400 });
+		}
 		const userId = locals.user.id;
 		const userName = locals.user.name || 'Anonymous';
-
-		const levelId = body.levelId;
-		if (typeof levelId !== 'string' || !levelId.startsWith('g-')) {
+		if (typeof body.levelId !== 'string' || !body.levelId.startsWith('g-')) {
 			return json({ success: false, error: 'Invalid level format' }, { status: 400 });
 		}
-
-		return handleSubmission(request, userId, userName, body);
+		return await saveScoreOnce(db, userId, submissionId, (transaction) =>
+			handleSubmission(transaction, request, userId, userName, body)
+		);
 	} catch (err) {
 		console.error('Score submission error:', err);
 		return json({ success: false, error: 'Server error' }, { status: 500 });

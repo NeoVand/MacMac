@@ -4,7 +4,9 @@
 import PartySocket from 'partysocket';
 import type { ServerMessage } from './protocol';
 
-const PARTYKIT_HOST = import.meta.env.VITE_PARTYKIT_HOST || 'localhost:1999';
+// Keep the previous setting as a fallback during the hosting cutover.
+const BATTLE_HOST =
+	import.meta.env.VITE_BATTLE_HOST || import.meta.env.VITE_PARTYKIT_HOST || 'localhost:1999';
 
 /**
  * Lightweight HTTP poll: how many players are searching for a battle?
@@ -12,8 +14,8 @@ const PARTYKIT_HOST = import.meta.env.VITE_PARTYKIT_HOST || 'localhost:1999';
  */
 export async function fetchBattleQueueCount(): Promise<number> {
 	try {
-		const protocol = PARTYKIT_HOST.startsWith('localhost') ? 'http' : 'https';
-		const res = await fetch(`${protocol}://${PARTYKIT_HOST}/parties/matchmaker/global`);
+		const protocol = BATTLE_HOST.startsWith('localhost') ? 'http' : 'https';
+		const res = await fetch(`${protocol}://${BATTLE_HOST}/parties/matchmaker/global`);
 		if (!res.ok) return 0;
 		const data = await res.json();
 		return typeof data.searching === 'number' ? data.searching : 0;
@@ -24,7 +26,15 @@ export async function fetchBattleQueueCount(): Promise<number> {
 
 export type MatchmakerMessage =
 	| { type: 'queue_status'; position: number; waitingCount: number }
-	| { type: 'match_found'; battleId: string; seed: number; targetDifficulty: number; opponentName: string; opponentElo: number; opponentCountry?: string | null };
+	| {
+			type: 'match_found';
+			battleId: string;
+			seed: number;
+			targetDifficulty: number;
+			opponentName: string;
+			opponentElo: number;
+			opponentCountry?: string | null;
+	  };
 
 /**
  * Connect to the matchmaker queue.
@@ -39,7 +49,7 @@ export function joinMatchmaking(
 	onError?: (err: Event) => void
 ): { socket: PartySocket; leave: () => void } {
 	const socket = new PartySocket({
-		host: PARTYKIT_HOST,
+		host: BATTLE_HOST,
 		party: 'matchmaker',
 		room: 'global',
 		maxRetries: 0 // No auto-reconnect — prevents ghost re-queuing
@@ -49,20 +59,24 @@ export function joinMatchmaking(
 	socket.addEventListener('open', () => {
 		if (joinSent) return; // Guard against duplicate sends
 		joinSent = true;
-		socket.send(JSON.stringify({
-			type: 'join_queue',
-			playerId,
-			playerName,
-			battleElo,
-			country
-		}));
+		socket.send(
+			JSON.stringify({
+				type: 'join_queue',
+				playerId,
+				playerName,
+				battleElo,
+				country
+			})
+		);
 	});
 
 	socket.addEventListener('message', (event) => {
 		try {
 			const msg = JSON.parse(event.data) as MatchmakerMessage;
 			onMessage(msg);
-		} catch { /* ignore */ }
+		} catch {
+			/* ignore */
+		}
 	});
 
 	if (onError) {
@@ -72,7 +86,9 @@ export function joinMatchmaking(
 	const leave = () => {
 		try {
 			socket.send(JSON.stringify({ type: 'leave_queue' }));
-		} catch { /* ignore */ }
+		} catch {
+			/* ignore */
+		}
 		socket.close();
 	};
 
@@ -92,25 +108,29 @@ export function joinBattle(
 	onError?: (err: Event) => void
 ): { socket: PartySocket; addSample: (x: number) => void; close: () => void } {
 	const socket = new PartySocket({
-		host: PARTYKIT_HOST,
+		host: BATTLE_HOST,
 		room: battleId
 	});
 
 	socket.addEventListener('open', () => {
-		socket.send(JSON.stringify({
-			type: 'join',
-			playerId,
-			playerName,
-			battleElo,
-			country
-		}));
+		socket.send(
+			JSON.stringify({
+				type: 'join',
+				playerId,
+				playerName,
+				battleElo,
+				country
+			})
+		);
 	});
 
 	socket.addEventListener('message', (event) => {
 		try {
 			const msg = JSON.parse(event.data) as ServerMessage;
 			onMessage(msg);
-		} catch { /* ignore */ }
+		} catch {
+			/* ignore */
+		}
 	});
 
 	if (onError) {
